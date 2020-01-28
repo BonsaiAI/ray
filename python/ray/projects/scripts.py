@@ -1,7 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import click
 import copy
 import jsonschema
@@ -330,6 +326,10 @@ def attach(screen, tmux):
 @click.option("--name", help="Name of the session to stop", default=None)
 def stop(name):
     project_definition = load_project_or_throw()
+
+    if not name:
+        name = project_definition.config["name"]
+
     teardown_cluster(
         project_definition.cluster_yaml(),
         yes=True,

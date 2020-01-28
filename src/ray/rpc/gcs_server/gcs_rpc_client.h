@@ -26,6 +26,12 @@ class GcsRpcClient {
         new GrpcClient<ObjectInfoGcsService>(address, port, client_call_manager));
     task_info_grpc_client_ = std::unique_ptr<GrpcClient<TaskInfoGcsService>>(
         new GrpcClient<TaskInfoGcsService>(address, port, client_call_manager));
+    stats_grpc_client_ = std::unique_ptr<GrpcClient<StatsGcsService>>(
+        new GrpcClient<StatsGcsService>(address, port, client_call_manager));
+    error_info_grpc_client_ = std::unique_ptr<GrpcClient<ErrorInfoGcsService>>(
+        new GrpcClient<ErrorInfoGcsService>(address, port, client_call_manager));
+    worker_info_grpc_client_ = std::unique_ptr<GrpcClient<WorkerInfoGcsService>>(
+        new GrpcClient<WorkerInfoGcsService>(address, port, client_call_manager));
   };
 
   /// Add job info to gcs server.
@@ -102,6 +108,23 @@ class GcsRpcClient {
   /// Delete tasks from GCS Service.
   VOID_RPC_CLIENT_METHOD(TaskInfoGcsService, DeleteTasks, task_info_grpc_client_, )
 
+  /// Add a task lease to GCS Service.
+  VOID_RPC_CLIENT_METHOD(TaskInfoGcsService, AddTaskLease, task_info_grpc_client_, )
+
+  /// Attempt task reconstruction to GCS Service.
+  VOID_RPC_CLIENT_METHOD(TaskInfoGcsService, AttemptTaskReconstruction,
+                         task_info_grpc_client_, )
+
+  /// Add profile data to GCS Service.
+  VOID_RPC_CLIENT_METHOD(StatsGcsService, AddProfileData, stats_grpc_client_, )
+
+  /// Report a job error to GCS Service.
+  VOID_RPC_CLIENT_METHOD(ErrorInfoGcsService, ReportJobError, error_info_grpc_client_, )
+
+  /// Report a worker failure to GCS Service.
+  VOID_RPC_CLIENT_METHOD(WorkerInfoGcsService, ReportWorkerFailure,
+                         worker_info_grpc_client_, )
+
  private:
   /// The gRPC-generated stub.
   std::unique_ptr<GrpcClient<JobInfoGcsService>> job_info_grpc_client_;
@@ -109,6 +132,9 @@ class GcsRpcClient {
   std::unique_ptr<GrpcClient<NodeInfoGcsService>> node_info_grpc_client_;
   std::unique_ptr<GrpcClient<ObjectInfoGcsService>> object_info_grpc_client_;
   std::unique_ptr<GrpcClient<TaskInfoGcsService>> task_info_grpc_client_;
+  std::unique_ptr<GrpcClient<StatsGcsService>> stats_grpc_client_;
+  std::unique_ptr<GrpcClient<ErrorInfoGcsService>> error_info_grpc_client_;
+  std::unique_ptr<GrpcClient<WorkerInfoGcsService>> worker_info_grpc_client_;
 };
 
 }  // namespace rpc

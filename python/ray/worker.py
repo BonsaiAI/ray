@@ -1,13 +1,10 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 from contextlib import contextmanager
 import colorama
 import atexit
 import faulthandler
 import hashlib
 import inspect
+import io
 import json
 import logging
 import os
@@ -675,6 +672,11 @@ def init(address=None,
     else:
         driver_mode = SCRIPT_MODE
 
+    if "OMP_NUM_THREADS" in os.environ:
+        logger.warning("OMP_NUM_THREADS={} is set, this may impact "
+                       "object transfer performance.".format(
+                           os.environ["OMP_NUM_THREADS"]))
+
     if setproctitle is None:
         logger.warning(
             "WARNING: Not updating worker name since `setproctitle` is not "
@@ -1103,8 +1105,11 @@ def connect(node,
     assert worker.cached_functions_to_run is not None, error_message
 
     # Enable nice stack traces on SIGSEGV etc.
-    if not faulthandler.is_enabled():
-        faulthandler.enable(all_threads=False)
+    try:
+        if not faulthandler.is_enabled():
+            faulthandler.enable(all_threads=False)
+    except io.UnsupportedOperation:
+        pass  # ignore
 
     ray._raylet.set_internal_config(internal_config)
 

@@ -1,7 +1,3 @@
-from __future__ import absolute_import
-from __future__ import division
-from __future__ import print_function
-
 import copy
 import itertools
 import logging
@@ -328,14 +324,12 @@ class PopulationBasedTraining(FIFOScheduler):
         reset_successful = trial_executor.reset_trial(trial, new_config,
                                                       new_tag)
         if reset_successful:
-            trial_executor.restore(
-                trial, Checkpoint.from_object(new_state.last_checkpoint))
+            trial_executor.restore(trial, new_state.last_checkpoint)
         else:
             trial_executor.stop_trial(trial, stop_logger=False)
             trial.config = new_config
             trial.experiment_tag = new_tag
-            trial_executor.start_trial(
-                trial, Checkpoint.from_object(new_state.last_checkpoint))
+            trial_executor.start_trial(trial, new_state.last_checkpoint)
 
         self._num_perturbations += 1
         # Transfer over the last perturbation time as well

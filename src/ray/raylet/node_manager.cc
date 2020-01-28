@@ -73,7 +73,7 @@ namespace raylet {
 NodeManager::NodeManager(boost::asio::io_service &io_service,
                          const ClientID &self_node_id, const NodeManagerConfig &config,
                          ObjectManager &object_manager,
-                         std::shared_ptr<gcs::RedisGcsClient> gcs_client,
+                         std::shared_ptr<gcs::GcsClient> gcs_client,
                          std::shared_ptr<ObjectDirectoryInterface> object_directory)
     : self_node_id_(self_node_id),
       io_service_(io_service),
@@ -98,8 +98,7 @@ NodeManager::NodeManager(boost::asio::io_service &io_service,
             HandleTaskReconstruction(task_id, required_object_id);
           },
           RayConfig::instance().initial_reconstruction_timeout_milliseconds(),
-          self_node_id_, gcs_client_, object_directory_,
-          gcs_client_->task_reconstruction_log()),
+          self_node_id_, gcs_client_, object_directory_),
       task_dependency_manager_(
           object_manager, reconstruction_policy_, io_service, self_node_id_,
           RayConfig::instance().initial_reconstruction_timeout_milliseconds(),
@@ -192,6 +191,17 @@ ray::Status NodeManager::RegisterGcs() {
   RAY_RETURN_NOT_OK(gcs_client_->Nodes().AsyncSubscribeBatchHeartbeat(
       heartbeat_batch_added, /*done*/ nullptr));
 
+  // Subscribe to all unexpected failure notifications from the local and
+  // remote raylets. Note that this does not include workers that failed due to
+  // node failure. These workers can be identified by comparing the raylet_id
+  // in their rpc::Address to the ID of a failed raylet.
+  const auto &worker_failure_handler =
+      [this](const WorkerID &id, const gcs::WorkerFailureData &worker_failure_data) {
+        HandleUnexpectedWorkerFailure(id, worker_failure_data);
+      };
+  RAY_CHECK_OK(gcs_client_->Workers().AsyncSubscribeToWorkerFailures(
+      worker_failure_handler, /*done_callback=*/nullptr));
+
   // Subscribe to job updates.
   const auto job_subscribe_handler = [this](const JobID &job_id,
                                             const JobTableData &job_data) {
@@ -209,6 +219,12 @@ ray::Status NodeManager::RegisterGcs() {
   GetObjectManagerProfileInfo();
 
   return ray::Status::OK();
+}
+
+void NodeManager::HandleUnexpectedWorkerFailure(
+    const WorkerID &worker_id, const gcs::WorkerFailureData &worker_failed_data) {
+  RAY_LOG(DEBUG) << "Worker " << worker_id << " failed";
+  // TODO: Clean up after the failure: If the failed worker is our owner, then exit.
 }
 
 void NodeManager::KillWorker(std::shared_ptr<Worker> worker) {
@@ -391,9 +407,10 @@ void NodeManager::WarnResourceDeadlock() {
         << "To resolve the issue, consider creating fewer actors or increase the "
         << "resources available to this Ray cluster. You can ignore this message "
         << "if this Ray cluster is expected to auto-scale.";
-    RAY_CHECK_OK(gcs_client_->error_table().PushErrorToDriver(
-        exemplar.GetTaskSpecification().JobId(), "resource_deadlock", error_message.str(),
-        current_time_ms()));
+    auto error_data_ptr = gcs::CreateErrorTableData(
+        "resource_deadlock", error_message.str(), current_time_ms(),
+        exemplar.GetTaskSpecification().JobId());
+    RAY_CHECK_OK(gcs_client_->Errors().AsyncReportJobError(error_data_ptr, nullptr));
     resource_deadlock_warned_ = true;
   }
 }
@@ -403,8 +420,8 @@ void NodeManager::GetObjectManagerProfileInfo() {
 
   auto profile_info = object_manager_.GetAndResetProfilingInfo();
 
-  if (profile_info.profile_events_size() > 0) {
-    RAY_CHECK_OK(gcs_client_->profile_table().AddProfileEventBatch(profile_info));
+  if (profile_info->profile_events_size() > 0) {
+    RAY_CHECK_OK(gcs_client_->Stats().AsyncAddProfileData(profile_info, nullptr));
   }
 
   // Reset the timer.
@@ -906,10 +923,10 @@ void NodeManager::ProcessClientMessage(
   } break;
   case protocol::MessageType::PushProfileEventsRequest: {
     auto fbs_message = flatbuffers::GetRoot<flatbuffers::String>(message_data);
-    rpc::ProfileTableData profile_table_data;
+    auto profile_table_data = std::make_shared<rpc::ProfileTableData>();
     RAY_CHECK(
-        profile_table_data.ParseFromArray(fbs_message->data(), fbs_message->size()));
-    RAY_CHECK_OK(gcs_client_->profile_table().AddProfileEventBatch(profile_table_data));
+        profile_table_data->ParseFromArray(fbs_message->data(), fbs_message->size()));
+    RAY_CHECK_OK(gcs_client_->Stats().AsyncAddProfileData(profile_table_data, nullptr));
   } break;
   case protocol::MessageType::FreeObjectsInObjectStoreRequest: {
     auto message = flatbuffers::GetRoot<protocol::FreeObjectsRequest>(message_data);
@@ -1112,6 +1129,13 @@ void NodeManager::ProcessDisconnectClientMessage(
     }
     // Erase any lease metadata.
     leased_workers_.erase(worker->WorkerId());
+
+    // Publish the worker failure.
+    auto worker_failure_data_ptr = gcs::CreateWorkerFailureData(
+        self_node_id_, worker->WorkerId(), initial_config_.node_manager_address,
+        worker->Port());
+    RAY_CHECK_OK(gcs_client_->Workers().AsyncReportWorkerFailure(worker_failure_data_ptr,
+                                                                 nullptr));
   }
 
   if (is_worker) {
@@ -1150,8 +1174,9 @@ void NodeManager::ProcessDisconnectClientMessage(
         std::ostringstream error_message;
         error_message << "A worker died or was killed while executing task " << task_id
                       << ".";
-        RAY_CHECK_OK(gcs_client_->error_table().PushErrorToDriver(
-            job_id, type, error_message.str(), current_time_ms()));
+        auto error_data_ptr = gcs::CreateErrorTableData(type, error_message.str(),
+                                                        current_time_ms(), job_id);
+        RAY_CHECK_OK(gcs_client_->Errors().AsyncReportJobError(error_data_ptr, nullptr));
       }
     }
 
@@ -1315,13 +1340,12 @@ void NodeManager::ProcessWaitForDirectActorCallArgsRequestMessage(
 void NodeManager::ProcessPushErrorRequestMessage(const uint8_t *message_data) {
   auto message = flatbuffers::GetRoot<protocol::PushErrorRequest>(message_data);
 
-  JobID job_id = from_flatbuf<JobID>(*message->job_id());
   auto const &type = string_from_flatbuf(*message->type());
   auto const &error_message = string_from_flatbuf(*message->error_message());
   double timestamp = message->timestamp();
-
-  RAY_CHECK_OK(gcs_client_->error_table().PushErrorToDriver(job_id, type, error_message,
-                                                            timestamp));
+  JobID job_id = from_flatbuf<JobID>(*message->job_id());
+  auto error_data_ptr = gcs::CreateErrorTableData(type, error_message, timestamp, job_id);
+  RAY_CHECK_OK(gcs_client_->Errors().AsyncReportJobError(error_data_ptr, nullptr));
 }
 
 void NodeManager::ProcessPrepareActorCheckpointRequest(
@@ -1780,9 +1804,10 @@ void NodeManager::ScheduleTasks(
           << "provide the requested resources. To resolve this issue, consider "
           << "reducing the resource requests of this task or add nodes that "
           << "can fit the task.";
-      RAY_CHECK_OK(gcs_client_->error_table().PushErrorToDriver(
-          task.GetTaskSpecification().JobId(), type, error_message.str(),
-          current_time_ms()));
+      auto error_data_ptr =
+          gcs::CreateErrorTableData(type, error_message.str(), current_time_ms(),
+                                    task.GetTaskSpecification().JobId());
+      RAY_CHECK_OK(gcs_client_->Errors().AsyncReportJobError(error_data_ptr, nullptr));
     }
     // Assert that this placeable task is not feasible locally (necessary but not
     // sufficient).
@@ -1858,8 +1883,9 @@ void NodeManager::MarkObjectsAsFailed(const ErrorType &error_type,
              << " object may hang forever.";
       std::string error_message = stream.str();
       RAY_LOG(WARNING) << error_message;
-      RAY_CHECK_OK(gcs_client_->error_table().PushErrorToDriver(
-          job_id, "task", error_message, current_time_ms()));
+      auto error_data_ptr =
+          gcs::CreateErrorTableData("task", error_message, current_time_ms(), job_id);
+      RAY_CHECK_OK(gcs_client_->Errors().AsyncReportJobError(error_data_ptr, nullptr));
     }
   }
 }
@@ -2635,9 +2661,10 @@ void NodeManager::ResubmitTask(const Task &task, const ObjectID &required_object
     error_message << "The task with ID " << task.GetTaskSpecification().TaskId()
                   << " is a driver task and so the object created by ray.put "
                   << "could not be reconstructed.";
-    RAY_CHECK_OK(gcs_client_->error_table().PushErrorToDriver(
-        task.GetTaskSpecification().JobId(), type, error_message.str(),
-        current_time_ms()));
+    auto error_data_ptr =
+        gcs::CreateErrorTableData(type, error_message.str(), current_time_ms(),
+                                  task.GetTaskSpecification().JobId());
+    RAY_CHECK_OK(gcs_client_->Errors().AsyncReportJobError(error_data_ptr, nullptr));
     MarkObjectsAsFailed(ErrorType::OBJECT_UNRECONSTRUCTABLE,
                         {required_object_id.ToPlasmaId()},
                         task.GetTaskSpecification().JobId());
@@ -2688,17 +2715,62 @@ void NodeManager::HandleObjectLocal(const ObjectID &object_id) {
   }
 }
 
+bool NodeManager::IsDirectActorCreationTask(const TaskID &task_id) {
+  auto actor_id = task_id.ActorId();
+  if (!actor_id.IsNil() && task_id == TaskID::ForActorCreationTask(actor_id)) {
+    // This task ID corresponds to an actor creation task.
+    auto iter = actor_registry_.find(actor_id);
+    if (iter != actor_registry_.end() && iter->second.GetTableData().is_direct_call()) {
+      // This actor is direct call actor.
+      return true;
+    }
+  }
+
+  return false;
+}
+
 void NodeManager::HandleObjectMissing(const ObjectID &object_id) {
   // Notify the task dependency manager that this object is no longer local.
   const auto waiting_task_ids = task_dependency_manager_.HandleObjectMissing(object_id);
-  RAY_LOG(DEBUG) << "Object missing " << object_id << ", "
-                 << " on " << self_node_id_ << waiting_task_ids.size()
-                 << " tasks waiting";
+  std::stringstream result;
+  result << "Object missing " << object_id << ", "
+         << " on " << self_node_id_ << ", " << waiting_task_ids.size()
+         << " tasks waiting";
+  if (waiting_task_ids.size() > 0) {
+    result << ", tasks: ";
+    for (const auto &task_id : waiting_task_ids) {
+      result << task_id << "  ";
+    }
+  }
+  RAY_LOG(DEBUG) << result.str();
+
   // Transition any tasks that were in the runnable state and are dependent on
   // this object to the waiting state.
   if (!waiting_task_ids.empty()) {
     std::unordered_set<TaskID> waiting_task_id_set(waiting_task_ids.begin(),
                                                    waiting_task_ids.end());
+
+    // NOTE(zhijunfu): For direct actors, the worker is initially assigned actor
+    // creation task ID, which will not be reset after the task finishes. And later tasks
+    // of this actor will reuse this task ID to require objects from plasma with
+    // FetchOrReconstruct, since direct actor task IDs are not known to raylet.
+    // To support actor reconstruction for direct actor, raylet marks actor creation task
+    // as completed and removes it from `local_queues_` when it receives `TaskDone`
+    // message from worker. This is necessary because the actor creation task will be
+    // re-submitted during reconstruction, if the task is not removed previously, the new
+    // submitted task will be marked as duplicate and thus ignored.
+    // So here we check for direct actor creation task explicitly to allow this case.
+    auto iter = waiting_task_id_set.begin();
+    while (iter != waiting_task_id_set.end()) {
+      if (IsDirectActorCreationTask(*iter)) {
+        RAY_LOG(DEBUG) << "Ignoring direct actor creation task " << *iter
+                       << " when handling object missing for " << object_id;
+        iter = waiting_task_id_set.erase(iter);
+      } else {
+        ++iter;
+      }
+    }
+
     // First filter out any tasks that can't be transitioned to READY. These
     // are running workers or drivers, now blocked in a get.
     local_queues_.FilterState(waiting_task_id_set, TaskState::RUNNING);

@@ -77,7 +77,7 @@ class NodeManager : public rpc::NodeManagerServiceHandler {
   /// \param object_manager A reference to the local object manager.
   NodeManager(boost::asio::io_service &io_service, const ClientID &self_node_id,
               const NodeManagerConfig &config, ObjectManager &object_manager,
-              std::shared_ptr<gcs::RedisGcsClient> gcs_client,
+              std::shared_ptr<gcs::GcsClient> gcs_client,
               std::shared_ptr<ObjectDirectoryInterface> object_directory_);
 
   /// Process a new client connection.
@@ -118,6 +118,13 @@ class NodeManager : public rpc::NodeManagerServiceHandler {
 
  private:
   /// Methods for handling clients.
+
+  /// Handle an unexpected failure notification from GCS pubsub.
+  ///
+  /// \param worker_id The ID of the failed worker.
+  /// \param worker_data Data associated with the worker failure.
+  void HandleUnexpectedWorkerFailure(const WorkerID &worker_id,
+                                     const gcs::WorkerFailureData &worker_failed_data);
 
   /// Handler for the addition of a new node.
   ///
@@ -571,6 +578,9 @@ class NodeManager : public rpc::NodeManagerServiceHandler {
   /// Repeat the process as long as we can schedule a task.
   void NewSchedulerSchedulePendingTasks();
 
+  /// Whether a task is an direct actor creation task.
+  bool IsDirectActorCreationTask(const TaskID &task_id);
+
   /// ID of this node.
   ClientID self_node_id_;
   boost::asio::io_service &io_service_;
@@ -580,7 +590,7 @@ class NodeManager : public rpc::NodeManagerServiceHandler {
   /// actor died) and to pin objects that are in scope in the cluster.
   plasma::PlasmaClient store_client_;
   /// A client connection to the GCS.
-  std::shared_ptr<gcs::RedisGcsClient> gcs_client_;
+  std::shared_ptr<gcs::GcsClient> gcs_client_;
   /// The object table. This is shared with the object manager.
   std::shared_ptr<ObjectDirectoryInterface> object_directory_;
   /// The timer used to send heartbeats.

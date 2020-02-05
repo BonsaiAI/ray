@@ -8,7 +8,7 @@ steps:
     echo Running install phase of the original travis.yml
 
     # Set some variables to make the system looks like Travis
-              source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
+    source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
 
     # Start Original script
     eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`

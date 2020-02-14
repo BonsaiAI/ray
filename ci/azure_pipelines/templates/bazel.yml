@@ -7,6 +7,11 @@ steps:
 - bash: |
     set -xe
 
+    if [ -x "$(command -v bazel)" ]; then
+      echo 'Bazel is already installed'
+      exit 0
+    fi
+
     if [[ $AGENT_OS == "Darwin" ]]; then 
       source "$BUILD_SOURCESDIRECTORY/ci/azure_pipelines/image/bazel-osx.sh"
     else
@@ -15,6 +20,7 @@ steps:
 
     exit 0
   env:
-    HELPER_SCRIPTS: '/imagegeneration/helpers'
+    HELPER_SCRIPTS: $(Build.SourcesDirectory)/ci/azure_pipelines/image
+    METADATA_FILE: $(Build.SourcesDirectory)/ci/azure_pipelines/image/metadata.txt
   displayName: 'Install bazel'
   timeoutInMinutes: 60

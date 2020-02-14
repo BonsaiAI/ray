@@ -10,8 +10,6 @@ stages:
   - stage: Build
     jobs:
       - job: RayTests
-        # Disabled
-        condition: False
         timeoutInMinutes: 120
         cancelTimeoutInMinutes: 5
         strategy:
@@ -19,10 +17,14 @@ stages:
             linux_python35:
               imageName: 'ubuntu-16.04'
               python.version: '3.5'
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
             mac_python35:
               imageName: 'macos-10.14'
               python.version: '3.5'
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
         displayName: Ray Tests
         pool:
@@ -38,13 +40,17 @@ stages:
           #   displayName: 'Install latest Node.js'
           # Template containing the installation of steps of python
           - template: templates/python.yml
+          # Template containing the installation of steps of bazel
+          - template: templates/bazel.yml
           # Template containing the install phase of travis.yml
           - template: templates/install.yml
           # Template containing the script phase of travis.yml
           - template: templates/script.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
       - job: RLlibTestsTuneTestsDocExamples
         # Disabled
-        condition: False
+        # condition: False
         timeoutInMinutes: 600
         cancelTimeoutInMinutes: 5
         strategy:
@@ -52,6 +58,8 @@ stages:
             linux_python35:
               poolName: RayPipelineAgentPoolStandardF16sv2
               python.version: '3.5'
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
         displayName: RLlib tests - Tune tests - Doc Examples
@@ -78,19 +86,17 @@ stages:
               MEMORY_SIZE="20G"
               SHM_SIZE="20G"
 
-              ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE:-$0}")"; pwd)
-
-              DOCKER_SHA=$($ROOT_DIR/../../build-docker.sh --output-sha --no-cache)
-              SUPPRESS_OUTPUT=$ROOT_DIR/../suppress_output
+              DOCKER_SHA=$($BUILD_SOURCESDIRECTORY/build-docker.sh --output-sha --no-cache)
+              SUPPRESS_OUTPUT=$BUILD_SOURCESDIRECTORY/ci/suppress_output
               echo "Using Docker image" $DOCKER_SHA
 
               ######################## RLLIB TESTS #################################
 
-              source $ROOT_DIR/run_rllib_tests.sh
+              source $BUILD_SOURCESDIRECTORY/ci/jenkins_tests/run_rllib_tests.sh
 
               ######################## TUNE TESTS #################################
 
-              bash $ROOT_DIR/run_tune_tests.sh ${MEMORY_SIZE} ${SHM_SIZE} $DOCKER_SHA
+              bash $BUILD_SOURCESDIRECTORY/ci/jenkins_tests/run_tune_tests.sh ${MEMORY_SIZE} ${SHM_SIZE} $DOCKER_SHA
 
               ######################## EXAMPLE TESTS #################################
 
@@ -116,7 +122,7 @@ stages:
 
               ######################## RAY BACKEND TESTS #################################
 
-              # Originally with ./ci/suppress_output 
+              # Originally with ./ci/suppress_output
               docker run --rm --shm-size=60G --memory=60G $DOCKER_SHA \
                   python /ray/ci/jenkins_tests/miscellaneous/large_memory_test.py
 
@@ -129,6 +135,8 @@ stages:
               MAC_WHEELS: 1
               RAY_INSTALL_JAVA: 1
             displayName: 'Run original Jenkins multi-node tests'
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
       - job: UbuntuWheels
         # dependsOn: RayTests
         timeoutInMinutes: 120
@@ -138,6 +146,8 @@ stages:
             python35:
               imageName: 'ubuntu-16.04'
               python.version: '3.5'
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
         displayName: Ubuntu Wheels
         pool:
@@ -153,7 +163,9 @@ stages:
           #   displayName: 'Install latest Node.js'
           # Template containing the installation of steps of python
           - template: templates/python.yml
-          # Install phase of the travis MacOS wheels build
+          # Template containing the installation of steps of bazel
+          - template: templates/bazel.yml
+          # Install phase of the travis Ubuntu wheels build
           - bash: |
               echo Running install phase of the original travis.yml
 
@@ -174,6 +186,11 @@ stages:
 
               # This command should be kept in sync with ray/python/README-building-wheels.md,
               # except the `$MOUNT_BAZEL_CACHE` part.
+
+              # Not part of the original script
+              # Update pip to latest
+              pip install --upgrade setuptools
+              # End of Not part of the original script
 
               # Originally with ./ci/suppress_output 
               docker run --rm -w /ray -v `pwd`:/ray $MOUNT_BAZEL_CACHE -i rayproject/arrow_linux_x86_64_base:latest /ray/python/build-wheel-manylinux1.sh
@@ -211,6 +228,8 @@ stages:
             displayName: 'Run original script phase'
           # Upload packages
           - template: templates/python-upload.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
       - job: MacOSWheels
         # dependsOn: RayTests
         timeoutInMinutes: 120
@@ -220,6 +239,8 @@ stages:
             python35:
               imageName: 'macos-10.14'
               python.version: '3.5'
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
         displayName: MacOS Wheels
         pool:
@@ -235,6 +256,8 @@ stages:
           #   displayName: 'Install latest Node.js'
           # Template containing the installation of steps of python
           - template: templates/python.yml
+          # Template containing the installation of steps of bazel
+          - template: templates/bazel.yml
           # Install phase of the travis MacOS wheels build
           - bash: |
               echo Running install phase of the original travis.yml
@@ -242,16 +265,19 @@ stages:
               # Set some variables to make the system looks like Travis
               source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
 
-              # Change the default deployment target
-              export MACOSX_DEPLOYMENT_TARGET="10.6"
-              export PYTHON_CONFIGURE_OPTS="--enable-universalsdk=/ --with-universal-archs=intel"
-
               # Start Original script
               eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
               if [ $RAY_CI_MACOS_WHEELS_AFFECTED != "1" ]; then exit; fi
 
-              # Originally with ./ci/suppress_output 
+              # Originally with ./ci/suppress_output
               ./ci/travis/install-dependencies.sh
+
+              # Not part of the original script
+              # Change the default deployment target
+              export MACOSX_DEPLOYMENT_TARGET="10.6"
+              export PYTHON_CONFIGURE_OPTS="--enable-universalsdk=/ --with-universal-archs=intel"
+              # End of Not part of the original script
+
               # This command should be kept in sync with ray/python/README-building-wheels.md.
               # Originally with ./ci/suppress_output 
               ./python/build-wheel-macos.sh
@@ -298,8 +324,11 @@ stages:
             displayName: 'Run original script phase'
           # Upload packages
           - template: templates/python-upload.yml
-
-
-trigger:
-  - master
-  - ms/*
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+trigger: none
+pr:
+  branches:
+    include:
+      - master
+      - releases/*

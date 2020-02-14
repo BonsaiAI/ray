@@ -96,9 +96,9 @@ def ray_deps_setup():
 
     github_repository(
         name = "bazel_common",
-        commit = "f1115e0f777f08c3cdb115526c4e663005bec69b",
+        commit = "bf87eb1a4ddbfc95e215b0897f3edc89b2254a1a",
         remote = "https://github.com/google/bazel-common",
-        sha256 = "1e05a4791cc3470d3ecf7edb556f796b1d340359f1c4d293f175d4d0946cf84c",
+        sha256 = "84e037b54bd7685447365295b47764340ca2f1db2f8cffcf6786667439631e7f",
     )
 
     github_repository(

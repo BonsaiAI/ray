@@ -23,6 +23,8 @@ from ray.rllib.agents.sac.sac.rllib_proxy._constants import DEFAULT_POLICY_ID
 from ray.rllib.agents.sac.sac.rllib_proxy._moved import Resources
 from ray.rllib.agents.sac.sac.rllib_proxy._unchanged import MAX_WORKER_FAILURE_RETRIES, DEFAULT_RESULTS_DIR
 from ray.rllib.agents.sac.sac.dev_utils import using_ray_8, ray_8_only
+from ray.rllib.utils.memory import ray_get_and_free
+
 
 logger = logging.getLogger(__name__)
 

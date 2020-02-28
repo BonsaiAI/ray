@@ -60,6 +60,7 @@ class DynamicTFPolicy(TFPolicy):
         existing_model=None,
         get_batch_divisibility_req=None,
         obs_include_prev_action_reward=True,
+        need_init_loss=True
     ):
         """Initialize a dynamic TF policy.
 
@@ -202,7 +203,7 @@ class DynamicTFPolicy(TFPolicy):
 
         # Phase 2 init
         before_loss_init(self, obs_space, action_space, config)
-        if not existing_inputs:
+        if not existing_inputs and need_init_loss:
             self._initialize_loss()
 
     @override(TFPolicy)

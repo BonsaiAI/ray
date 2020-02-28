@@ -102,8 +102,7 @@ def build_tf_policy(name,
                      action_space,
                      config,
                      existing_model=None,
-                     existing_inputs=None,
-                     need_init_loss=True):
+                     existing_inputs=None):
             if get_default_config:
                 config = dict(get_default_config(), **config)
 
@@ -133,8 +132,7 @@ def build_tf_policy(name,
                 existing_model=existing_model,
                 existing_inputs=existing_inputs,
                 get_batch_divisibility_req=get_batch_divisibility_req,
-                obs_include_prev_action_reward=obs_include_prev_action_reward,
-                need_init_loss=need_init_loss)
+                obs_include_prev_action_reward=obs_include_prev_action_reward)
 
             if after_init:
                 after_init(self, obs_space, action_space, config)

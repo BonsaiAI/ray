@@ -578,7 +578,7 @@ class Trainer(UnpatchedTrainer):
                 ev = self.optimizer.remote_evaluators[i]
                 w = ev
             try:
-                ray.get(obj_id)
+                ray_get_and_free(obj_id)
                 healthy_workers.append(w)
                 logger.info("Worker {} looks healthy".format(i + 1))
             except RayError:

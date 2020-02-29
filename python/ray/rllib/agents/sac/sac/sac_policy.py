@@ -21,11 +21,6 @@ logger = logging.getLogger(__name__)
 
 
 def build_sac_model(policy, obs_space, action_space, config):
-    if config["model"]["custom_model"]:
-        logger.warning(
-            "Setting use_state_preprocessor=True since a custom model " "was specified."
-        )
-        config["use_state_preprocessor"] = True
     if not isinstance(action_space, Box):
         raise UnsupportedSpaceException(
             "Action space {} is not supported for SAC.".format(action_space)

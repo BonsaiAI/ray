@@ -14,24 +14,33 @@ def ray_deps_setup():
         remote = "https://github.com/google/bazel-common",
     )
  
-    BAZEL_SKYLIB_TAG = "0.6.0"
-
-    http_archive(
-        name = "bazel_skylib",
-        strip_prefix = "bazel-skylib-%s" % BAZEL_SKYLIB_TAG,
-        url = "https://github.com/bazelbuild/bazel-skylib/archive/%s.tar.gz" % BAZEL_SKYLIB_TAG,
-    )
-   
     git_repository(
         name = "com_github_checkstyle_java",
         commit = "ef367030d1433877a3360bbfceca18a5d0791bdd",
         remote = "https://github.com/ray-project/checkstyle_java",
     )
    
+    http_archive(
+        # This rule is used by @com_github_nelhage_rules_boost and
+        # declaring it here allows us to avoid patching the latter.
+        name = "boost",
+        build_file = "@com_github_nelhage_rules_boost//:BUILD.boost",
+        sha256 = "da3411ea45622579d419bfda66f45cd0f8c32a181d84adfa936f5688388995cf",
+        strip_prefix = "boost_1_68_0",
+        url = "https://sourceforge.net/projects/boost/files/boost/1.68.0/boost_1_68_0.tar.gz",
+        patches = [
+            "//thirdparty/patches:boost-exception-no_warn_typeid_evaluated.patch",
+        ],
+    )
+
     git_repository(
         name = "com_github_nelhage_rules_boost",
-        commit = "5171b9724fbb39c5fdad37b9ca9b544e8858d8ac",
-        remote = "https://github.com/ray-project/rules_boost",
+        commit = "df908358c605a7d5b8bbacde07afbaede5ac12cf",
+        remote = "https://github.com/nelhage/rules_boost",
+        patches = [
+            "//thirdparty/patches:rules_boost-undefine-boost_fallthrough.patch",
+            "//thirdparty/patches:rules_boost-windows-linkopts.patch",
+        ],
     )
    
     git_repository(

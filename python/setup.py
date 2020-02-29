@@ -161,7 +161,7 @@ setup(
     author_email="ray-dev@googlegroups.com",
     description=("A system for parallel and distributed Python that unifies "
                  "the ML ecosystem."),
-    long_description=open("../README.rst").read(),
+    long_description="No Description",
     url="https://github.com/ray-project/ray",
     keywords=("ray distributed parallel machine-learning "
               "reinforcement-learning deep-learning python"),

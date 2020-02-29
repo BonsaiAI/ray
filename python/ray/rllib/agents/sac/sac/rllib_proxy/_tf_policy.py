@@ -154,19 +154,20 @@ class DynamicTFPolicy(TFPolicy):
                 for s in self.model.get_initial_state()
             ]
 
-        self.model_out, self._state_out = self.model(
+        model_out, self._state_out = self.model(
             self._input_dict, self._state_in, self._seq_lens
         )
 
         # Setup action sampler
-        if action_sampler_fn:
-            action_sampler, action_logp = action_sampler_fn(
-                self, self.model, self._input_dict, obs_space, action_space, config
-            )
-        else:
-            action_dist = self.dist_class(self.model_out, self.model)
-            action_sampler = action_dist.sample()
-            action_logp = action_dist.sampled_action_logp()
+        assert action_sampler_fn is not None
+        (action_sampler,
+         self.stochastic_actions,
+         self.deterministic_action,
+         action_logp
+         ) = action_sampler_fn(
+            self, self.model, self._input_dict,
+            obs_space, action_space, config
+        )
 
         # Phase 1 init
         sess = tf.get_default_session() or tf.Session()

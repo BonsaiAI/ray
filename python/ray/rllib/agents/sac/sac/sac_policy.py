@@ -4,7 +4,7 @@ from gym.spaces import Box
 import numpy as np
 import tensorflow as tf
 
-import ray.rllib.agents.sac.sac as sac
+from ray.rllib.agents.sac.sac.config import DEFAULT_CONFIG
 from ray.rllib.agents.sac.sac.dqn_policy_graph import PRIO_WEIGHTS, _postprocess_dqn
 from ray.rllib.agents.sac.sac.rllib_proxy._tf_policy_template import build_tf_policy
 from ray.rllib.agents.sac.sac.rllib_proxy._needs_patches import ModelCatalog
@@ -135,7 +135,8 @@ def build_action_output(policy, model, input_dict, obs_space, action_space, conf
         policy.stochastic, lambda: log_pis, lambda: tf.zeros_like(log_pis)
     )
     policy.output_actions = actions
-    return actions, action_probabilities
+    return (
+        actions, stochastic_actions, deterministic_actions, action_probabilities)
 
 
 def actor_critic_loss(policy, model, _, train_batch):
@@ -473,7 +474,7 @@ def setup_late_mixins(policy, obs_space, action_space, config):
 
 SACTFPolicy = build_tf_policy(
     name="SACTFPolicy",
-    get_default_config=lambda: sac.config.DEFAULT_CONFIG,
+    get_default_config=lambda: DEFAULT_CONFIG,
     make_model=build_sac_model,
     postprocess_fn=postprocess_trajectory,
     action_sampler_fn=build_action_output,

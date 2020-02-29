@@ -111,6 +111,10 @@ class TFPolicy(TFPolicyGraph):
         self._update_ops = None
         self._apply_op = None
 
+    @property
+    def obs_input(self):
+        return self._obs_input
+
     def get_session(self):
         return self._sess
 

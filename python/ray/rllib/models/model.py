@@ -255,7 +255,7 @@ def _unpack_obs(obs, space, tensorlib=tf):
                 offset += p.size
                 u.append(
                     _unpack_obs(
-                        tensorlib.reshape(obs_slice, [-1] + list(p.shape)),
+                        tf.reshape(obs_slice, [-1] + list(p.shape)),
                         v,
                         tensorlib=tensorlib))
         else:
@@ -264,7 +264,7 @@ def _unpack_obs(obs, space, tensorlib=tf):
                 obs_slice = obs[:, offset:offset + p.size]
                 offset += p.size
                 u[k] = _unpack_obs(
-                    tensorlib.reshape(obs_slice, [-1] + list(p.shape)),
+                    tf.reshape(obs_slice, [-1] + list(p.shape)),
                     v,
                     tensorlib=tensorlib)
         return u

@@ -146,7 +146,9 @@ class PPOPolicyGraph(LearningRateSchedule, PPOPostprocessing, TFPolicyGraph):
                  observation_space,
                  action_space,
                  config,
-                 existing_inputs=None):
+                 existing_inputs=None,
+                 **kwargs,
+                 ):
         """
         Arguments:
             observation_space: Environment observation space specification.
@@ -171,10 +173,14 @@ class PPOPolicyGraph(LearningRateSchedule, PPOPostprocessing, TFPolicyGraph):
             existing_state_in = existing_inputs[8:-1]
             existing_seq_lens = existing_inputs[-1]
         else:
-            obs_ph = tf.placeholder(
-                tf.float32,
-                name="obs",
-                shape=(None, ) + observation_space.shape)
+            obs_ph = kw_args.get(
+                "observations",
+                tf.placeholder(
+                    tf.float32,
+                    shape=(None, ) + observation_space.shape,
+                    name="obs",
+                )
+            )
             adv_ph = tf.placeholder(
                 tf.float32, name="advantages", shape=(None, ))
             act_ph = ModelCatalog.get_action_placeholder(action_space)

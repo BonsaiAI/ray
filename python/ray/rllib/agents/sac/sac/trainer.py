@@ -5,7 +5,6 @@ from sac.config import DEFAULT_CONFIG
 from sac.dev_utils import using_ray_8
 from sac.sac_policy import SACTFPolicy
 from sac.rllib_proxy import build_trainer, DEFAULT_POLICY_ID
-from sac.rllib_proxy import SyncReplayOptimizer
 from sac.rllib_proxy import ConstantSchedule, LinearSchedule
 
 logger = logging.getLogger(__name__)
@@ -13,6 +12,7 @@ logger = logging.getLogger(__name__)
 
 def make_optimizer(workers, config):
     if using_ray_8():
+        from ray.rllib.optimizers import SyncReplayOptimizer
         return SyncReplayOptimizer(
             workers,
             learning_starts=config["learning_starts"],
@@ -28,6 +28,7 @@ def make_optimizer(workers, config):
             sample_batch_size=config["sample_batch_size"],
             **config["optimizer"])
     else:
+        from sac.rllib_proxy._patched._sync_replay_optimizer import SyncReplayOptimizer
         print(f"DEBUG: sac/trainer::31 {workers}")
         local_evaluator, remote_evaluators = workers
         return SyncReplayOptimizer(

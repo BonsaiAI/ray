@@ -12,7 +12,6 @@ from ray.rllib.optimizers import SyncSamplesOptimizer
 from ray.rllib.utils.annotations import DeveloperAPI, PublicAPI, override
 from ray.rllib.utils.debug import log_once, summarize
 from ray.rllib.utils.error import UnsupportedSpaceException
-from ray.rllib.optimizers import SyncReplayOptimizer
 from ray.rllib.utils.schedules import ConstantSchedule, LinearSchedule
 from ray.rllib.models import MODEL_DEFAULTS
 from ray.experimental.tf_utils import TensorFlowVariables
@@ -32,7 +31,6 @@ __all__ = [
     "summarize",
     "Trainer",
     "SyncSamplesOptimizer",
-    "SyncReplayOptimizer",
     "ConstantSchedule",
     "LinearSchedule",
     "MODEL_DEFAULTS",

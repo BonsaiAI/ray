@@ -5,12 +5,12 @@ import tensorflow as tf
 
 from ray.rllib import models
 from ray.rllib.evaluation import TFPolicyGraph
+from ray.rllib.evaluation.policy_graph import PolicyGraph
+from ray.rllib.utils.annotations import override
 
-from ray.rllib.agents.sac.sac.dev_utils import using_ray_8
 from ray.rllib.agents.sac.sac.rllib_proxy._todo import (
     log_once,
     summarize,
-    TensorFlowVariables,
     DeveloperAPI,
     RLLIB_MODEL,
     _global_registry
@@ -22,6 +22,10 @@ from ray.rllib.agents.sac.sac.rllib_proxy._modelv1_compat import make_v1_wrapper
 logger = logging.getLogger(__name__)
 
 __all__ = ["ModelCatalog", "TFPolicy"]
+
+
+ACTION_PROB = "action_prob"
+ACTION_LOGP = "action_logp"
 
 
 class TFPolicy(TFPolicyGraph):
@@ -80,7 +84,6 @@ class TFPolicy(TFPolicyGraph):
                 applying gradients. Otherwise we run all update ops found in
                 the current variable scope.
         """
-
         self.observation_space = observation_space
         self.action_space = action_space
         self.model = model
@@ -89,27 +92,64 @@ class TFPolicy(TFPolicyGraph):
         self._prev_action_input = prev_action_input
         self._prev_reward_input = prev_reward_input
         self._sampler = action_sampler
-        self._loss_inputs = loss_inputs
-        self._loss_input_dict = dict(self._loss_inputs)
         self._is_training = self._get_is_training_placeholder()
         self._action_prob = action_prob
         self._state_inputs = state_inputs or []
         self._state_outputs = state_outputs or []
-        for i, ph in enumerate(self._state_inputs):
-            self._loss_input_dict["state_in_{}".format(i)] = ph
         self._seq_lens = seq_lens
         self._max_seq_len = max_seq_len
         self._batch_divisibility_req = batch_divisibility_req
-
-        # The porting changes below.
-        self._loss = None
+        self._update_ops = update_ops
         self._stats_fetches = {}
-        self._optimizer = None
-        self._grads_and_vars = []
-        self._grads = []
-        self._variables = None
-        self._update_ops = None
-        self._apply_op = None
+        self._loss_input_dict = None
+
+        if loss is not None:
+            self._initialize_loss(loss, loss_inputs)
+        else:
+            self._loss = None
+
+        if len(self._state_inputs) != len(self._state_outputs):
+            raise ValueError(
+                "Number of state input and output tensors must match, got: "
+                "{} vs {}".format(self._state_inputs, self._state_outputs))
+        if len(self.get_initial_state()) != len(self._state_inputs):
+            raise ValueError(
+                "Length of initial state must match number of state inputs, "
+                "got: {} vs {}".format(self.get_initial_state(),
+                                       self._state_inputs))
+        if self._state_inputs and self._seq_lens is None:
+            raise ValueError(
+                "seq_lens tensor must be given if state inputs are defined")
+
+    @override(PolicyGraph)
+    def get_weights(self):
+        return self._variables.get_weights()
+
+    @override(PolicyGraph)
+    def set_weights(self, weights):
+        return self._variables.set_weights(weights)
+
+    @DeveloperAPI
+    def extra_compute_action_fetches(self):
+        """Extra values to fetch and return from compute_actions().
+
+        By default we only return action probability info (if present).
+        """
+        if self._action_logp is not None:
+            return {
+                ACTION_PROB: self._action_prob,
+                ACTION_LOGP: self._action_logp,
+            }
+        else:
+            return {}
+
+    @DeveloperAPI
+    def optimizer(self):
+        """TF optimizer to use for policy optimization."""
+        if hasattr(self, "config"):
+            return tf.train.AdamOptimizer(self.config["lr"])
+        else:
+            return tf.train.AdamOptimizer()
 
     @property
     def obs_input(self):
@@ -129,41 +169,42 @@ class TFPolicy(TFPolicyGraph):
 
         if self.model:
             self._loss = self.model.custom_loss(loss, self._loss_input_dict)
-            self._stats_fetches.update({"model": self.model.metrics()})
+            self._stats_fetches.update({
+                "model": self.model.metrics() if isinstance(
+                    self.model, ModelV2) else self.model.custom_stats()
+            })
         else:
             self._loss = loss
 
         self._optimizer = self.optimizer()
         self._grads_and_vars = [
-            (g, v)
-            for (g, v) in self.gradients(self._optimizer, self._loss)
+            (g, v) for (g, v) in self.gradients(self._optimizer, self._loss)
             if g is not None
         ]
         self._grads = [g for (g, v) in self._grads_and_vars]
-        try:
-            self._variables = TensorFlowVariables([], self._sess, self.variables())
-        except AttributeError:
+        if hasattr(self, "model") and isinstance(self.model, ModelV2):
+            self._variables = ray.experimental.tf_utils.TensorFlowVariables(
+                [], self._sess, self.variables())
+        else:
             # TODO(ekl) deprecate support for v1 models
-            self._variables = TensorFlowVariables(self._loss, self._sess)
+            self._variables = ray.experimental.tf_utils.TensorFlowVariables(
+                self._loss, self._sess)
 
         # gather update ops for any batch norm layers
         if not self._update_ops:
             self._update_ops = tf.get_collection(
-                tf.GraphKeys.UPDATE_OPS, scope=tf.get_variable_scope().name
-            )
+                tf.GraphKeys.UPDATE_OPS, scope=tf.get_variable_scope().name)
         if self._update_ops:
-            logger.info(
-                "Update ops to run on apply gradient: {}".format(self._update_ops)
-            )
+            logger.info("Update ops to run on apply gradient: {}".format(
+                self._update_ops))
         with tf.control_dependencies(self._update_ops):
-            self._apply_op = self.build_apply_op(self._optimizer, self._grads_and_vars)
+            self._apply_op = self.build_apply_op(self._optimizer,
+                                                 self._grads_and_vars)
 
         if log_once("loss_used"):
             logger.debug(
                 "These tensors were used in the loss_fn:\n\n{}\n".format(
-                    summarize(self._loss_input_dict)
-                )
-            )
+                    summarize(self._loss_input_dict)))
 
         self._sess.run(tf.global_variables_initializer())
 

@@ -15,15 +15,16 @@ from ray.rllib.utils.annotations import DeveloperAPI, PublicAPI, override
 from ray.tune.logger import UnifiedLogger
 from ray.tune.registry import ENV_CREATOR, _global_registry
 from ray.tune.trainable import Trainable
+from ray.tune.trial import Resources
 
 from ray.rllib.agents import Trainer as UnpatchedTrainer
 
 from ray.rllib.agents.sac.sac.rllib_proxy._added._envs import NormalizeActionWrapper
 from ray.rllib.agents.sac.sac.rllib_proxy._constants import DEFAULT_POLICY_ID
-from ray.rllib.agents.sac.sac.rllib_proxy._moved import Resources
-from ray.rllib.agents.sac.sac.rllib_proxy._unchanged import MAX_WORKER_FAILURE_RETRIES, DEFAULT_RESULTS_DIR
+from ray.rllib.agents.trainer import MAX_WORKER_FAILURE_RETRIES
 from ray.rllib.agents.sac.sac.dev_utils import using_ray_8, ray_8_only
 from ray.rllib.utils.memory import ray_get_and_free
+from ray.tune.result import DEFAULT_RESULTS_DIR
 
 
 logger = logging.getLogger(__name__)

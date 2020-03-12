@@ -6,18 +6,13 @@ import tensorflow as tf
 from ray.rllib import models
 from ray.rllib.evaluation import TFPolicyGraph
 from ray.rllib.evaluation.policy_graph import PolicyGraph
-from ray.rllib.utils.annotations import override
-
-from ray.rllib.agents.sac.sac.rllib_proxy._todo import (
-    log_once,
-    summarize,
-    DeveloperAPI,
-    RLLIB_MODEL,
-    _global_registry
-)
+from ray.rllib.utils.annotations import DeveloperAPI, override
 from ray.rllib.agents.sac.sac.rllib_proxy._utils import executing_eagerly
 from ray.rllib.agents.sac.sac.rllib_proxy._tf_model_v2 import ModelV2
 from ray.rllib.agents.sac.sac.rllib_proxy._modelv1_compat import make_v1_wrapper
+from ray.rllib.utils.debug import log_once, summarize
+from ray.tune.registry import RLLIB_MODEL, _global_registry
+
 
 logger = logging.getLogger(__name__)
 

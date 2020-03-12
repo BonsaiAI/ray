@@ -3,15 +3,13 @@ import logging
 import numpy as np
 import tensorflow as tf
 
-
-from ray.rllib.agents.sac.sac.rllib_proxy._todo import (
-    log_once, override,
-)
 from ray.rllib.agents.sac.sac.rllib_proxy._tf_utils import (
     linear, normc_initializer,
     scope_vars,
 )
 from ray.rllib.agents.sac.sac.rllib_proxy._tf_model_v2 import ModelV2, TFModelV2
+from ray.rllib.utils.annotations import override
+from ray.rllib.utils.debug import log_once
 
 
 logger = logging.getLogger(__name__)

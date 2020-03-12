@@ -1,8 +1,9 @@
 from ray.rllib.agents.sac.sac.rllib_proxy._constants import LEARNER_STATS_KEY
 from ray.rllib.agents.sac.sac.rllib_proxy._utils import add_mixins
 from ray.rllib.agents.sac.sac.rllib_proxy._tf_policy import DynamicTFPolicy
-from ray.rllib.agents.sac.sac.rllib_proxy._todo import DeveloperAPI, override, Policy
 from ray.rllib.agents.sac.sac.rllib_proxy._needs_patches import TFPolicy
+from ray.rllib.evaluation.policy_graph import PolicyGraph as Policy
+from ray.rllib.utils.annotations import DeveloperAPI, override
 
 
 @DeveloperAPI

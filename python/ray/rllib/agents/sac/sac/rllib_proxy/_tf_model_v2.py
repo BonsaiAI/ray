@@ -1,12 +1,10 @@
 import tensorflow as tf
+from tensorflow.layers import flatten
 
+from ray.rllib.utils.annotations import PublicAPI
 from ray.rllib.agents.sac.sac.rllib_proxy._utils import executing_eagerly
-from ray.rllib.agents.sac.sac.rllib_proxy._todo import (
-    flatten,
-    SampleBatch,
-    PublicAPI,
-    restore_original_dimensions,
-)
+from ray.rllib.evaluation.sample_batch import SampleBatch
+from ray.rllib.models.model import restore_original_dimensions
 
 
 @PublicAPI

@@ -147,7 +147,7 @@ class PPOPolicyGraph(LearningRateSchedule, PPOPostprocessing, TFPolicyGraph):
                  action_space,
                  config,
                  existing_inputs=None,
-                 **kwargs,
+                 **kw_args,
                  ):
         """
         Arguments:

@@ -355,7 +355,7 @@ class DQNPolicyGraph(LearningRateSchedule, DQNPostprocessing, TFPolicyGraph):
         self.stochastic = tf.placeholder(tf.bool, (), name="stochastic")
         self.eps = tf.placeholder(tf.float32, (), name="eps")
 
-        # Bonsai mod: allow to grow policy on top of prior transformations via a tensor passed in via
+        # Allow to grow policy on top of prior transformations via a tensor passed in via
         # an implicit parameter.
         self.cur_observations: Union[tf.Tensor, tf.Variable] = kw_args.get(
             "observations",

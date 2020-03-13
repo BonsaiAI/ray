@@ -1,10 +1,22 @@
 import tensorflow as tf
-from tensorflow.layers import flatten
+import torch
 
-from ray.rllib.utils.annotations import PublicAPI
+from ray.rllib.utils.annotations import PublicAPI, DeveloperAPI
 from ray.rllib.agents.sac.sac.rllib_proxy._utils import executing_eagerly
 from ray.rllib.evaluation.sample_batch import SampleBatch
 from ray.rllib.models.model import restore_original_dimensions
+
+
+@DeveloperAPI
+def flatten(obs, framework):
+    """Flatten the given tensor."""
+    if framework == "tf":
+        return tf.layers.flatten(obs)
+    elif framework == "torch":
+        assert torch is not None
+        return torch.flatten(obs, start_dim=1)
+    else:
+        raise NotImplementedError("flatten", framework)
 
 
 @PublicAPI

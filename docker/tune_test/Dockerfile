@@ -13,7 +13,7 @@ RUN pip install --upgrade git+git://github.com/hyperopt/hyperopt.git
 RUN pip install --upgrade sigopt
 # RUN pip install --upgrade nevergrad
 RUN pip install --upgrade scikit-optimize
-RUN conda install pytorch-cpu torchvision-cpu -c pytorch
+RUN conda install pytorch-cpu=1.0.1 torchvision-cpu=0.2.2 -c pytorch
 
 # RUN mkdir -p /root/.ssh/
 

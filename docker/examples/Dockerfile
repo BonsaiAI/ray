@@ -13,4 +13,4 @@ RUN pip install --upgrade hyperopt==0.1.2
 RUN pip install --upgrade sigopt
 # RUN pip install --upgrade nevergrad
 RUN pip install --upgrade scikit-optimize
-RUN conda install -y pytorch-cpu torchvision-cpu -c pytorch
+RUN conda install -y pytorch-cpu=1.0.1 torchvision-cpu=0.2.2 -c pytorch

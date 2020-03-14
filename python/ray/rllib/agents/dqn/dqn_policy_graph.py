@@ -363,7 +363,6 @@ class DQNPolicyGraph(LearningRateSchedule, DQNPostprocessing, TFPolicyGraph):
         )
         # Assert external input parameter (if any) matches expectations.
         assert isinstance(self.cur_observations, tf.Tensor) or isinstance(self.cur_observations, tf.Variable)
-        assert len(self.cur_observations.shape) == 2
 
         # Action Q network
         with tf.variable_scope(Q_SCOPE) as scope:

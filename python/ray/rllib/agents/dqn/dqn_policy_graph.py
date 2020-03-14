@@ -2,6 +2,8 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
+from typing import Any, Union
+
 from gym.spaces import Discrete
 import numpy as np
 from scipy.stats import entropy
@@ -338,7 +340,7 @@ class QValuePolicy(object):
 
 
 class DQNPolicyGraph(LearningRateSchedule, DQNPostprocessing, TFPolicyGraph):
-    def __init__(self, observation_space, action_space, config):
+    def __init__(self, observation_space, action_space, config, **kw_args: Any):
         config = dict(ray.rllib.agents.dqn.dqn.DEFAULT_CONFIG, **config)
         if not isinstance(action_space, Discrete):
             raise UnsupportedSpaceException(
@@ -352,8 +354,15 @@ class DQNPolicyGraph(LearningRateSchedule, DQNPostprocessing, TFPolicyGraph):
         # Action inputs
         self.stochastic = tf.placeholder(tf.bool, (), name="stochastic")
         self.eps = tf.placeholder(tf.float32, (), name="eps")
-        self.cur_observations = tf.placeholder(
-            tf.float32, shape=(None, ) + observation_space.shape)
+
+        # Allow to grow policy on top of prior transformations via a tensor passed in via
+        # an implicit parameter.
+        self.cur_observations: Union[tf.Tensor, tf.Variable] = kw_args.get(
+            "observations",
+            tf.placeholder( tf.float32, shape=(None, ) + observation_space.shape)
+        )
+        # Assert external input parameter (if any) matches expectations.
+        assert isinstance(self.cur_observations, tf.Tensor) or isinstance(self.cur_observations, tf.Variable)
 
         # Action Q network
         with tf.variable_scope(Q_SCOPE) as scope:

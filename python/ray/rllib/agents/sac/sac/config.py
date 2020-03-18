@@ -1,6 +1,11 @@
 from ray.rllib.agents.sac.sac.rllib_proxy._config import COMMON_CONFIG
 from ray.rllib.agents.trainer import with_base_config
 
+
+class CustomKeys:
+    UseRLLibModel = "UseRLLibModel"
+
+
 DEFAULT_CONFIG = with_base_config(COMMON_CONFIG, {
     # === Model ===
     "twin_q": True,

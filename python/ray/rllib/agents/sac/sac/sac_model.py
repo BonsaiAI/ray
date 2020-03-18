@@ -1,9 +1,9 @@
 import numpy as np
 import tensorflow as tf
 import tensorflow_probability as tfp
-
-from ray.rllib.utils.annotations import override
+from ray.rllib.agents.sac.sac.custom_model import build_fcn
 from ray.rllib.agents.sac.sac.rllib_proxy._tf_model_v2 import TFModelV2
+from ray.rllib.utils.annotations import override
 
 
 SCALE_DIAG_MIN_MAX = (-20, 2)
@@ -87,20 +87,11 @@ class SACModel(TFModelV2):
         self.action_dim = np.product(action_space.shape)
         self.model_out = tf.keras.layers.Input(shape=(num_outputs,), name="model_out")
         self.actions = tf.keras.layers.Input(shape=(self.action_dim,), name="actions")
-        shift_and_log_scale_diag = tf.keras.Sequential(
-            [
-                tf.keras.layers.Dense(
-                    units=hidden,
-                    activation=getattr(tf.nn, actor_hidden_activation),
-                    name="action_hidden_{" "}".format(i),
-                )
-                for i, hidden in enumerate(actor_hiddens)
-            ]
-            + [
-                tf.keras.layers.Dense(
-                    units=2 * self.action_dim, activation=None, name="action_out"
-                )
-            ]
+        shift_and_log_scale_diag = build_fcn(
+            input_shapes=dict(model_out=(num_outputs,)),
+            num_outputs=2 * self.action_dim,
+            hidden_layer_sizes=actor_hiddens,
+            hidden_activations=actor_hidden_activation,
         )(self.model_out)
 
         shift, log_scale_diag = tf.keras.layers.Lambda(
@@ -190,28 +181,17 @@ class SACModel(TFModelV2):
         self.register_variables(self.actions_model.variables)
 
         def build_q_net(name, observations, actions):
-            q_net = tf.keras.Sequential(
-                [tf.keras.layers.Concatenate(axis=1),]
-                + [
-                    tf.keras.layers.Dense(
-                        units=units,
-                        activation=getattr(tf.nn, critic_hidden_activation),
-                        name="{}_hidden_{}".format(name, i),
-                    )
-                    for i, units in enumerate(critic_hiddens)
-                ]
-                + [
-                    tf.keras.layers.Dense(
-                        units=1, activation=None, name="{}_out".format(name)
-                    )
-                ]
+            q_net = build_fcn(
+                input_shapes=dict(observations=(num_outputs,), actions=(self.action_dim,)),
+                num_outputs=1,
+                hidden_layer_sizes=critic_hiddens,
+                hidden_activations=critic_hidden_activation,
+                name=name
             )
-
-            # TODO(hartikainen): Remove the unnecessary Model call here
-            q_net = tf.keras.Model(
-                [observations, actions], q_net([observations, actions])
+            return tf.keras.Model(
+                [observations, actions],
+                q_net(dict(observations=observations, actions=actions))
             )
-            return q_net
 
         self.q_net = build_q_net("q", self.model_out, self.actions)
         self.register_variables(self.q_net.variables)

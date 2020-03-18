@@ -1,6 +1,11 @@
 
 from sac.rllib_proxy import COMMON_CONFIG, with_base_config
 
+
+class CustomKeys:
+    UseRLLibModel = "UseRLLibModel"
+
+
 DEFAULT_CONFIG = with_base_config(COMMON_CONFIG, {
     # === Model ===
     "twin_q": True,

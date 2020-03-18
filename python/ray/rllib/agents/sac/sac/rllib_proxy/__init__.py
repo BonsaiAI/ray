@@ -9,6 +9,7 @@ from sac.rllib_proxy._todo import (
     ConstantSchedule,
     LinearSchedule,
 )
+from sac.rllib_proxy._moved import get_activation_fn
 from sac.rllib_proxy._needs_patches import ModelCatalog, TFPolicy
 from sac.rllib_proxy._config import COMMON_CONFIG
 from sac.rllib_proxy._constants import DEFAULT_POLICY_ID
@@ -21,6 +22,7 @@ from sac.rllib_proxy._utils import (
     make_tf_callable,
     minimize_and_clip,
 )
+from sac.rllib_proxy._tf_utils import normc_initializer
 
 __all__ = [
     "add_mixins",
@@ -43,4 +45,6 @@ __all__ = [
     "summarize",
     "ConstantSchedule",
     "LinearSchedule",
+    "normc_initializer",
+    "get_activation_fn",
 ]

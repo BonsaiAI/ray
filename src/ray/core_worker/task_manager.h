@@ -1,3 +1,17 @@
+// Copyright 2017 The Ray Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #ifndef RAY_CORE_WORKER_TASK_MANAGER_H
 #define RAY_CORE_WORKER_TASK_MANAGER_H
 
@@ -16,12 +30,14 @@ namespace ray {
 class TaskFinisherInterface {
  public:
   virtual void CompletePendingTask(const TaskID &task_id, const rpc::PushTaskReply &reply,
-                                   const rpc::Address *actor_addr) = 0;
+                                   const rpc::Address &actor_addr) = 0;
 
   virtual void PendingTaskFailed(const TaskID &task_id, rpc::ErrorType error_type,
                                  Status *status = nullptr) = 0;
 
-  virtual void OnTaskDependenciesInlined(const std::vector<ObjectID> &object_ids) = 0;
+  virtual void OnTaskDependenciesInlined(
+      const std::vector<ObjectID> &inlined_dependency_ids,
+      const std::vector<ObjectID> &contained_ids) = 0;
 
   virtual ~TaskFinisherInterface() {}
 };
@@ -48,7 +64,8 @@ class TaskManager : public TaskFinisherInterface {
   /// on failure.
   /// \return Void.
   void AddPendingTask(const TaskID &caller_id, const rpc::Address &caller_address,
-                      const TaskSpecification &spec, int max_retries = 0);
+                      const TaskSpecification &spec, const std::string &call_site,
+                      int max_retries = 0);
 
   /// Wait for all pending tasks to finish, and then shutdown.
   ///
@@ -65,10 +82,10 @@ class TaskManager : public TaskFinisherInterface {
   ///
   /// \param[in] task_id ID of the pending task.
   /// \param[in] reply Proto response to a direct actor or task call.
-  /// \param[in] actor_addr Address of the created actor, or nullptr.
+  /// \param[in] worker_addr Address of the worker that executed the task.
   /// \return Void.
   void CompletePendingTask(const TaskID &task_id, const rpc::PushTaskReply &reply,
-                           const rpc::Address *actor_addr) override;
+                           const rpc::Address &worker_addr) override;
 
   /// A pending task failed. This will either retry the task or mark the task
   /// as failed if there are no retries left.
@@ -79,7 +96,17 @@ class TaskManager : public TaskFinisherInterface {
   void PendingTaskFailed(const TaskID &task_id, rpc::ErrorType error_type,
                          Status *status = nullptr) override;
 
-  void OnTaskDependenciesInlined(const std::vector<ObjectID> &object_id) override;
+  /// A task's dependencies were inlined in the task spec. This will decrement
+  /// the ref count for the dependency IDs. If the dependencies contained other
+  /// ObjectIDs, then the ref count for these object IDs will be incremented.
+  ///
+  /// \param[in] inlined_dependency_ids The args that were originally passed by
+  /// reference into the task, but have now been inlined.
+  /// \param[in] contained_ids Any ObjectIDs that were newly inlined in the
+  /// task spec, because a serialized copy of the ID was contained in one of
+  /// the inlined dependencies.
+  void OnTaskDependenciesInlined(const std::vector<ObjectID> &inlined_dependency_ids,
+                                 const std::vector<ObjectID> &contained_ids) override;
 
   /// Return the spec for a pending task.
   TaskSpecification GetTaskSpec(const TaskID &task_id) const;
@@ -93,13 +120,13 @@ class TaskManager : public TaskFinisherInterface {
   void MarkPendingTaskFailed(const TaskID &task_id, const TaskSpecification &spec,
                              rpc::ErrorType error_type) LOCKS_EXCLUDED(mu_);
 
-  /// Remove submittted task references in the reference counter for the object IDs.
-  /// If their reference counts reach zero, they are deleted from the in-memory store.
-  void RemoveSubmittedTaskReferences(const std::vector<ObjectID> &object_ids);
-
-  /// Helper function to call RemoveSubmittedTaskReferences on the plasma dependencies
-  /// of the given task spec.
-  void RemovePlasmaSubmittedTaskReferences(TaskSpecification &spec);
+  /// Helper function to call RemoveSubmittedTaskReferences on the remaining
+  /// dependencies of the given task spec after the task has finished or
+  /// failed. The remaining dependencies are plasma objects and any ObjectIDs
+  /// that were inlined in the task spec.
+  void RemoveFinishedTaskReferences(
+      TaskSpecification &spec, const rpc::Address &worker_addr,
+      const ReferenceCounter::ReferenceTableProto &borrowed_refs);
 
   /// Shutdown if all tasks are finished and shutdown is scheduled.
   void ShutdownIfNeeded() LOCKS_EXCLUDED(mu_);

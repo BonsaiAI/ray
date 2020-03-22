@@ -6,10 +6,9 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import org.apache.commons.io.FileUtils;
-import org.ray.api.RayActor;
+import org.ray.api.BaseActor;
 import org.ray.api.id.JobId;
 import org.ray.api.id.UniqueId;
-import org.ray.runtime.actor.NativeRayActor;
 import org.ray.runtime.config.RayConfig;
 import org.ray.runtime.context.NativeWorkerContext;
 import org.ray.runtime.functionmanager.FunctionManager;
@@ -45,17 +44,24 @@ public final class RayNativeRuntime extends AbstractRayRuntime {
     // Expose ray ABI symbols which may be depended by other shared
     // libraries such as libstreaming_java.so.
     // See BUILD.bazel:libcore_worker_library_java.so
+    final RayConfig rayConfig = RayConfig.getInstance();
+    if (rayConfig.getRedisAddress() != null && rayConfig.workerMode == WorkerType.DRIVER) {
+      // Fetch session dir from GCS if this is a driver that is connecting to the existing GCS.
+      RedisClient client = new RedisClient(rayConfig.getRedisAddress(), rayConfig.redisPassword);
+      final String sessionDir = client.get("session_dir", null);
+      Preconditions.checkNotNull(sessionDir);
+      rayConfig.setSessionDir(sessionDir);
+    }
+
     JniUtils.loadLibrary("core_worker_library_java", true);
     LOGGER.debug("Native libraries loaded.");
-    RayConfig globalRayConfig = RayConfig.create();
-    resetLibraryPath(globalRayConfig);
-
+    resetLibraryPath(rayConfig);
     try {
-      FileUtils.forceMkdir(new File(globalRayConfig.logDir));
+      FileUtils.forceMkdir(new File(rayConfig.logDir));
     } catch (IOException e) {
       throw new RuntimeException("Failed to create the log directory.", e);
     }
-    nativeSetup(globalRayConfig.logDir);
+    nativeSetup(rayConfig.logDir, rayConfig.rayletConfigParameters);
     Runtime.getRuntime().addShutdownHook(new Thread(RayNativeRuntime::nativeShutdownHook));
   }
 
@@ -67,7 +73,6 @@ public final class RayNativeRuntime extends AbstractRayRuntime {
 
   public RayNativeRuntime(RayConfig rayConfig, FunctionManager functionManager) {
     super(rayConfig, functionManager);
-
     // Reset library path at runtime.
     resetLibraryPath(rayConfig);
 
@@ -89,8 +94,8 @@ public final class RayNativeRuntime extends AbstractRayRuntime {
         new GcsClientOptions(rayConfig));
     Preconditions.checkState(nativeCoreWorkerPointer != 0);
 
-    taskExecutor = new NativeTaskExecutor(nativeCoreWorkerPointer, this);
     workerContext = new NativeWorkerContext(nativeCoreWorkerPointer);
+    taskExecutor = new NativeTaskExecutor(nativeCoreWorkerPointer, this);
     objectStore = new NativeObjectStore(workerContext, nativeCoreWorkerPointer);
     taskSubmitter = new NativeTaskSubmitter(nativeCoreWorkerPointer);
 
@@ -111,7 +116,7 @@ public final class RayNativeRuntime extends AbstractRayRuntime {
       manager.cleanup();
       manager = null;
     }
-
+    RayConfig.reset();
     LOGGER.info("RayNativeRuntime shutdown");
   }
 
@@ -130,11 +135,8 @@ public final class RayNativeRuntime extends AbstractRayRuntime {
   }
 
   @Override
-  public void killActor(RayActor<?> actor) {
-    if (!((NativeRayActor) actor).isDirectCallActor()) {
-      throw new UnsupportedOperationException("Only direct call actors can be killed.");
-    }
-    nativeKillActor(nativeCoreWorkerPointer, actor.getId().getBytes());
+  public void killActor(BaseActor actor, boolean noReconstruction) {
+    nativeKillActor(nativeCoreWorkerPointer, actor.getId().getBytes(), noReconstruction);
   }
 
   @Override
@@ -147,11 +149,15 @@ public final class RayNativeRuntime extends AbstractRayRuntime {
   }
 
   public void run() {
-    nativeRunTaskExecutor(nativeCoreWorkerPointer, taskExecutor);
+    nativeRunTaskExecutor(nativeCoreWorkerPointer);
   }
 
   public long getNativeCoreWorkerPointer() {
     return nativeCoreWorkerPointer;
+  }
+
+  public TaskExecutor getTaskExecutor() {
+    return taskExecutor;
   }
 
   /**
@@ -183,17 +189,17 @@ public final class RayNativeRuntime extends AbstractRayRuntime {
       String rayletSocket, String nodeIpAddress, int nodeManagerPort, byte[] jobId,
       GcsClientOptions gcsClientOptions);
 
-  private static native void nativeRunTaskExecutor(long nativeCoreWorkerPointer,
-      TaskExecutor taskExecutor);
+  private static native void nativeRunTaskExecutor(long nativeCoreWorkerPointer);
 
   private static native void nativeDestroyCoreWorker(long nativeCoreWorkerPointer);
 
-  private static native void nativeSetup(String logDir);
+  private static native void nativeSetup(String logDir, Map<String, String> rayletConfigParameters);
 
   private static native void nativeShutdownHook();
 
   private static native void nativeSetResource(long conn, String resourceName, double capacity,
       byte[] nodeId);
 
-  private static native void nativeKillActor(long nativeCoreWorkerPointer, byte[] actorId);
+  private static native void nativeKillActor(long nativeCoreWorkerPointer, byte[] actorId,
+      boolean noReconstruction);
 }

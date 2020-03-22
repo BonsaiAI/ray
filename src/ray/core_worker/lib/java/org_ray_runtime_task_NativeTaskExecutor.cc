@@ -1,3 +1,17 @@
+// Copyright 2017 The Ray Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "ray/core_worker/lib/java/org_ray_runtime_task_NativeTaskExecutor.h"
 #include <jni.h>
 #include "ray/common/id.h"
@@ -20,8 +34,7 @@ Java_org_ray_runtime_task_NativeTaskExecutor_nativePrepareCheckpoint(
   const auto &task_spec = core_worker.GetWorkerContext().GetCurrentTask();
   RAY_CHECK(task_spec->IsActorTask());
   ActorCheckpointID checkpoint_id;
-  auto status =
-      core_worker.GetRayletClient().PrepareActorCheckpoint(actor_id, checkpoint_id);
+  auto status = core_worker.PrepareActorCheckpoint(actor_id, &checkpoint_id);
   THROW_EXCEPTION_AND_RETURN_IF_NOT_OK(env, status, nullptr);
   jbyteArray result = env->NewByteArray(checkpoint_id.Size());
   env->SetByteArrayRegion(result, 0, checkpoint_id.Size(),
@@ -35,8 +48,7 @@ Java_org_ray_runtime_task_NativeTaskExecutor_nativeNotifyActorResumedFromCheckpo
   auto &core_worker = *reinterpret_cast<ray::CoreWorker *>(nativeCoreWorkerPointer);
   const auto &actor_id = core_worker.GetWorkerContext().GetCurrentActorID();
   const auto checkpoint_id = JavaByteArrayToId<ActorCheckpointID>(env, checkpointId);
-  auto status = core_worker.GetRayletClient().NotifyActorResumedFromCheckpoint(
-      actor_id, checkpoint_id);
+  auto status = core_worker.NotifyActorResumedFromCheckpoint(actor_id, checkpoint_id);
   THROW_EXCEPTION_AND_RETURN_IF_NOT_OK(env, status, (void)0);
 }
 

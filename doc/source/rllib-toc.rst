@@ -4,6 +4,9 @@ RLlib Table of Contents
 Training APIs
 -------------
 *  `Command-line <rllib-training.html>`__
+
+   -  `Evaluating Trained Policies <rllib-training.html#evaluating-trained-policies>`__
+
 *  `Configuration <rllib-training.html#configuration>`__
 
    -  `Specifying Parameters <rllib-training.html#specifying-parameters>`__
@@ -14,9 +17,7 @@ Training APIs
 
    -  `Tuned Examples <rllib-training.html#tuned-examples>`__
 
-*  `Python API <rllib-training.html#python-api>`__
-
-   -  `Custom Training Workflows <rllib-training.html#custom-training-workflows>`__
+*  `Basic Python API <rllib-training.html#basic-python-api>`__
 
    -  `Computing Actions <rllib-training.html#computing-actions>`__
 
@@ -24,9 +25,17 @@ Training APIs
 
    -  `Accessing Model State <rllib-training.html#accessing-model-state>`__
 
+*  `Advanced Python APIs <rllib-training.html#advanced-python-apis>`__
+
+   -  `Custom Training Workflows <rllib-training.html#custom-training-workflows>`__
+
    -  `Global Coordination <rllib-training.html#global-coordination>`__
 
    -  `Callbacks and Custom Metrics <rllib-training.html#callbacks-and-custom-metrics>`__
+
+   -  `Customizing Exploration Behavior <rllib-training.html#customizing-exploration-behavior>`__
+
+   -  `Customized Evaluation During Training <rllib-training.html#customized-evaluation-during-training>`__
 
    -  `Rewriting Trajectories <rllib-training.html#rewriting-trajectories>`__
 
@@ -44,7 +53,7 @@ Training APIs
 
    -  `Stack Traces <rllib-training.html#stack-traces>`__
 
-*  `REST API <rllib-training.html#rest-api>`__
+*  `External Application API <rllib-training.html#external-application-api>`__
 
 Environments
 ------------
@@ -53,7 +62,10 @@ Environments
 * `OpenAI Gym <rllib-env.html#openai-gym>`__
 * `Vectorized <rllib-env.html#vectorized>`__
 * `Multi-Agent and Hierarchical <rllib-env.html#multi-agent-and-hierarchical>`__
-* `Interfacing with External Agents <rllib-env.html#interfacing-with-external-agents>`__
+* `External Agents and Applications <rllib-env.html#external-agents-and-applications>`__
+
+   -  `External Application Clients <rllib-env.html#external-application-clients>`__
+
 * `Advanced Integrations <rllib-env.html#advanced-integrations>`__
 
 Models, Preprocessors, and Action Distributions
@@ -64,6 +76,7 @@ Models, Preprocessors, and Action Distributions
 * `Custom Preprocessors <rllib-models.html#custom-preprocessors>`__
 * `Custom Action Distributions <rllib-models.html#custom-action-distributions>`__
 * `Supervised Model Losses <rllib-models.html#supervised-model-losses>`__
+* `Self-Supervised Model Losses <rllib-models.html#self-supervised-model-losses>`__
 * `Variable-length / Parametric Action Spaces <rllib-models.html#variable-length-parametric-action-spaces>`__
 * `Autoregressive Action Distributions <rllib-models.html#autoregressive-action-distributions>`__
 
@@ -77,6 +90,8 @@ Algorithms
    -  |tensorflow| `Importance Weighted Actor-Learner Architecture (IMPALA) <rllib-algorithms.html#importance-weighted-actor-learner-architecture-impala>`__
 
    -  |tensorflow| `Asynchronous Proximal Policy Optimization (APPO) <rllib-algorithms.html#asynchronous-proximal-policy-optimization-appo>`__
+
+   -  |pytorch| `Decentralized Distributed Proximal Policy Optimization (DD-PPO) <rllib-algorithms.html#decentralized-distributed-proximal-policy-optimization-dd-ppo>`__
 
    -  |pytorch| `Single-Player AlphaZero (contrib/AlphaZero) <rllib-algorithms.html#single-player-alpha-zero-contrib-alphazero>`__
 
@@ -173,8 +188,9 @@ try setting ``OMP_NUM_THREADS=1``. Similarly, check configured system limits wit
 If you encounter out-of-memory errors, consider setting ``redis_max_memory`` and ``object_store_memory`` in ``ray.init()`` to reduce memory usage.
 
 For debugging unexpected hangs or performance problems, you can run ``ray stack`` to dump
-the stack traces of all Ray workers on the current node, and ``ray timeline`` to dump
-a timeline visualization of tasks to a file.
+the stack traces of all Ray workers on the current node, ``ray timeline`` to dump
+a timeline visualization of tasks to a file, and ``ray memory`` to list all object
+references in the cluster.
 
 TensorFlow 2.0
 ~~~~~~~~~~~~~~

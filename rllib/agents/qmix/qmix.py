@@ -35,7 +35,9 @@ DEFAULT_CONFIG = with_common_config({
     # Fraction of entire training period over which the exploration rate is
     # annealed
     "exploration_fraction": 0.1,
-    # Final value of random action probability
+    # Initial value of random action probability.
+    "exploration_initial_eps": 1.0,
+    # Final value of random action probability.
     "exploration_final_eps": 0.02,
     # Update the target network every `target_network_update_freq` steps.
     "target_network_update_freq": 500,
@@ -57,7 +59,7 @@ DEFAULT_CONFIG = with_common_config({
     "learning_starts": 1000,
     # Update the replay buffer with this many samples at once. Note that
     # this setting applies per-worker if num_workers > 1.
-    "sample_batch_size": 4,
+    "rollout_fragment_length": 4,
     # Size of a batched sampled from replay buffer for training. Note that
     # if async_updates is set, then each worker returns gradients for a
     # batch of this size.

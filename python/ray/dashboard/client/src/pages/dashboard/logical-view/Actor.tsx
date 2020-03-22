@@ -1,3 +1,5 @@
+import Collapse from "@material-ui/core/Collapse";
+import orange from "@material-ui/core/colors/orange";
 import { Theme } from "@material-ui/core/styles/createMuiTheme";
 import createStyles from "@material-ui/core/styles/createStyles";
 import withStyles, { WithStyles } from "@material-ui/core/styles/withStyles";
@@ -7,11 +9,11 @@ import {
   checkProfilingStatus,
   CheckProfilingStatusResponse,
   getProfilingResultURL,
+  launchKillActor,
   launchProfiling,
   RayletInfoResponse
 } from "../../../api";
 import Actors from "./Actors";
-import Collapse from "@material-ui/core/Collapse";
 
 const styles = (theme: Theme) =>
   createStyles({
@@ -33,8 +35,11 @@ const styles = (theme: Theme) =>
         cursor: "pointer"
       }
     },
-    infeasible: {
+    invalidStateTypeInfeasible: {
       color: theme.palette.error.main
+    },
+    invalidStateTypePendingActor: {
+      color: orange[500]
     },
     information: {
       fontSize: "0.875rem"
@@ -110,6 +115,13 @@ class Actor extends React.Component<Props & WithStyles<typeof styles>, State> {
     }
   };
 
+  killActor = () => {
+    const actor = this.props.actor;
+    if (actor.state === 0) {
+      launchKillActor(actor.actorId, actor.ipAddress, actor.port);
+    }
+  };
+
   render() {
     const { classes, actor } = this.props;
     const { expanded, profiling } = this.state;
@@ -153,11 +165,11 @@ class Actor extends React.Component<Props & WithStyles<typeof styles>, State> {
             {
               label: "UsedLocalObjectMemory",
               value: actor.usedObjectStoreMemory.toLocaleString()
-            },
-            {
-              label: "Task",
-              value: actor.currentTaskFuncDesc.join(".")
             }
+            // {
+            //   label: "Task",
+            //   value: actor.currentTaskFuncDesc.join(".")
+            // }
           ]
         : [
             {
@@ -242,6 +254,13 @@ class Actor extends React.Component<Props & WithStyles<typeof styles>, State> {
                 </React.Fragment>
               ))}
               ){" "}
+              {actor.state === 0 ? (
+                <span className={classes.action} onClick={this.killActor}>
+                  Kill Actor
+                </span>
+              ) : (
+                ""
+              )}
               {Object.entries(profiling).map(
                 ([profilingId, { startTime, latestResponse }]) =>
                   latestResponse !== null && (
@@ -270,8 +289,15 @@ class Actor extends React.Component<Props & WithStyles<typeof styles>, State> {
                   )
               )}
             </React.Fragment>
+          ) : actor.invalidStateType === "infeasibleActor" ? (
+            <span className={classes.invalidStateTypeInfeasible}>
+              {actor.actorTitle} is infeasible. (This actor cannot be created
+              because the Ray cluster cannot satisfy its resource requirements.)
+            </span>
           ) : (
-            <span className={classes.infeasible}>Infeasible actor</span>
+            <span className={classes.invalidStateTypePendingActor}>
+              {actor.actorTitle} is pending until resources are available.
+            </span>
           )}
         </Typography>
         <Typography className={classes.information}>

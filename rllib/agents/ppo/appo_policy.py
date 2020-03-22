@@ -389,7 +389,8 @@ def postprocess_trajectory(policy,
             last_r,
             policy.config["gamma"],
             policy.config["lambda"],
-            use_gae=policy.config["use_gae"])
+            use_gae=policy.config["use_gae"],
+            use_critic=policy.config["use_critic"])
     else:
         batch = sample_batch
     del batch.data["new_obs"]  # not used, so save some bandwidth
@@ -453,4 +454,4 @@ AsyncPPOTFPolicy = build_tf_policy(
         LearningRateSchedule, KLCoeffMixin, TargetNetworkMixin,
         ValueNetworkMixin
     ],
-    get_batch_divisibility_req=lambda p: p.config["sample_batch_size"])
+    get_batch_divisibility_req=lambda p: p.config["rollout_fragment_length"])

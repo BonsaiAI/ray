@@ -22,5 +22,5 @@ steps:
   env:
     HELPER_SCRIPTS: $(Build.SourcesDirectory)/ci/azure_pipelines/image
     METADATA_FILE: $(Build.SourcesDirectory)/ci/azure_pipelines/image/metadata.txt
-  displayName: 'Install bazel'
+  displayName: 'Check Bazel'
   timeoutInMinutes: 60

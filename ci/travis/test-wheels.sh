@@ -28,7 +28,7 @@ if [[ "$platform" == "linux" ]]; then
   # Now test Python 3.6.
 
   # Install miniconda.
-  wget --quiet https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh -O miniconda3.sh
+  wget --quiet https://repo.continuum.io/miniconda/Miniconda3-4.7.12.1-Linux-x86_64.sh -O miniconda3.sh
   bash miniconda3.sh -b -p "$HOME/miniconda3"
 
   PYTHON_EXE=$HOME/miniconda3/bin/python

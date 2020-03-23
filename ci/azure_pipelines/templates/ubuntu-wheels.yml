@@ -1,0 +1,66 @@
+# This template includes the steps to genarete the ubuntu wheels in travis.
+
+steps:
+# Install phase of the travis Ubuntu wheels build
+- bash: |
+    echo Running install phase of the original travis.yml
+
+    # Set some variables to make the system looks like Travis
+    source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
+
+    # Start Original script
+    eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
+    if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
+    # Originally with ./ci/suppress_output 
+    ./ci/travis/install-dependencies.sh
+
+    # Mount bazel cache dir to the docker container.
+    # For the linux wheel build, we use a shared cache between all
+    # wheels, but not between different travis runs, because that
+    # caused timeouts in the past. See the "cache: false" line below.
+    export MOUNT_BAZEL_CACHE="-v $HOME/ray-bazel-cache:/root/ray-bazel-cache -e TRAVIS=true -e TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST -e encrypted_1c30b31fe1ee_key=$encrypted_1c30b31fe1ee_key -e encrypted_1c30b31fe1ee_iv=$encrypted_1c30b31fe1ee_iv"
+
+    # This command should be kept in sync with ray/python/README-building-wheels.md,
+    # except the `$MOUNT_BAZEL_CACHE` part.
+
+    # Not part of the original script
+    # Update pip to latest
+    pip install --upgrade setuptools
+    # End of Not part of the original script
+
+    # Originally with ./ci/suppress_output 
+    docker run -e TRAVIS_COMMIT=$TRAVIS_COMMIT --rm -w /ray -v `pwd`:/ray $MOUNT_BAZEL_CACHE -i rayproject/arrow_linux_x86_64_base:ARROW-5631 /ray/python/build-wheel-manylinux1.sh
+    # End Original script
+
+    exit 0
+  env:
+    PYTHONWARNINGS: 'ignore'
+    TRAVIS: 'true'
+    MAC_WHEELS: 1
+    RAY_INSTALL_JAVA: 1
+  displayName: 'Run original travis install phase'
+  timeoutInMinutes: 120
+# Script phase of the travis Ubuntu wheels build
+- bash: |
+    ls -l "$BUILD_SOURCESDIRECTORY/.whl/"
+
+    # Set some variables to make the system looks like Travis
+    source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
+
+    # TODO: [CI] remove this after finish debugging
+    set +e
+
+    # Start Original script
+    if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
+
+    ./ci/travis/test-wheels.sh
+    # End Original script
+
+    exit 0
+  env:
+    PYTHONWARNINGS: 'ignore'
+    TRAVIS: 'true'
+    MAC_WHEELS: 1
+    RAY_INSTALL_JAVA: 1
+  displayName: 'Run original script phase'
+  timeoutInMinutes: 120

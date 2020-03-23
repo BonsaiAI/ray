@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Cause the script to exit if a single command fails.
-set -e
+set -ex
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE:-$0}")"; pwd)
 
@@ -21,8 +21,16 @@ if [[ "$PYTHON" == "3.6" ]]; then
 
   pushd "$ROOT_DIR/../../python"
     pushd ray/dashboard/client
-      source $HOME/.nvm/nvm.sh
-      nvm use node
+      if which npm > /dev/null
+      then
+        npm -v
+        echo "npm is active, skipping..."
+      else
+        echo "npm not active, using..."
+
+        source $HOME/.nvm/nvm.sh
+        nvm use node
+      fi
       npm ci
       npm run build
     popd

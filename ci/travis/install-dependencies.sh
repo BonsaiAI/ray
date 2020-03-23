@@ -44,7 +44,7 @@ if [[ "$PYTHON" == "3.6" ]] && [[ "$platform" == "linux" ]]; then
   sudo apt-get update
   sudo apt-get install -y python-dev python-numpy build-essential curl unzip tmux gdb libunwind-dev
   # Install miniconda.
-  wget -q https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh -O miniconda.sh -nv
+  wget -q https://repo.continuum.io/miniconda/Miniconda3-4.7.12-Linux-x86_64.sh -O miniconda.sh -nv
   bash miniconda.sh -b -p $HOME/miniconda
   export PATH="$HOME/miniconda/bin:$PATH"
   "${ROOT_DIR}/install-strace.sh" || true
@@ -56,7 +56,7 @@ if [[ "$PYTHON" == "3.6" ]] && [[ "$platform" == "linux" ]]; then
     blist scikit-learn numba
 elif [[ "$PYTHON" == "3.6" ]] && [[ "$platform" == "macosx" ]]; then
   # Install miniconda.
-  wget -q https://repo.continuum.io/miniconda/Miniconda3-4.5.4-MacOSX-x86_64.sh -O miniconda.sh -nv
+  wget -q https://repo.continuum.io/miniconda/Miniconda3-4.7.12-MacOSX-x86_64.sh -O miniconda.sh -nv
   bash miniconda.sh -b -p $HOME/miniconda
   export PATH="$HOME/miniconda/bin:$PATH"
   pip install scipy tensorflow==$tf_version \
@@ -69,7 +69,7 @@ elif [[ "$LINT" == "1" ]]; then
   sudo apt-get update
   sudo apt-get install -y build-essential curl unzip
   # Install miniconda.
-  wget -q https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh -O miniconda.sh -nv
+  wget -q https://repo.continuum.io/miniconda/Miniconda3-4.7.12-Linux-x86_64.sh -O miniconda.sh -nv
   bash miniconda.sh -b -p $HOME/miniconda
   export PATH="$HOME/miniconda/bin:$PATH"
   # Install Python linting tools.
@@ -108,8 +108,17 @@ fi
 
 if [[ "$PYTHON" == "3.6" ]] || [[ "$MAC_WHEELS" == "1" ]]; then
   # Install the latest version of Node.js in order to build the dashboard.
-  source "$HOME/.nvm/nvm.sh"
-  nvm install node
+  if which node > /dev/null
+  then
+    node -v
+    npm -v
+    echo "node is installed, skipping..."
+  else
+    echo "node not installed, installing..."
+
+    source "$HOME/.nvm/nvm.sh"
+    nvm install node
+  fi
 fi
 
 pip install psutil setproctitle \

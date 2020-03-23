@@ -41,4 +41,4 @@ steps:
       print(('cp36', 'cp36m', 'macosx_10_14_x86_64') in tags)
       print(platform.mac_ver())
     failOnStderr: false
-  displayName: 'Print system info'
+  displayName: 'Print Python System info'

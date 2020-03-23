@@ -1,0 +1,75 @@
+# This template includes the steps of the 
+# jenkings test in the run_multi_node_tests.sh
+
+steps:
+- bash: |
+    echo Running install phase of the original travis.yml
+
+    # Set some variables to make the system looks like Travis
+    source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
+
+    # Start Original script
+
+    # Cause the script to exit if a single command fails.
+    set -e
+
+    # Show explicitly which commands are currently running.
+    set -x
+
+    MEMORY_SIZE="20G"
+    SHM_SIZE="20G"
+
+    DOCKER_SHA=$($BUILD_SOURCESDIRECTORY/build-docker.sh --output-sha --no-cache)
+    SUPPRESS_OUTPUT=$BUILD_SOURCESDIRECTORY/ci/suppress_output
+    echo "Using Docker image" $DOCKER_SHA
+
+    ######################## RLLIB TESTS #################################
+
+    # DEPRECATED: All RLlib tests have been moved to /ray/rllib/BUILD
+    # source $BUILD_SOURCESDIRECTORY/ci/jenkins_tests/run_rllib_tests.sh
+
+    # TODO: [CI] All the following tests are disabled because:
+    # - In Tune here is one tune test that requires API KEY of https://sigopt.com 
+    # - The large memory test requires 60 GB of RAM
+    # ######################## TUNE TESTS #################################
+
+    # bash $BUILD_SOURCESDIRECTORY/ci/jenkins_tests/run_tune_tests.sh ${MEMORY_SIZE} ${SHM_SIZE} $DOCKER_SHA
+
+    # ######################## EXAMPLE TESTS #################################
+
+    # Originally with ./ci/suppress_output 
+    docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} --memory-swap=-1 $DOCKER_SHA \
+        python /ray/doc/examples/plot_pong_example.py
+
+    # Originally with ./ci/suppress_output 
+    docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} --memory-swap=-1 $DOCKER_SHA \
+        python /ray/doc/examples/plot_parameter_server.py
+
+    # Originally with ./ci/suppress_output 
+    docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} --memory-swap=-1 $DOCKER_SHA \
+        python /ray/doc/examples/plot_hyperparameter.py
+
+    # Originally with ./ci/suppress_output 
+    docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} --memory-swap=-1 $DOCKER_SHA \
+        python /ray/doc/examples/doc_code/torch_example.py
+
+    # Originally with ./ci/suppress_output 
+    docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} --memory-swap=-1 $DOCKER_SHA \
+        python /ray/doc/examples/doc_code/tf_example.py
+
+    # ######################## RAY BACKEND TESTS #################################
+
+    # # Originally with ./ci/suppress_output
+    # docker run --rm --shm-size=60G --memory=60G --memory-swap=-1 $DOCKER_SHA \
+    #     python /ray/ci/jenkins_tests/miscellaneous/large_memory_test.py
+
+    # End Original script
+
+    exit 0
+  env:
+    PYTHONWARNINGS: 'ignore'
+    TRAVIS: 'true'
+    MAC_WHEELS: 1
+    RAY_INSTALL_JAVA: 1
+  displayName: 'Run original Jenkins multi-node tests'
+  timeoutInMinutes: 180

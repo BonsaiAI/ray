@@ -10,19 +10,25 @@ stages:
   - stage: Build
     jobs:
       - job: RayTests
-        timeoutInMinutes: 120
+        timeoutInMinutes: 240
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
-            linux_python35:
+            linux_python36:
               imageName: 'ubuntu-16.04'
-              python.version: '3.5'
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
-            mac_python35:
-              imageName: 'macos-10.14'
-              python.version: '3.5'
+            mac_python36:
+              imageName: 'macOS-10.15'
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
@@ -50,107 +56,90 @@ stages:
           - template: templates/script.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
-      - job: RLlibTestsTuneTestsDocExamples
+      - job: RLlibQuickTrainTF2
         # Disabled
         # condition: False
-        timeoutInMinutes: 600
+        timeoutInMinutes: 240
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
-            linux_python35:
-              poolName: RayPipelineAgentPoolStandardF16sv2
-              python.version: '3.5'
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
-        displayName: RLlib tests - Tune tests - Doc Examples
+        displayName: RLlib Quick Train
         pool:
-          name: $(poolName)
+          vmImage: $(imageName)
         steps:
           # Template containing the installation of steps of python
           - template: templates/python.yml
-          # Jenkins pipeline equivalent
-          - bash: |
-              echo Running install phase of the original travis.yml
-
-              # Set some variables to make the system looks like Travis
-              source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
-
-              # Start Original script
-
-              # Cause the script to exit if a single command fails.
-              set -e
-
-              # Show explicitly which commands are currently running.
-              set -x
-
-              MEMORY_SIZE="20G"
-              SHM_SIZE="20G"
-
-              DOCKER_SHA=$($BUILD_SOURCESDIRECTORY/build-docker.sh --output-sha --no-cache)
-              SUPPRESS_OUTPUT=$BUILD_SOURCESDIRECTORY/ci/suppress_output
-              echo "Using Docker image" $DOCKER_SHA
-
-              ######################## RLLIB TESTS #################################
-
-              source $BUILD_SOURCESDIRECTORY/ci/jenkins_tests/run_rllib_tests.sh
-
-              # TODO: [CI] All the following tests are disabled because:
-              # - In Tune here is one tune test that requires API KEY of https://sigopt.com 
-              # - The large memory test requires 60 GB of RAM
-              # ######################## TUNE TESTS #################################
-
-              # bash $BUILD_SOURCESDIRECTORY/ci/jenkins_tests/run_tune_tests.sh ${MEMORY_SIZE} ${SHM_SIZE} $DOCKER_SHA
-
-              # ######################## EXAMPLE TESTS #################################
-
-              # # Originally with ./ci/suppress_output 
-              # docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} $DOCKER_SHA \
-              #     python /ray/doc/examples/plot_pong_example.py
-
-              # # Originally with ./ci/suppress_output 
-              # docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} $DOCKER_SHA \
-              #     python /ray/doc/examples/plot_parameter_server.py
-
-              # # Originally with ./ci/suppress_output 
-              # docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} $DOCKER_SHA \
-              #     python /ray/doc/examples/plot_hyperparameter.py
-
-              # # Originally with ./ci/suppress_output 
-              # docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} $DOCKER_SHA \
-              #     python /ray/doc/examples/doc_code/torch_example.py
-
-              # # Originally with ./ci/suppress_output 
-              # docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} $DOCKER_SHA \
-              #     python /ray/doc/examples/doc_code/tf_example.py
-
-              # ######################## RAY BACKEND TESTS #################################
-
-              # # Originally with ./ci/suppress_output
-              # docker run --rm --shm-size=60G --memory=60G $DOCKER_SHA \
-              #     python /ray/ci/jenkins_tests/miscellaneous/large_memory_test.py
-
-              # End Original script
-
-              exit 0
-            env:
-              PYTHONWARNINGS: 'ignore'
-              TRAVIS: 'true'
-              MAC_WHEELS: 1
-              RAY_INSTALL_JAVA: 1
-            displayName: 'Run original Jenkins multi-node tests'
+          # Template containing the rllib train quick (no learning) tests with TF 2
+          - template: templates/rlib-quick-train-tf-2.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: RLlibTestsAtoITF2
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: RLlib Tests A-to-I
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the first part tests of rllib with TF 2
+          - template: templates/rlib-test-a-to-i-tf-2.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: RLlibTestsJtoZTF2
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: RLlib Tests J-to-Z
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the second part tests of rllib with TF 2
+          - template: templates/rlib-test-j-to-z-tf-2.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
       - job: UbuntuWheels
         # dependsOn: RayTests
-        timeoutInMinutes: 120
+        timeoutInMinutes: 240
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
-            python35:
+            python36:
               imageName: 'ubuntu-16.04'
-              python.version: '3.5'
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
@@ -170,80 +159,24 @@ stages:
           - template: templates/python.yml
           # Template containing the installation of steps of bazel
           - template: templates/bazel.yml
-          # Install phase of the travis Ubuntu wheels build
-          - bash: |
-              echo Running install phase of the original travis.yml
-
-              # Set some variables to make the system looks like Travis
-              source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
-
-              # Start Original script
-              eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-              if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
-              # Originally with ./ci/suppress_output 
-              ./ci/travis/install-dependencies.sh
-
-              # Mount bazel cache dir to the docker container.
-              # For the linux wheel build, we use a shared cache between all
-              # wheels, but not between different travis runs, because that
-              # caused timeouts in the past. See the "cache: false" line below.
-              export MOUNT_BAZEL_CACHE="-v $HOME/ray-bazel-cache:/root/ray-bazel-cache -e TRAVIS=true -e TRAVIS_PULL_REQUEST=$TRAVIS_PULL_REQUEST -e encrypted_1c30b31fe1ee_key=$encrypted_1c30b31fe1ee_key -e encrypted_1c30b31fe1ee_iv=$encrypted_1c30b31fe1ee_iv"
-
-              # This command should be kept in sync with ray/python/README-building-wheels.md,
-              # except the `$MOUNT_BAZEL_CACHE` part.
-
-              # Not part of the original script
-              # Update pip to latest
-              pip install --upgrade setuptools
-              # End of Not part of the original script
-
-              # Originally with ./ci/suppress_output 
-              docker run --rm -w /ray -v `pwd`:/ray $MOUNT_BAZEL_CACHE -i rayproject/arrow_linux_x86_64_base:latest /ray/python/build-wheel-manylinux1.sh
-              # End Original script
-
-              exit 0
-            env:
-              PYTHONWARNINGS: 'ignore'
-              TRAVIS: 'true'
-              MAC_WHEELS: 1
-              RAY_INSTALL_JAVA: 1
-            displayName: 'Run original travis install phase'
-          # Script phase of the travis MacOS wheels build
-          - bash: |
-              ls -l "$BUILD_SOURCESDIRECTORY/.whl/"
-
-              # Set some variables to make the system looks like Travis
-              source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
-
-              # TODO: [CI] remove this after finish debugging
-              set +e
-
-              # Start Original script
-              if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
-
-              ./ci/travis/test-wheels.sh
-              # End Original script
-
-              exit 0
-            env:
-              PYTHONWARNINGS: 'ignore'
-              TRAVIS: 'true'
-              MAC_WHEELS: 1
-              RAY_INSTALL_JAVA: 1
-            displayName: 'Run original script phase'
+          # Install and Script phase of the travis Ubuntu wheels build
+          - template: templates/ubuntu-wheels.yml
           # Upload packages
           - template: templates/python-upload.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
       - job: MacOSWheels
         # dependsOn: RayTests
-        timeoutInMinutes: 120
+        timeoutInMinutes: 240
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
-            python35:
-              imageName: 'macos-10.14'
-              python.version: '3.5'
+            python36:
+              imageName: 'macOS-10.15'
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
@@ -263,72 +196,254 @@ stages:
           - template: templates/python.yml
           # Template containing the installation of steps of bazel
           - template: templates/bazel.yml
-          # Install phase of the travis MacOS wheels build
-          - bash: |
-              echo Running install phase of the original travis.yml
-
-              # Set some variables to make the system looks like Travis
-              source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
-
-              # Start Original script
-              eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-              if [ $RAY_CI_MACOS_WHEELS_AFFECTED != "1" ]; then exit; fi
-
-              # Originally with ./ci/suppress_output
-              ./ci/travis/install-dependencies.sh
-
-              # Not part of the original script
-              # Change the default deployment target
-              export MACOSX_DEPLOYMENT_TARGET="10.6"
-              export PYTHON_CONFIGURE_OPTS="--enable-universalsdk=/ --with-universal-archs=intel"
-              # End of Not part of the original script
-
-              # This command should be kept in sync with ray/python/README-building-wheels.md.
-              # Originally with ./ci/suppress_output 
-              ./python/build-wheel-macos.sh
-              # End Original script
-
-              exit 0
-            env:
-              PYTHONWARNINGS: 'ignore'
-              TRAVIS: 'true'
-              MAC_WHEELS: 1
-              RAY_INSTALL_JAVA: 1
-            displayName: 'Run original travis install phase'
-          # Script phase of the travis MacOS wheels build
-          - bash: |
-              ls -l "$BUILD_SOURCESDIRECTORY/.whl/"
-
-              echo "MACOSX_DEPLOYMENT_TARGET: $MACOSX_DEPLOYMENT_TARGET"
-              echo "PYTHON_CONFIGURE_OPTS: $PYTHON_CONFIGURE_OPTS"
-
-              # Set some variables to make the system looks like Travis
-              source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
-
-              # Duplicate the wheel packages for the architecture of the agent
-              for f in $BUILD_SOURCESDIRECTORY/.whl/*.whl; do mv "$f" "$(echo "$f" | sed s/macosx_10_15_intel/macosx_10_13_x86_64/)"; done
-
-              # TODO: [CI] remove this after finish debugging
-              set +e
-
-              # Start Original script
-              if [ $RAY_CI_MACOS_WHEELS_AFFECTED != "1" ]; then exit; fi
-
-              ./ci/travis/test-wheels.sh
-              # End Original script
-
-              # Duplicate the wheel packages for the architecture of the agent
-              for f in $BUILD_SOURCESDIRECTORY/.whl/*.whl; do cp "$f" "$(echo "$f" | sed s/macosx_10_13_x86_64/macosx_10_15_intel/)"; done
-
-              exit 0
-            env:
-              PYTHONWARNINGS: 'ignore'
-              TRAVIS: 'true'
-              MAC_WHEELS: 1
-              RAY_INSTALL_JAVA: 1
-            displayName: 'Run original script phase'
+          # Install and Script phase of the travis MacOS wheels build
+          - template: templates/macos-wheels.yml
           # Upload packages
           - template: templates/python-upload.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: JavaTests
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: JAVA Tests
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the installation of steps of java
+          - template: templates/java.yml
+          # Template containing the JAVA tests
+          - template: templates/java-test.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: GCSTests
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: GCS Service Tests
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the installation of steps of java
+          - template: templates/java.yml
+          # Template containing the gcs service tests
+          - template: templates/gcs.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+  - stage: Tests
+    jobs:
+      - job: StreamingTests
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: Streaming Tests
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the installation of steps of java
+          - template: templates/java.yml
+          # Template containing the Streaming tests
+          - template: templates/streaming.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: GCSPythonTests
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: GCS Python Tests
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the installation of steps of java
+          - template: templates/java.yml
+          # Template containing the gcs python tests
+          - template: templates/gcs-python.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: Lint
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: Lint
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the linting of Ray
+          - template: templates/lint.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: RLlibLearningTF2
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: RLlib Learning Tests TF 2
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the rllib learning test with TF 2.x
+          - template: templates/rlib-learning-tf-2.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: RLlibLearningTF1
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: RLlib Learning Tests TF 1
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the rllib learning test with TF 1.x
+          - template: templates/rlib-learning-tf-1.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: RLlibExamplesTF2
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: RLlib Examples
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the tests of the RLlib examples with TF 2
+          - template: templates/rlib-examples-tf-2.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: TestDocExamples
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              poolName: RayPipelineAgentPoolStandardF16sv2
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: Test Doc Examples
+        pool:
+          name: $(poolName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Jenkins pipeline equivalent
+          - template: templates/multi-node.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
 trigger: none

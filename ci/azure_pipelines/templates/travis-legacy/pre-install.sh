@@ -27,7 +27,9 @@ echo "Determined PYTHON variable: $PYTHON"
 export TRAVIS_COMMIT=$BUILD_SOURCEVERSION
 echo "Determined TRAVIS_COMMIT variable: $TRAVIS_COMMIT"
 
-export TRAVIS_BRANCH=$SYSTEM_PULLREQUEST_TARGETBRANCH && [[ -z $TRAVIS_BRANCH ]] && TRAVIS_BRANCH=$BUILD_SOURCEBRANCH
+export TRAVIS_BRANCH=$BUILD_SOURCEBRANCH
+echo "Determined SYSTEM_PULLREQUEST_TARGETBRANCH variable: $SYSTEM_PULLREQUEST_TARGETBRANCH"
+echo "Determined BUILD_SOURCEBRANCH variable: $BUILD_SOURCEBRANCH"
 echo "Determined TRAVIS_BRANCH variable: $TRAVIS_BRANCH"
 
 export TRAVIS_PULL_REQUEST=$SYSTEM_PULLREQUEST_PULLREQUESTNUMBER && [[ -z $TRAVIS_PULL_REQUEST ]] && TRAVIS_PULL_REQUEST=$BUILD_SOURCEVERSION
@@ -47,9 +49,15 @@ echo "Determined TRAVIS_BUILD_DIR variable: $TRAVIS_BUILD_DIR"
 # TODO: [CI] remove this step after adding a condition in 
 # ci/travis/install-dependencies.sh that check first if 
 # node is already installed before install it
-echo $(node --version)
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
-echo "nvm sh downloaded and applied."
+if which node > /dev/null
+then
+    echo $(node --version)
+    echo "node is installed, skipping..."
+else
+    echo "node not installed, installing nvm..."
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
+    echo "nvm sh downloaded and applied."
+fi
 
 # Mac OS bug https://github.com/nvm-sh/nvm/issues/1245#issuecomment-555608208
 if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
@@ -59,4 +67,10 @@ if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
     nvm use --delete-prefix v6.17.1 --silent
     [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
     [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
+
+    node -v
+    npm -v
+    # npm install -g npm
+    npm explore npm -g -- npm install node-gyp@latest
+    npm explore npm -g -- npm explore npm-lifecycle -- npm install node-gyp@latest
 fi

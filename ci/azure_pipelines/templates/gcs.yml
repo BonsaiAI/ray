@@ -1,7 +1,4 @@
-# This template includes the steps of the general install phase
-# that is specified in the .travis.yml of the upstream repo.
-# This is the default install phase that is reused by some of the
-# parallel jobs in the build matrix of the .travis.yml file.
+# This template includes the steps of the GCS service job in travix.yml
 
 steps:
 - bash: |
@@ -11,10 +8,9 @@ steps:
     source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
 
     # Start Original script
-    eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-    if [ $RAY_CI_SERVE_AFFECTED != "1" ] && [ $RAY_CI_TUNE_AFFECTED != "1" ] && [ $RAY_CI_RLLIB_AFFECTED != "1" ] && [ $RAY_CI_PYTHON_AFFECTED != "1" ]; then exit; fi
 
-    # Originally with ./ci/suppress_output
+    # install part
+    eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
     ./ci/travis/install-bazel.sh
     # Originally with ./ci/suppress_output
     ./ci/travis/install-dependencies.sh
@@ -23,13 +19,23 @@ steps:
     ./ci/travis/install-ray.sh
     # Originally with ./ci/suppress_output
     ./ci/travis/install-cython-examples.sh
-
     eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | GIMME_GO_VERSION=master bash)"
-    # End Original script
+
+    # script part
+    # Originally with ./ci/suppress_output
+    bash src/ray/test/run_core_worker_tests.sh
+    # Originally with ./ci/suppress_output
+    bash streaming/src/test/run_streaming_queue_test.sh
+    ./java/test.sh
+
+      # End Original script
 
     exit 0
   env:
     PYTHONWARNINGS: 'ignore'
     TRAVIS: 'true'
-  displayName: 'Run original travis install phase'
+    RAY_INSTALL_JAVA: 1
+    TESTSUITE: gcs_service
+    RAY_GCS_SERVICE_ENABLED: true
+  displayName: 'Run original GCS service job'
   timeoutInMinutes: 120

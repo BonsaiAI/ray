@@ -50,7 +50,7 @@ def trainer(config):
 @pytest.mark.usefixtures("ray_env")
 def test_convergence(trainer, env_id, threshold):
     mean_episode_reward = -float("inf")
-    for i in range(300):
+    for i in range(500):
         result = trainer.train()
         mean_episode_reward = result["episode_reward_mean"]
         print(f"{i}: {mean_episode_reward}")

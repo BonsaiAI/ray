@@ -11,7 +11,7 @@ from ray.rllib.agents.sac.config import DEFAULT_CONFIG
 from ray.rllib.agents.sac.proxy.utils.tf_ops import make_tf_callable
 from ray.rllib.agents.sac.proxy.policy.tf_policy_template import build_tf_policy
 from ray.rllib.agents.sac.proxy.policy.tf_policy import TFPolicy
-from ray.rllib.agents.sac.sac.rllib_proxy._needs_patches import ModelCatalog
+from ray.rllib.agents.sac.proxy.models.catalog import ModelCatalog
 from ray.rllib.agents.sac.sac_model import SACModel, NoopModel
 from ray.rllib.evaluation.sample_batch import SampleBatch
 from ray.rllib.utils.annotations import override

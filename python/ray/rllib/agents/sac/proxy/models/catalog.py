@@ -2,8 +2,8 @@ import logging
 
 import tensorflow as tf
 from ray.rllib import models
-from ray.rllib.agents.sac.sac.rllib_proxy._modelv1_compat import make_v1_wrapper
-from ray.rllib.agents.sac.sac.rllib_proxy._tf_model_v2 import ModelV2
+from ray.rllib.agents.sac.proxy.models.tf.modelv1_compat import make_v1_wrapper
+from ray.rllib.agents.sac.proxy.models.model_v2 import ModelV2
 from ray.rllib.agents.sac.proxy.utils.tf_ops import executing_eagerly
 from ray.rllib.utils.annotations import DeveloperAPI
 from ray.tune.registry import RLLIB_MODEL, _global_registry

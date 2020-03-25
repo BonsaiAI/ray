@@ -2,7 +2,7 @@ import logging
 
 import ray
 import tensorflow as tf
-from ray.rllib.agents.sac.sac.rllib_proxy._tf_model_v2 import ModelV2
+from ray.rllib.agents.sac.proxy.models.model_v2 import ModelV2
 from ray.rllib.evaluation import TFPolicyGraph
 from ray.rllib.evaluation.policy_graph import PolicyGraph
 from ray.rllib.utils.annotations import DeveloperAPI, override

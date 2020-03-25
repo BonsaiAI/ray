@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 
 
 def make_optimizer(workers, config):
-    from ray.rllib.agents.sac.sac.rllib_proxy._patched._sync_replay_optimizer import \
+    from ray.rllib.agents.sac.proxy.optimizers.sync_replay_optimizer import (
         SyncReplayOptimizer
-    print(f"DEBUG: sac/trainer::31 {workers}")
+    )
     local_evaluator, remote_evaluators = workers
     return SyncReplayOptimizer(
         local_evaluator,

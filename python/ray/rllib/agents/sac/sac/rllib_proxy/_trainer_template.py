@@ -141,11 +141,6 @@ def build_trainer(name,
                 after_train_result(self, res)
             return res
 
-        @override(Trainer)
-        def _before_evaluate(self):
-            if before_evaluate_fn:
-                before_evaluate_fn(self)
-
         def __getstate__(self):
             state = Trainer.__getstate__(self)
             state["trainer_state"] = self.state.copy()

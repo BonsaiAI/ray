@@ -1,52 +1,34 @@
 import logging
 
 from ray.rllib.agents.dqn.dqn import DEFAULT_CONFIG
-from ray.rllib.agents.sac.sac.dev_utils import using_ray_8
 from ray.rllib.agents.sac.sac.rllib_proxy._trainer_template import build_trainer
 from ray.rllib.evaluation.sample_batch import DEFAULT_POLICY_ID
 from ray.rllib.utils.schedules import ConstantSchedule, LinearSchedule
-
 
 logger = logging.getLogger(__name__)
 
 
 def make_optimizer(workers, config):
-    if using_ray_8():
-        from ray.rllib.optimizers import SyncReplayOptimizer
-        return SyncReplayOptimizer(
-            workers,
-            learning_starts=config["learning_starts"],
-            buffer_size=config["buffer_size"],
-            prioritized_replay=config["prioritized_replay"],
-            prioritized_replay_alpha=config["prioritized_replay_alpha"],
-            prioritized_replay_beta=config["prioritized_replay_beta"],
-            schedule_max_timesteps=config["schedule_max_timesteps"],
-            beta_annealing_fraction=config["beta_annealing_fraction"],
-            final_prioritized_replay_beta=config["final_prioritized_replay_beta"],
-            prioritized_replay_eps=config["prioritized_replay_eps"],
-            train_batch_size=config["train_batch_size"],
-            sample_batch_size=config["sample_batch_size"],
-            **config["optimizer"])
-    else:
-        from ray.rllib.agents.sac.sac.rllib_proxy._patched._sync_replay_optimizer import SyncReplayOptimizer
-        print(f"DEBUG: sac/trainer::31 {workers}")
-        local_evaluator, remote_evaluators = workers
-        return SyncReplayOptimizer(
-            local_evaluator,
-            remote_evaluators,
-            learning_starts=config["learning_starts"],
-            buffer_size=config["buffer_size"],
-            prioritized_replay=config["prioritized_replay"],
-            prioritized_replay_alpha=config["prioritized_replay_alpha"],
-            prioritized_replay_beta=config["prioritized_replay_beta"],
-            schedule_max_timesteps=config["schedule_max_timesteps"],
-            beta_annealing_fraction=config["beta_annealing_fraction"],
-            final_prioritized_replay_beta=config["final_prioritized_replay_beta"],
-            prioritized_replay_eps=config["prioritized_replay_eps"],
-            train_batch_size=config["train_batch_size"],
-            sample_batch_size=config["sample_batch_size"],
-            **config["optimizer"]
-        )
+    from ray.rllib.agents.sac.sac.rllib_proxy._patched._sync_replay_optimizer import \
+        SyncReplayOptimizer
+    print(f"DEBUG: sac/trainer::31 {workers}")
+    local_evaluator, remote_evaluators = workers
+    return SyncReplayOptimizer(
+        local_evaluator,
+        remote_evaluators,
+        learning_starts=config["learning_starts"],
+        buffer_size=config["buffer_size"],
+        prioritized_replay=config["prioritized_replay"],
+        prioritized_replay_alpha=config["prioritized_replay_alpha"],
+        prioritized_replay_beta=config["prioritized_replay_beta"],
+        schedule_max_timesteps=config["schedule_max_timesteps"],
+        beta_annealing_fraction=config["beta_annealing_fraction"],
+        final_prioritized_replay_beta=config["final_prioritized_replay_beta"],
+        prioritized_replay_eps=config["prioritized_replay_eps"],
+        train_batch_size=config["train_batch_size"],
+        sample_batch_size=config["sample_batch_size"],
+        **config["optimizer"]
+    )
 
 
 def check_config_and_setup_param_noise(config):
@@ -142,20 +124,12 @@ def setup_exploration(trainer):
 def update_worker_explorations(trainer):
     global_timestep = trainer.optimizer.num_steps_sampled
     exp_vals = [trainer.exploration0.value(global_timestep)]
-    if using_ray_8():
-        trainer.workers.local_worker().foreach_trainable_policy(
-            lambda p, _: p.set_epsilon(exp_vals[0]))
-        for i, e in enumerate(trainer.workers.remote_workers()):
-            exp_val = trainer.explorations[i].value(global_timestep)
-            e.foreach_trainable_policy.remote(lambda p, _: p.set_epsilon(exp_val))
-            exp_vals.append(exp_val)
-    else:
-        trainer.local_evaluator.foreach_trainable_policy(
-            lambda p, _: p.set_epsilon(exp_vals[0]))
-        for i, e in enumerate(trainer.remote_evaluators):
-            exp_val = trainer.explorations[i].value(global_timestep)
-            e.foreach_trainable_policy.remote(lambda p, _: p.set_epsilon(exp_val))
-            exp_vals.append(exp_val)
+    trainer.local_evaluator.foreach_trainable_policy(
+        lambda p, _: p.set_epsilon(exp_vals[0]))
+    for i, e in enumerate(trainer.remote_evaluators):
+        exp_val = trainer.explorations[i].value(global_timestep)
+        e.foreach_trainable_policy.remote(lambda p, _: p.set_epsilon(exp_val))
+        exp_vals.append(exp_val)
     trainer.train_start_timestep = global_timestep
     trainer.cur_exp_vals = exp_vals
 
@@ -175,12 +149,8 @@ def update_target_if_needed(trainer, fetches):
     global_timestep = trainer.optimizer.num_steps_sampled
     if global_timestep - trainer.state["last_target_update_ts"] > \
         trainer.config["target_network_update_freq"]:
-        if using_ray_8():
-            trainer.workers.local_worker().foreach_trainable_policy(
-                lambda p, _: p.update_target())
-        else:
-            trainer.local_evaluator.foreach_trainable_policy(
-                lambda p, _: p.update_target())
+        trainer.local_evaluator.foreach_trainable_policy(
+            lambda p, _: p.update_target())
         trainer.state["last_target_update_ts"] = global_timestep
         trainer.state["num_target_updates"] += 1
 

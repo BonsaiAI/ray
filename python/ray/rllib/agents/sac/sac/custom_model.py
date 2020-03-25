@@ -2,9 +2,7 @@ from typing import Callable, Dict, Iterable, Optional, Sequence, Tuple, Union
 
 import tensorflow as tf
 
-from ray.rllib.agents.sac.sac.rllib_proxy._tf_utils import (
-    normc_initializer
-)
+from ray.rllib.models.misc import normc_initializer
 
 ArrayShape = Tuple[int, ...]
 KernelInitializer = Callable[[], tf.keras.initializers.Initializer]

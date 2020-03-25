@@ -3,11 +3,9 @@ import logging
 import numpy as np
 import tensorflow as tf
 
-from ray.rllib.agents.sac.sac.rllib_proxy._tf_utils import (
-    linear, normc_initializer,
-    scope_vars,
-)
 from ray.rllib.agents.sac.sac.rllib_proxy._tf_model_v2 import ModelV2, TFModelV2
+from ray.rllib.agents.sac.proxy.utils.tf_ops import scope_vars
+from ray.rllib.models.misc import normc_initializer, linear
 from ray.rllib.utils.annotations import override
 from ray.rllib.utils.debug import log_once
 

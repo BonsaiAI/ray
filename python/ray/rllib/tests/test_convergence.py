@@ -30,8 +30,8 @@ def ray_env():
 def config(env_id):
     config = DEFAULT_CONFIG.copy()
     config["env_config"] = dict(env_id=env_id)
-    # if env_id == "Pendulum-v0":
-    #     config["timesteps_per_iteration"] = 100
+    if env_id == "Pendulum-v0":
+        config["timesteps_per_iteration"] = 100
     config["num_workers"] = 8
     config["num_envs_per_worker"] = 8
     return config

@@ -31,7 +31,7 @@ DEFAULT_CONFIG = with_base_config(COMMON_CONFIG, {
     # and will be optimized automatically.
     "target_entropy": "auto",
     # Disable setting done=True at end of episode.
-    "no_done_at_end": True,
+    "no_done_at_end": False,
     # N-step target updates
     "n_step": 1,
 

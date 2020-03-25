@@ -1,7 +1,7 @@
 import logging
 
 from ray.rllib.agents.dqn.dqn import DEFAULT_CONFIG
-from ray.rllib.agents.sac.sac.rllib_proxy._trainer_template import build_trainer
+from ray.rllib.agents.sac.proxy.agents.trainer_template import build_trainer
 from ray.rllib.evaluation.sample_batch import DEFAULT_POLICY_ID
 from ray.rllib.utils.schedules import ConstantSchedule, LinearSchedule
 

@@ -272,8 +272,7 @@ COMMON_CONFIG = {
         "policies_to_train": None,
     },
 }
-# __sphinx_doc_end__
-# yapf: enable
+
 
 DEFAULT_CONFIG = with_base_config(COMMON_CONFIG, {
     # === Model ===
@@ -375,4 +374,5 @@ DEFAULT_CONFIG = with_base_config(COMMON_CONFIG, {
     "schedule_max_timesteps": 100000,
     "exploration_final_eps": 0.02,
 })
-
+# __sphinx_doc_end__
+# yapf: enable

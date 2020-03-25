@@ -1,5 +1,5 @@
 from ray.rllib.agents.sac.proxy.policy.dynamic_tf_policy import DynamicTFPolicy
-from ray.rllib.agents.sac.sac.rllib_proxy._needs_patches import TFPolicy
+from ray.rllib.agents.sac.proxy.policy.tf_policy import TFPolicy
 from ray.rllib.agents.sac.proxy.utils import add_mixins
 from ray.rllib.evaluation.metrics import LEARNER_STATS_KEY
 from ray.rllib.evaluation.policy_graph import PolicyGraph as Policy

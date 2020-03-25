@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 from ray.rllib.utils.annotations import PublicAPI
-from ray.rllib.agents.sac.sac.rllib_proxy._utils import executing_eagerly
+from ray.rllib.agents.sac.proxy.utils.tf_ops import executing_eagerly
 from ray.rllib.evaluation.sample_batch import SampleBatch
 from ray.rllib.models.model import restore_original_dimensions
 

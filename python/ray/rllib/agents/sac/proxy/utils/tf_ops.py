@@ -1,19 +1,11 @@
 import tensorflow as tf
 
 
-def add_mixins(base, mixins):
-    """Returns a new class with mixins applied in priority order."""
-
-    mixins = list(mixins or [])
-
-    while mixins:
-
-        class new_base(mixins.pop(), base):
-            pass
-
-        base = new_base
-
-    return base
+def executing_eagerly():
+    try:
+        return tf.executing_eagerly()
+    except AttributeError:
+        return False
 
 
 def make_tf_callable(session_or_none, dynamic_shape=False):

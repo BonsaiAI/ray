@@ -1,13 +1,3 @@
-import tensorflow as tf
-
-
-def executing_eagerly():
-    try:
-        return tf.executing_eagerly()
-    except AttributeError:
-        return False
-
-
 class UsageTrackingDict(dict):
     """Dict that tracks which keys have been accessed.
 

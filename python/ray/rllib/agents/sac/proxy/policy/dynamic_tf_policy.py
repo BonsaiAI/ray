@@ -5,12 +5,11 @@ from collections import OrderedDict
 
 import numpy as np
 import tensorflow as tf
+from ray.rllib.agents.sac.proxy.policy.tf_policy import TFPolicy
 
-from ray.rllib.agents.sac.sac.rllib_proxy._utils import (
-    UsageTrackingDict,
-)
+from ray.rllib.agents.sac.proxy.utils.tracking_dict import UsageTrackingDict
 from ray.rllib.agents.sac.sac.rllib_proxy._needs_patches import (
-    TFPolicy, ModelCatalog
+    ModelCatalog
 )
 from ray.rllib.evaluation.policy_graph import PolicyGraph as Policy
 from ray.rllib.evaluation.sample_batch import SampleBatch

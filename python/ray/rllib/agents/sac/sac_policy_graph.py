@@ -4,18 +4,18 @@ from gym.spaces import Box
 import numpy as np
 import tensorflow as tf
 
-from ray.rllib.agents.dqn.dqn_policy_graph import PRIO_WEIGHTS, _postprocess_dqn
+from ray.rllib.agents.dqn.dqn_policy_graph import (
+    PRIO_WEIGHTS, _postprocess_dqn, _minimize_and_clip,
+)
 from ray.rllib.agents.sac.config import DEFAULT_CONFIG
+from ray.rllib.agents.sac.proxy.utils import make_tf_callable
 from ray.rllib.agents.sac.sac.rllib_proxy._tf_policy_template import build_tf_policy
 from ray.rllib.agents.sac.sac.rllib_proxy._needs_patches import ModelCatalog
 from ray.rllib.agents.sac.sac.rllib_proxy._tf_policy import TFPolicy
-from ray.rllib.agents.sac.sac.rllib_proxy._utils import (
-    minimize_and_clip, make_tf_callable)
-from ray.rllib.agents.sac.sac.sac_model import SACModel, NoopModel
+from ray.rllib.agents.sac.sac_model import SACModel, NoopModel
 from ray.rllib.evaluation.sample_batch import SampleBatch
 from ray.rllib.utils.annotations import override
 from ray.rllib.utils.error import UnsupportedSpaceException
-
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +30,7 @@ def build_sac_model(policy, obs_space, action_space, config):
             "Action space has multiple dimensions "
             "{}. ".format(action_space.shape)
             + "Consider reshaping this into a single dimension, "
-            "using a Tuple action space, or the multi-agent API."
+              "using a Tuple action space, or the multi-agent API."
         )
 
     if config["use_state_preprocessor"]:
@@ -196,8 +196,8 @@ def actor_critic_loss(policy, model, _, train_batch):
 
     q_tp1_best = tf.squeeze(input=q_tp1, axis=len(q_tp1.shape) - 1)
     q_tp1_best_masked = (
-        1.0 - tf.cast(train_batch[SampleBatch.DONES], tf.float32)
-    ) * q_tp1_best
+                            1.0 - tf.cast(train_batch[SampleBatch.DONES], tf.float32)
+                        ) * q_tp1_best
 
     assert policy.config["n_step"] == 1, "TODO(hartikainen) n_step > 1"
 
@@ -251,7 +251,7 @@ def actor_critic_loss(policy, model, _, train_batch):
 
 def gradients(policy, optimizer, loss):
     if policy.config["grad_norm_clipping"] is not None:
-        actor_grads_and_vars = minimize_and_clip(
+        actor_grads_and_vars = _minimize_and_clip(
             optimizer,
             policy.actor_loss,
             var_list=policy.model.policy_variables(),
@@ -261,26 +261,26 @@ def gradients(policy, optimizer, loss):
             q_variables = policy.model.q_variables()
             half_cutoff = len(q_variables) // 2
             critic_grads_and_vars = []
-            critic_grads_and_vars += minimize_and_clip(
+            critic_grads_and_vars += _minimize_and_clip(
                 optimizer,
                 policy.critic_loss[0],
                 var_list=q_variables[:half_cutoff],
                 clip_val=policy.config["grad_norm_clipping"],
             )
-            critic_grads_and_vars += minimize_and_clip(
+            critic_grads_and_vars += _minimize_and_clip(
                 optimizer,
                 policy.critic_loss[1],
                 var_list=q_variables[half_cutoff:],
                 clip_val=policy.config["grad_norm_clipping"],
             )
         else:
-            critic_grads_and_vars = minimize_and_clip(
+            critic_grads_and_vars = _minimize_and_clip(
                 optimizer,
                 policy.critic_loss[0],
                 var_list=policy.model.q_variables(),
                 clip_val=policy.config["grad_norm_clipping"],
             )
-        alpha_grads_and_vars = minimize_and_clip(
+        alpha_grads_and_vars = _minimize_and_clip(
             optimizer,
             policy.alpha_loss,
             var_list=[policy.model.log_alpha],

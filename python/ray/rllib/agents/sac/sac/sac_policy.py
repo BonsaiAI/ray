@@ -5,7 +5,7 @@ import numpy as np
 import tensorflow as tf
 
 from ray.rllib.agents.dqn.dqn_policy_graph import PRIO_WEIGHTS, _postprocess_dqn
-from ray.rllib.agents.sac.sac.config import DEFAULT_CONFIG
+from ray.rllib.agents.sac.config import DEFAULT_CONFIG
 from ray.rllib.agents.sac.sac.rllib_proxy._tf_policy_template import build_tf_policy
 from ray.rllib.agents.sac.sac.rllib_proxy._needs_patches import ModelCatalog
 from ray.rllib.agents.sac.sac.rllib_proxy._tf_policy import TFPolicy

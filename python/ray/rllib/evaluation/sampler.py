@@ -554,6 +554,20 @@ def _do_policy_eval(tf_sess, to_eval, policies, active_episodes):
     return eval_results
 
 
+class ActionsToSendDict(defaultdict):
+    """Simple Dict like data structure that holds a nested dict of 
+    env id -> agent id -> agent replies, and also allows to carry
+    over the user data associated to the episodes.
+
+    Attributes:
+        user_data (dict): Dict that contains episode user data per
+        each env - env id -> user data 
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.user_data = defaultdict(dict)
+
+
 def _process_policy_eval_results(to_eval, eval_results, active_episodes,
                                  active_envs, off_policy_actions, policies,
                                  clip_actions):
@@ -566,9 +580,10 @@ def _process_policy_eval_results(to_eval, eval_results, active_episodes,
         actions_to_send: nested dict of env id -> agent id -> agent replies.
     """
 
-    actions_to_send = defaultdict(dict)
+    actions_to_send = ActionsToSendDict(dict)
     for env_id in active_envs:
         actions_to_send[env_id] = {}  # at minimum send empty dict
+        actions_to_send.user_data[env_id] = {} # with an empty dict of user data
 
     for policy_id, eval_data in to_eval.items():
         rnn_in_cols = _to_column_format([t.rnn_state for t in eval_data])
@@ -593,6 +608,9 @@ def _process_policy_eval_results(to_eval, eval_results, active_episodes,
             else:
                 actions_to_send[env_id][agent_id] = action
             episode = active_episodes[env_id]
+
+            actions_to_send.user_data[env_id][agent_id] = episode.user_data.copy()
+
             episode._set_rnn_state(agent_id, [c[i] for c in rnn_out_cols])
             episode._set_last_pi_info(
                 agent_id, {k: v[i]

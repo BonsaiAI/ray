@@ -320,6 +320,33 @@ stages:
           - template: templates/gcs-python.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
+      - job: CPPWorkerTests
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: CPP Worker Tests
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the cpp worker tests
+          - template: templates/cpp-worker.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
       - job: Lint
         # Disabled
         # condition: False

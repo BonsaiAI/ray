@@ -24,7 +24,7 @@ steps:
     export PATH="$HOME/miniconda/bin:$PATH"
     # Originally with ./ci/keep_alive
     # The original flaky_test_attempts was 3 increasing to 4 because failure rate found in ADO
-    bazel test --spawn_strategy=local --flaky_test_attempts=5 --nocache_test_results --test_verbose_timeout_warnings --progress_report_interval=100 --show_progress_rate_limit=100 --show_timestamps --test_output=errors --test_tag_filters=-jenkins_only python/ray/tests/...
+    bazel test --spawn_strategy=local --flaky_test_attempts=3 --nocache_test_results --test_verbose_timeout_warnings --progress_report_interval=100 --show_progress_rate_limit=100 --show_timestamps --test_output=errors --test_tag_filters=-jenkins_only python/ray/tests/...
 
       # End Original script
 

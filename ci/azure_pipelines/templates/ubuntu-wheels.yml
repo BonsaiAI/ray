@@ -39,7 +39,7 @@ steps:
     MAC_WHEELS: 1
     RAY_INSTALL_JAVA: 1
   displayName: 'Run original travis install phase'
-  timeoutInMinutes: 120
+  timeoutInMinutes: 90
 # Script phase of the travis Ubuntu wheels build
 - bash: |
     ls -l "$BUILD_SOURCESDIRECTORY/.whl/"
@@ -47,13 +47,12 @@ steps:
     # Set some variables to make the system looks like Travis
     source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
 
-    # TODO: [CI] remove this after finish debugging
-    set +e
-
     # Start Original script
     if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
 
-    ./ci/travis/test-wheels.sh
+    # Explicitly sleep 60 seconds for logs to go through
+    ./ci/travis/test-wheels.sh || cat /tmp/ray/session_latest/logs/* || sleep 60 || false
+
     # End Original script
 
     exit 0
@@ -63,4 +62,4 @@ steps:
     MAC_WHEELS: 1
     RAY_INSTALL_JAVA: 1
   displayName: 'Run original script phase'
-  timeoutInMinutes: 120
+  timeoutInMinutes: 30

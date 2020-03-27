@@ -33,7 +33,8 @@ steps:
     PYTHONWARNINGS: 'ignore'
     TRAVIS: 'true'
     RAY_INSTALL_JAVA: 1
-    TESTSUITE: gcs_service_python_testcase
-    RAY_GCS_SERVICE_ENABLED: true
+    TESTSUITE: gcs_service_disabled_python_testcase
+    RAY_GCS_SERVICE_ENABLED: false
   displayName: 'Run original GCS python job'
   timeoutInMinutes: 120
+  continueOnError: 'true'

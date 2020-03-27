@@ -41,7 +41,7 @@ if [[ "$platform" == "linux" ]]; then
   PYTHON_WHEEL=$(find "$ROOT_DIR/../../.whl" -type f -maxdepth 1 -print | grep -m1 '36')
 
   # Install the wheel.
-  $PIP_CMD install -q "$PYTHON_WHEEL"
+  $PIP_CMD install "$PYTHON_WHEEL"
 
   # Check that ray.__commit__ was set properly.
   $PYTHON_EXE -u -c "import ray; print(ray.__commit__)" | grep $TRAVIS_COMMIT || (echo "ray.__commit__ not set properly!" && exit 1)
@@ -85,7 +85,7 @@ elif [[ "$platform" == "macosx" ]]; then
     PYTHON_WHEEL=$(find "$ROOT_DIR/../../.whl" -type f -maxdepth 1 -print | grep -m1 "$PY_WHEEL_VERSION")
 
     # Install the wheel.
-    $PIP_CMD install -q "$PYTHON_WHEEL"
+    $PIP_CMD install "$PYTHON_WHEEL"
 
     # Install the dependencies to run the tests.
     $PIP_CMD install -q aiohttp google grpcio pytest requests

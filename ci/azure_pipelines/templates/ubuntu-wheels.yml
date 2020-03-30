@@ -10,7 +10,8 @@ steps:
 
     # Start Original script
     eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-    if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
+    # Commenting to force wheels generation
+    # if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
     # Originally with ./ci/suppress_output 
     ./ci/travis/install-dependencies.sh
 
@@ -48,7 +49,8 @@ steps:
     source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
 
     # Start Original script
-    if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
+    # Commenting to force wheels generation
+    # if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
 
     # Explicitly sleep 60 seconds for logs to go through
     ./ci/travis/test-wheels.sh || cat /tmp/ray/session_latest/logs/* || (sleep 60 && false)

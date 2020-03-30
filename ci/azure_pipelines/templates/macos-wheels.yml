@@ -10,7 +10,8 @@ steps:
 
     # Start Original script
     eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-    if [ $RAY_CI_MACOS_WHEELS_AFFECTED != "1" ]; then exit; fi
+    # Commenting to force wheels generation
+    # if [ $RAY_CI_MACOS_WHEELS_AFFECTED != "1" ]; then exit; fi
 
     # Originally with ./ci/suppress_output
     ./ci/travis/install-dependencies.sh

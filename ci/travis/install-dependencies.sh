@@ -25,7 +25,7 @@ if [[ "$PYTHON" == "2.7" ]] && [[ "$platform" == "linux" ]]; then
   bash miniconda.sh -b -p $HOME/miniconda
   export PATH="$HOME/miniconda/bin:$PATH"
   pip install --upgrade pip
-  pip install -q scipy tensorflow==1.15.0 cython==0.29.0 gym opencv-python-headless pyyaml pandas==0.23.4 requests \
+  pip install -q scipy tensorflow==1.15.0 cython==0.29.0 gym opencv-python-headless pyyaml==5.3 pandas==0.23.4 requests \
     feather-format lxml openpyxl xlrd py-spy setproctitle==1.1.10 faulthandler pytest-timeout mock flaky networkx tabulate psutil
 elif [[ "$PYTHON" == "3.5" ]] && [[ "$platform" == "linux" ]]; then
   sudo apt-get update
@@ -35,7 +35,7 @@ elif [[ "$PYTHON" == "3.5" ]] && [[ "$platform" == "linux" ]]; then
   bash miniconda.sh -b -p $HOME/miniconda
   export PATH="$HOME/miniconda/bin:$PATH"
   pip install --upgrade pip
-  pip install -q scipy tensorflow==1.15.0 cython==0.29.0 gym opencv-python-headless pyyaml pandas==0.23.4 requests \
+  pip install -q scipy tensorflow==1.15.0 cython==0.29.0 gym opencv-python-headless pyyaml==5.3 pandas==0.23.4 requests \
     feather-format lxml openpyxl xlrd py-spy setproctitle==1.1.10 pytest-timeout flaky networkx tabulate psutil
 elif [[ "$PYTHON" == "2.7" ]] && [[ "$platform" == "macosx" ]]; then
   # Install miniconda.
@@ -43,7 +43,7 @@ elif [[ "$PYTHON" == "2.7" ]] && [[ "$platform" == "macosx" ]]; then
   bash miniconda.sh -b -p $HOME/miniconda
   export PATH="$HOME/miniconda/bin:$PATH"
   pip install --upgrade pip
-  pip install -q cython==0.29.0 tensorflow==1.15.0 gym opencv-python-headless pyyaml pandas==0.23.4 requests \
+  pip install -q cython==0.29.0 tensorflow==1.15.0 gym opencv-python-headless pyyaml==5.3 pandas==0.23.4 requests \
     feather-format lxml openpyxl xlrd py-spy setproctitle==1.1.10 faulthandler pytest-timeout mock flaky networkx tabulate psutil
 elif [[ "$PYTHON" == "3.5" ]] && [[ "$platform" == "macosx" ]]; then
   # Install miniconda.
@@ -51,7 +51,7 @@ elif [[ "$PYTHON" == "3.5" ]] && [[ "$platform" == "macosx" ]]; then
   bash miniconda.sh -b -p $HOME/miniconda
   export PATH="$HOME/miniconda/bin:$PATH"
   pip install --upgrade pip
-  pip install -q cython==0.29.0 tensorflow==1.15.0 gym opencv-python-headless pyyaml pandas==0.23.4 requests \
+  pip install -q cython==0.29.0 tensorflow==1.15.0 gym opencv-python-headless pyyaml==5.3 pandas==0.23.4 requests \
     feather-format lxml openpyxl xlrd py-spy setproctitle==1.1.10 pytest-timeout flaky networkx tabulate psutil
 elif [[ "$LINT" == "1" ]]; then
   sudo apt-get update

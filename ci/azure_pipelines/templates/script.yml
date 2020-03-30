@@ -20,7 +20,9 @@ steps:
 
     # Make bazel available
     export PATH="$HOME/bin:$PATH"
-    source $HOME/.bazel/bin/bazel-complete.bash
+    if [ $RAY_CI_TUNE_AFFECTED != "1" ] && [ $RAY_CI_RLLIB_AFFECTED != "1" ] && [ $RAY_CI_PYTHON_AFFECTED != "1" ]; then
+      source $HOME/.bazel/bin/bazel-complete.bash
+    fi
 
     # Start Original script
     export PATH="$HOME/miniconda/bin:$PATH"

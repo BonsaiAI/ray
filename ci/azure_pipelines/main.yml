@@ -1,4 +1,4 @@
-# Ray Full pipeline
+# Ray Full Build pipeline
 # This pipeline is intended to be a full fledge pipeline that could
 # consolidate the legacy travis and jenkings pipelines in upstream.
 # 
@@ -473,7 +473,11 @@ stages:
           - template: templates/multi-node.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
-trigger: none
+trigger:
+  branches:
+    include:
+      - master
+      - releases/*
 pr:
   branches:
     include:

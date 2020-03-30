@@ -8,7 +8,7 @@ steps:
     verbosity: 'Verbose'
     dockerImagesToScan: ''
     alertWarningLevel: 'Critical'
-    failOnAlert: true
+    failOnAlert: false
     ignoreDirectories: ''
 - bash: |
     # Show explicitly which commands are currently running.

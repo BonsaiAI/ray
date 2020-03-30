@@ -51,7 +51,7 @@ steps:
     if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
 
     # Explicitly sleep 60 seconds for logs to go through
-    ./ci/travis/test-wheels.sh || cat /tmp/ray/session_latest/logs/* || sleep 60 || false
+    ./ci/travis/test-wheels.sh || cat /tmp/ray/session_latest/logs/* || (sleep 60 && false)
 
     # End Original script
 

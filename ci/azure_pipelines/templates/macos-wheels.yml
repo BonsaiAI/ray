@@ -48,7 +48,7 @@ steps:
     for f in $BUILD_SOURCESDIRECTORY/.whl/*.whl; do mv "$f" "$(echo "$f" | sed s/macosx_10_15_intel/macosx_10_13_x86_64/)"; done
 
     # Explicitly sleep 60 seconds for logs to go through
-    ./ci/travis/test-wheels.sh || cat /tmp/ray/session_latest/logs/* || sleep 60 || false
+    ./ci/travis/test-wheels.sh || cat /tmp/ray/session_latest/logs/* || (sleep 60 && false)
 
     # End Original script
 

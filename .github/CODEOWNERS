@@ -16,7 +16,7 @@
 # ==== Ray core ====
 
 # All C++ code.
-/src/ray @ray-project/ray-core-cpp
+/src/ray @BonsaiAI/ray-maintainers
 
 # Python worker.
 /python/ray/ @BonsaiAI/ray-maintainers

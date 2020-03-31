@@ -18,6 +18,8 @@ steps:
 
     # Not part of the original script
     # Change the default deployment target
+    pip install --upgrade pip
+    pip install --upgrade setuptools
     export MACOSX_DEPLOYMENT_TARGET="10.6"
     export PYTHON_CONFIGURE_OPTS="--enable-universalsdk=/ --with-universal-archs=intel"
     # End of Not part of the original script

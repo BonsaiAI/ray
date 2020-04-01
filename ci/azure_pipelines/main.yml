@@ -189,7 +189,8 @@ stages:
 
               # Start Original script
               eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-              if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
+              # Commenting to force wheels generation
+              # if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
               # Originally with ./ci/suppress_output 
               ./ci/travis/install-dependencies.sh
 
@@ -229,7 +230,8 @@ stages:
               set +e
 
               # Start Original script
-              if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
+              # Commenting to force wheels generation
+              # if [ $RAY_CI_LINUX_WHEELS_AFFECTED != "1" ]; then exit; fi
 
               ./ci/travis/test-wheels.sh
               # End Original script
@@ -282,7 +284,8 @@ stages:
 
               # Start Original script
               eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-              if [ $RAY_CI_MACOS_WHEELS_AFFECTED != "1" ]; then exit; fi
+              # Commenting to force wheels generation
+              # if [ $RAY_CI_MACOS_WHEELS_AFFECTED != "1" ]; then exit; fi
 
               # Originally with ./ci/suppress_output
               ./ci/travis/install-dependencies.sh
@@ -322,7 +325,8 @@ stages:
               set +e
 
               # Start Original script
-              if [ $RAY_CI_MACOS_WHEELS_AFFECTED != "1" ]; then exit; fi
+              # Commenting to force wheels generation
+              # if [ $RAY_CI_MACOS_WHEELS_AFFECTED != "1" ]; then exit; fi
 
               ./ci/travis/test-wheels.sh
               # End Original script
@@ -341,7 +345,11 @@ stages:
           - template: templates/python-upload.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
-trigger: none
+trigger:
+  branches:
+    include:
+      - master
+      - releases/*
 pr:
   branches:
     include:

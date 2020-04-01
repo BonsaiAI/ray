@@ -6,10 +6,10 @@ steps:
   inputs:
     scanType: 'Register'
     verbosity: 'Verbose'
-    # dockerImagesToScan: 'docker-image'
+    dockerImagesToScan: ''
     alertWarningLevel: 'Critical'
-    failOnAlert: true
-    # ignoreDirectories: '**/_bazel_runner'
+    failOnAlert: false
+    ignoreDirectories: ''
 - bash: |
     # Show explicitly which commands are currently running.
     set -x

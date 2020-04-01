@@ -52,7 +52,8 @@ class DynamicTFPolicy(TFPolicy):
         existing_inputs=None,
         existing_model=None,
         get_batch_divisibility_req=None,
-        obs_include_prev_action_reward=True
+        obs_include_prev_action_reward=True,
+        **kwargs
     ):
         """Initialize a dynamic TF policy.
 
@@ -101,8 +102,11 @@ class DynamicTFPolicy(TFPolicy):
                 prev_actions = existing_inputs[SampleBatch.PREV_ACTIONS]
                 prev_rewards = existing_inputs[SampleBatch.PREV_REWARDS]
         else:
-            obs = tf.placeholder(
-                tf.float32, shape=[None] + list(obs_space.shape), name="observation"
+            obs = kwargs.get(
+                "observations",
+                tf.placeholder(
+                    tf.float32, shape=[None] + list(obs_space.shape), name="observation"
+                )
             )
             if self._obs_include_prev_action_reward:
                 prev_actions = ModelCatalog.get_action_placeholder(action_space)

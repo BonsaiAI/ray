@@ -28,7 +28,7 @@ if [[ "$platform" == "linux" ]]; then
   # Now test Python 3.6.
 
   # Install miniconda.
-  wget --quiet https://repo.continuum.io/miniconda/Miniconda3-4.5.4-Linux-x86_64.sh -O miniconda3.sh
+  wget --quiet https://repo.continuum.io/miniconda/Miniconda3-4.7.12.1-Linux-x86_64.sh -O miniconda3.sh
   bash miniconda3.sh -b -p "$HOME/miniconda3"
 
   PYTHON_EXE=$HOME/miniconda3/bin/python
@@ -38,14 +38,19 @@ if [[ "$platform" == "linux" ]]; then
   PYTHON_WHEEL=$(find "$ROOT_DIR/../../.whl" -type f -maxdepth 1 -print | grep -m1 '36')
 
   # Install the wheel.
-  $PIP_CMD install -q "$PYTHON_WHEEL"
+  $PIP_CMD install "$PYTHON_WHEEL"
+
+  # Check that ray.__commit__ was set properly.
+  $PYTHON_EXE -u -c "import ray; print(ray.__commit__)" | grep $TRAVIS_COMMIT || (echo "ray.__commit__ not set properly!" && exit 1)
+
+  # Install the dependencies to run the tests.
+  $PIP_CMD install -q aiohttp google grpcio pytest requests
 
   # Run a simple test script to make sure that the wheel works.
   INSTALLED_RAY_DIRECTORY=$(dirname "$($PYTHON_EXE -u -c "import ray; print(ray.__file__)" | tail -n1)")
   $PYTHON_EXE "$TEST_SCRIPT"
 
   # Run the UI test to make sure that the packaged UI works.
-  $PIP_CMD install -q aiohttp google grpcio psutil requests setproctitle
   $PYTHON_EXE "$UI_TEST_SCRIPT"
 
   # Check that the other wheels are present.
@@ -77,7 +82,10 @@ elif [[ "$platform" == "macosx" ]]; then
     PYTHON_WHEEL=$(find "$ROOT_DIR/../../.whl" -type f -maxdepth 1 -print | grep -m1 "$PY_WHEEL_VERSION")
 
     # Install the wheel.
-    $PIP_CMD install -q "$PYTHON_WHEEL"
+    $PIP_CMD install "$PYTHON_WHEEL"
+
+    # Install the dependencies to run the tests.
+    $PIP_CMD install -q aiohttp google grpcio pytest requests
 
     # Run a simple test script to make sure that the wheel works.
     INSTALLED_RAY_DIRECTORY=$(dirname "$($PYTHON_EXE -u -c "import ray; print(ray.__file__)" | tail -n1)")
@@ -85,7 +93,6 @@ elif [[ "$platform" == "macosx" ]]; then
 
     if (( $(echo "$PY_MM >= 3.0" | bc) )); then
       # Run the UI test to make sure that the packaged UI works.
-      $PIP_CMD install -q aiohttp google grpcio psutil requests setproctitle
       $PYTHON_EXE "$UI_TEST_SCRIPT"
     fi
 

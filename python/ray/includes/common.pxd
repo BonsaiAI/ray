@@ -13,6 +13,9 @@ from ray.includes.unique_ids cimport (
     CObjectID,
     CTaskID,
 )
+from ray.includes.function_descriptor cimport (
+    CFunctionDescriptor,
+)
 
 
 cdef extern from * namespace "polyfill":
@@ -201,9 +204,9 @@ cdef extern from "ray/core_worker/common.h" nogil:
     cdef cppclass CRayFunction "ray::RayFunction":
         CRayFunction()
         CRayFunction(CLanguage language,
-                     const c_vector[c_string] function_descriptor)
+                     const CFunctionDescriptor &function_descriptor)
         CLanguage GetLanguage()
-        const c_vector[c_string]& GetFunctionDescriptor()
+        const CFunctionDescriptor GetFunctionDescriptor()
 
     cdef cppclass CTaskArg "ray::TaskArg":
         @staticmethod
@@ -214,13 +217,13 @@ cdef extern from "ray/core_worker/common.h" nogil:
 
     cdef cppclass CTaskOptions "ray::TaskOptions":
         CTaskOptions()
-        CTaskOptions(int num_returns, c_bool is_direct_call,
+        CTaskOptions(int num_returns,
                      unordered_map[c_string, double] &resources)
 
     cdef cppclass CActorCreationOptions "ray::ActorCreationOptions":
         CActorCreationOptions()
         CActorCreationOptions(
-            uint64_t max_reconstructions, c_bool is_direct_call,
+            uint64_t max_reconstructions,
             int32_t max_concurrency,
             const unordered_map[c_string, double] &resources,
             const unordered_map[c_string, double] &placement_resources,

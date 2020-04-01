@@ -1,8 +1,39 @@
 RLlib Algorithms
 ================
 
+.. tip::
+
+    Check out the `environments <rllib-env.html>`__ page to learn more about different environment types.
+
+Feature Compatibility Matrix
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+=============  =======================  ==================  ===========  ===========================
+Algorithm      Discrete Actions         Continuous          Multi-Agent  Model Support
+=============  =======================  ==================  ===========  ===========================
+A2C, A3C        **Yes** `+parametric`_  **Yes**             **Yes**      `+RNN`_, `+autoreg`_
+PPO, APPO       **Yes** `+parametric`_  **Yes**             **Yes**      `+RNN`_, `+autoreg`_
+PG              **Yes** `+parametric`_  **Yes**             **Yes**      `+RNN`_, `+autoreg`_
+IMPALA          **Yes** `+parametric`_  **Yes**             **Yes**      `+RNN`_, `+autoreg`_
+DQN, Rainbow    **Yes** `+parametric`_  No                  **Yes**
+DDPG, TD3       No                      **Yes**             **Yes**
+APEX-DQN        **Yes** `+parametric`_  No                  **Yes**
+APEX-DDPG       No                      **Yes**             **Yes**
+SAC             **Yes**                 **Yes**             **Yes**
+ES              **Yes**                 **Yes**             No
+ARS             **Yes**                 **Yes**             No
+QMIX            **Yes**                 No                  **Yes**      `+RNN`_
+MARWIL          **Yes** `+parametric`_  **Yes**             **Yes**      `+RNN`_
+=============  =======================  ==================  ===========  ===========================
+
+.. _`+parametric`: rllib-models.html#variable-length-parametric-action-spaces
+.. _`+RNN`: rllib-models.html#recurrent-models
+.. _`+autoreg`: rllib-models.html#autoregressive-action-distributions
+
 High-throughput architectures
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. _apex:
 
 Distributed Prioritized Experience Replay (Ape-X)
 -------------------------------------------------
@@ -49,6 +80,8 @@ SpaceInvaders  646                               ~300
    :language: python
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
+
+.. _impala:
 
 Importance Weighted Actor-Learner Architecture (IMPALA)
 -------------------------------------------------------
@@ -97,6 +130,8 @@ SpaceInvaders  843                              ~300
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
 
+.. _appo:
+
 Asynchronous Proximal Policy Optimization (APPO)
 ------------------------------------------------
 |tensorflow|
@@ -104,7 +139,9 @@ Asynchronous Proximal Policy Optimization (APPO)
 `[implementation] <https://github.com/ray-project/ray/blob/master/rllib/agents/ppo/appo.py>`__
 We include an asynchronous variant of Proximal Policy Optimization (PPO) based on the IMPALA architecture. This is similar to IMPALA but using a surrogate policy loss with clipping. Compared to synchronous PPO, APPO is more efficient in wall-clock time due to its use of asynchronous sampling. Using a clipped loss also allows for multiple SGD passes, and therefore the potential for better sample efficiency compared to IMPALA. V-trace can also be enabled to correct for off-policy samples.
 
-APPO is not always more efficient; it is often better to simply use `PPO <rllib-algorithms.html#proximal-policy-optimization-ppo>`__ or `IMPALA <rllib-algorithms.html#importance-weighted-actor-learner-architecture-impala>`__.
+.. tip::
+
+    APPO is not always more efficient; it is often better to use :ref:`standard PPO <ppo>` or :ref:`IMPALA <impala>`.
 
 .. figure:: impala-arch.svg
 
@@ -119,8 +156,36 @@ Tuned examples: `PongNoFrameskip-v4 <https://github.com/ray-project/ray/blob/mas
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
 
+.. _ddppo:
+
+Decentralized Distributed Proximal Policy Optimization (DD-PPO)
+---------------------------------------------------------------
+|pytorch|
+`[paper] <https://arxiv.org/abs/1911.00357>`__
+`[implementation] <https://github.com/ray-project/ray/blob/master/rllib/agents/ppo/ddppo.py>`__
+Unlike APPO or PPO, with DD-PPO policy improvement is no longer done centralized in the trainer process. Instead, gradients are computed remotely on each rollout worker and all-reduced at each mini-batch using `torch distributed <https://pytorch.org/docs/stable/distributed.html>`__. This allows each worker's GPU to be used both for sampling and for training.
+
+.. tip::
+
+    DD-PPO is best for envs that require GPUs to function, or if you need to scale out SGD to multiple nodes. If you don't meet these requirements, `standard PPO <#proximal-policy-optimization-ppo>`__ will be more efficient.
+
+.. figure:: ddppo-arch.svg
+
+    DD-PPO architecture (both sampling and learning are done on worker GPUs)
+
+Tuned examples: `CartPole-v0 <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/regression_tests/cartpole-ddppo.yaml>`__, `BreakoutNoFrameskip-v4 <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/atari-ddppo.yaml>`__
+
+**DDPPO-specific configs** (see also `common configs <rllib-training.html#common-parameters>`__):
+
+.. literalinclude:: ../../rllib/agents/ppo/ddppo.py
+   :language: python
+   :start-after: __sphinx_doc_begin__
+   :end-before: __sphinx_doc_end__
+
 Gradient-based
 ~~~~~~~~~~~~~~
+
+.. _a3c:
 
 Advantage Actor-Critic (A2C, A3C)
 ---------------------------------
@@ -157,6 +222,8 @@ SpaceInvaders  692                       ~600
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
 
+.. _ddpg:
+
 Deep Deterministic Policy Gradients (DDPG, TD3)
 -----------------------------------------------
 |tensorflow|
@@ -176,6 +243,8 @@ Tuned examples: `Pendulum-v0 <https://github.com/ray-project/ray/blob/master/rll
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
 
+.. _dqn:
+
 Deep Q Networks (DQN, Rainbow, Parametric DQN)
 ----------------------------------------------
 |tensorflow|
@@ -186,10 +255,20 @@ RLlib DQN is implemented using the SyncReplayOptimizer. The algorithm can be sca
 
     DQN architecture
 
-Tuned examples: `PongDeterministic-v4 <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/pong-dqn.yaml>`__, `Rainbow configuration <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/pong-rainbow.yaml>`__, `{BeamRider,Breakout,Qbert,SpaceInvaders}NoFrameskip-v4 <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/atari-basic-dqn.yaml>`__, `with Dueling and Double-Q <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/atari-duel-ddqn.yaml>`__, `with Distributional DQN <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/atari-dist-dqn.yaml>`__.
+Tuned examples: `PongDeterministic-v4 <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/pong-dqn.yaml>`__, `Rainbow configuration <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/pong-rainbow.yaml>`__, `{BeamRider,Breakout,Qbert,SpaceInvaders}NoFrameskip-v4 <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/atari-dqn.yaml>`__, `with Dueling and Double-Q <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/atari-duel-ddqn.yaml>`__, `with Distributional DQN <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/atari-dist-dqn.yaml>`__.
 
 .. tip::
     Consider using `Ape-X <#distributed-prioritized-experience-replay-ape-x>`__ for faster training with similar timestep efficiency.
+
+.. hint::
+    For a complete `rainbow <https://arxiv.org/pdf/1710.02298.pdf>`__ setup,
+    make the following changes to the default DQN config:
+    ``"n_step": [between 1 and 10],
+    "noisy": True,
+    "num_atoms": [more than 1],
+    "v_min": -10.0,
+    "v_max": 10.0``
+    (set ``v_min`` and ``v_max`` according to your expected range of returns).
 
 **Atari results @10M steps**: `more details <https://github.com/ray-project/rl-experiments>`__
 
@@ -209,6 +288,8 @@ SpaceInvaders  650                       1001                           1025    
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
 
+.. _pg:
+
 Policy Gradients
 ----------------
 |pytorch| |tensorflow|
@@ -227,11 +308,17 @@ Tuned examples: `CartPole-v0 <https://github.com/ray-project/ray/blob/master/rll
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
 
+.. _ppo:
+
 Proximal Policy Optimization (PPO)
 ----------------------------------
 |pytorch| |tensorflow|
 `[paper] <https://arxiv.org/abs/1707.06347>`__ `[implementation] <https://github.com/ray-project/ray/blob/master/rllib/agents/ppo/ppo.py>`__
-PPO's clipped objective supports multiple SGD passes over the same batch of experiences. RLlib's multi-GPU optimizer pins that data in GPU memory to avoid unnecessary transfers from host memory, substantially improving performance over a naive implementation. RLlib's PPO scales out using multiple workers for experience collection, and also with multiple GPUs for SGD.
+PPO's clipped objective supports multiple SGD passes over the same batch of experiences. RLlib's multi-GPU optimizer pins that data in GPU memory to avoid unnecessary transfers from host memory, substantially improving performance over a naive implementation. PPO scales out using multiple workers for experience collection, and also to multiple GPUs for SGD.
+
+.. tip::
+
+    If you need to scale out with GPUs on multiple nodes, consider using `decentralized PPO <#decentralized-distributed-proximal-policy-optimization-dd-ppo>`__.
 
 .. figure:: ppo-arch.svg
 
@@ -272,6 +359,8 @@ HalfCheetah    9664                       ~7700
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
 
+.. _sac:
+
 Soft Actor Critic (SAC)
 ------------------------
 |tensorflow|
@@ -281,7 +370,7 @@ Soft Actor Critic (SAC)
 
     SAC architecture (same as DQN)
 
-RLlib's soft-actor critic implementation is ported from the `official SAC repo <https://github.com/rail-berkeley/softlearning>`__ to better integrate with RLlib APIs. Note that SAC has two fields to configure for custom models: ``policy_model`` and ``Q_model``, and currently has no support for non-continuous action distributions.
+RLlib's soft-actor critic implementation is ported from the `official SAC repo <https://github.com/rail-berkeley/softlearning>`__ to better integrate with RLlib APIs. Note that SAC has two fields to configure for custom models: ``policy_model`` and ``Q_model``.
 
 Tuned examples: `Pendulum-v0 <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/regression_tests/pendulum-sac.yaml>`__, `HalfCheetah-v3 <https://github.com/ray-project/ray/blob/master/rllib/tuned_examples/halfcheetah-sac.yaml>`__
 
@@ -303,6 +392,8 @@ HalfCheetah    13000       ~15000
 Derivative-free
 ~~~~~~~~~~~~~~~
 
+.. _ars:
+
 Augmented Random Search (ARS)
 -----------------------------
 |tensorflow|
@@ -317,6 +408,8 @@ Tuned examples: `CartPole-v0 <https://github.com/ray-project/ray/blob/master/rll
    :language: python
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
+
+.. _es:
 
 Evolution Strategies
 --------------------
@@ -340,6 +433,8 @@ Tuned examples: `Humanoid-v1 <https://github.com/ray-project/ray/blob/master/rll
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
 
+.. _qmix:
+
 QMIX Monotonic Value Factorisation (QMIX, VDN, IQN)
 ---------------------------------------------------
 |pytorch|
@@ -353,6 +448,8 @@ Tuned examples: `Two-step game <https://github.com/ray-project/ray/blob/master/r
    :language: python
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
+
+.. _maddpg:
 
 Multi-Agent Deep Deterministic Policy Gradient (contrib/MADDPG)
 ---------------------------------------------------------------
@@ -368,6 +465,8 @@ Tuned examples: `Multi-Agent Particle Environment <https://github.com/wsjeon/mad
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
 
+.. _marwil:
+
 Advantage Re-Weighted Imitation Learning (MARWIL)
 -------------------------------------------------
 |tensorflow|
@@ -382,6 +481,8 @@ Tuned examples: `CartPole-v0 <https://github.com/ray-project/ray/blob/master/rll
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
 
+.. _alphazero:
+
 Single-Player Alpha Zero (contrib/AlphaZero)
 --------------------------------------------
 |pytorch|
@@ -395,6 +496,74 @@ Tuned examples: `CartPole-v0 <https://github.com/ray-project/ray/blob/master/rll
    :language: python
    :start-after: __sphinx_doc_begin__
    :end-before: __sphinx_doc_end__
+
+
+Contextual Bandits (contrib/bandits)
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Multi-armed bandit (MAB) problem provides a simplified RL setting that
+involves learning to act under one situation only, i.e. the state is fixed.
+Contextual bandit is extension of the MAB problem, where at each
+round the agent has access not only to a set of bandit arms/actions but also
+to a context (state) associated with this iteration. The context changes
+with each iteration, but, is not affected by the action that the agent takes.
+The objective of the agent is to maximize the cumulative rewards, by
+collecting  enough information about how the context and the rewards of the
+arms are related to each other. The agent does this by balancing the
+trade-off between exploration and exploitation.
+
+Contextual bandit algorithms typically consist of an action-value model (Q
+model) and an exploration strategy (e-greedy, UCB, Thompson Sampling etc.)
+RLlib supports the following online contextual bandit algorithms,
+named after the exploration strategies that they employ:
+
+.. _linucb:
+
+Linear Upper Confidence Bound (contrib/LinUCB)
+----------------------------------------------
+|pytorch|
+`[paper] <http://rob.schapire.net/papers/www10.pdf>`__ `[implementation]
+<https://github.com/ray-project/ray/blob/master/rllib/contrib/bandits/agents/lin_ucb.py>`__
+LinUCB assumes a linear dependency between the expected reward of an action and
+its context. It estimates the Q value of each action using ridge regression.
+It constructs a confidence region around the weights of the linear
+regression model and uses this confidence ellipsoid to estimate the
+uncertainty of action values.
+
+Tuned examples: `SimpleContextualBandit <https://github.com/ray-project/ray/blob/master/rllib/contrib/bandits/examples/simple_context_bandit.py>`__, `ParametricItemRecoEnv <https://github.com/ray-project/ray/blob/master/rllib/contrib/bandits/examples/tune_LinUCB_train_recommendation.py>`__.
+
+**LinUCB-specific configs** (see also `common configs <rllib-training
+.html#common-parameters>`__):
+
+.. literalinclude:: ../../rllib/contrib/bandits/agents/lin_ucb.py
+   :language: python
+   :start-after: __sphinx_doc_begin__
+   :end-before: __sphinx_doc_end__
+
+.. _lints:
+
+Linear Thompson Sampling (contrib/LinTS)
+----------------------------------------
+|pytorch|
+`[paper] <http://proceedings.mlr.press/v28/agrawal13.pdf>`__ `[implementation]
+<https://github.com/ray-project/ray/blob/master/rllib/contrib/bandits/agents/lin_ts.py>`__
+Like LinUCB, LinTS also assumes a linear dependency between the expected
+reward of an action and its context and uses online ridge regression to
+estimate the Q values of actions given the context. It assumes a Gaussian
+prior on the weights and a Gaussian likelihood function. For deciding which
+action to take, the agent samples weights for each arm, using
+the posterior distributions, and plays the arm that produces the highest reward.
+
+Tuned examples: `SimpleContextualBandit <https://github.com/ray-project/ray/blob/master/rllib/contrib/bandits/examples/simple_context_bandit.py>`__, `WheelBandit <https://github.com/ray-project/ray/blob/master/rllib/contrib/bandits/examples/tune_LinTS_train_wheel_env.py>`__.
+
+**LinTS-specific configs** (see also `common configs <rllib-training
+.html#common-parameters>`__):
+
+.. literalinclude:: ../../rllib/contrib/bandits/agents/lin_ts.py
+   :language: python
+   :start-after: __sphinx_doc_begin__
+   :end-before: __sphinx_doc_end__
+
 
 .. |tensorflow| image:: tensorflow.png
     :width: 24

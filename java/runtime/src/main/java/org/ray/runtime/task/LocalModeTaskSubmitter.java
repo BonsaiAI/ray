@@ -17,7 +17,7 @@ import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.stream.Collectors;
-import org.ray.api.RayActor;
+import org.ray.api.BaseActor;
 import org.ray.api.id.ActorId;
 import org.ray.api.id.ObjectId;
 import org.ray.api.id.TaskId;
@@ -28,6 +28,7 @@ import org.ray.runtime.actor.LocalModeRayActor;
 import org.ray.runtime.context.LocalModeWorkerContext;
 import org.ray.runtime.functionmanager.FunctionDescriptor;
 import org.ray.runtime.functionmanager.JavaFunctionDescriptor;
+import org.ray.runtime.generated.Common;
 import org.ray.runtime.generated.Common.ActorCreationTaskSpec;
 import org.ray.runtime.generated.Common.ActorTaskSpec;
 import org.ray.runtime.generated.Common.Language;
@@ -153,14 +154,20 @@ public class LocalModeTaskSubmitter implements TaskSubmitter {
                                               List<FunctionArg> args) {
     byte[] taskIdBytes = new byte[TaskId.LENGTH];
     new Random().nextBytes(taskIdBytes);
+    List<String> functionDescriptorList = functionDescriptor.toList();
+    Preconditions.checkState(functionDescriptorList.size() >= 3);
     return TaskSpec.newBuilder()
         .setType(taskType)
         .setLanguage(Language.JAVA)
         .setJobId(
             ByteString.copyFrom(runtime.getRayConfig().getJobId().getBytes()))
         .setTaskId(ByteString.copyFrom(taskIdBytes))
-        .addAllFunctionDescriptor(functionDescriptor.toList().stream().map(ByteString::copyFromUtf8)
-            .collect(Collectors.toList()))
+        .setFunctionDescriptor(org.ray.runtime.generated.Common.FunctionDescriptor.newBuilder()
+                .setJavaFunctionDescriptor(
+                        org.ray.runtime.generated.Common.JavaFunctionDescriptor.newBuilder()
+                        .setClassName(functionDescriptorList.get(0))
+                        .setFunctionName(functionDescriptorList.get(1))
+                        .setSignature(functionDescriptorList.get(2))))
         .addAllArgs(args.stream().map(arg -> arg.id != null ? TaskArg.newBuilder()
             .addObjectIds(ByteString.copyFrom(arg.id.getBytes())).build()
             : TaskArg.newBuilder().setData(ByteString.copyFrom(arg.value.data))
@@ -181,7 +188,7 @@ public class LocalModeTaskSubmitter implements TaskSubmitter {
   }
 
   @Override
-  public RayActor createActor(FunctionDescriptor functionDescriptor, List<FunctionArg> args,
+  public BaseActor createActor(FunctionDescriptor functionDescriptor, List<FunctionArg> args,
                               ActorCreationOptions options) {
     ActorId actorId = ActorId.fromRandom();
     TaskSpec taskSpec = getTaskSpecBuilder(TaskType.ACTOR_CREATION_TASK, functionDescriptor, args)
@@ -196,7 +203,7 @@ public class LocalModeTaskSubmitter implements TaskSubmitter {
 
   @Override
   public List<ObjectId> submitActorTask(
-      RayActor actor, FunctionDescriptor functionDescriptor,
+      BaseActor actor, FunctionDescriptor functionDescriptor,
       List<FunctionArg> args, int numReturns, CallOptions options) {
     Preconditions.checkState(numReturns <= 1);
     TaskSpec.Builder builder = getTaskSpecBuilder(TaskType.ACTOR_TASK, functionDescriptor, args);
@@ -307,9 +314,17 @@ public class LocalModeTaskSubmitter implements TaskSubmitter {
   }
 
   private static JavaFunctionDescriptor getJavaFunctionDescriptor(TaskSpec taskSpec) {
-    List<ByteString> functionDescriptor = taskSpec.getFunctionDescriptorList();
-    return new JavaFunctionDescriptor(functionDescriptor.get(0).toStringUtf8(),
-        functionDescriptor.get(1).toStringUtf8(), functionDescriptor.get(2).toStringUtf8());
+    org.ray.runtime.generated.Common.FunctionDescriptor functionDescriptor =
+            taskSpec.getFunctionDescriptor();
+    if (functionDescriptor.getFunctionDescriptorCase() ==
+            Common.FunctionDescriptor.FunctionDescriptorCase.JAVA_FUNCTION_DESCRIPTOR) {
+      return new JavaFunctionDescriptor(
+              functionDescriptor.getJavaFunctionDescriptor().getClassName(),
+              functionDescriptor.getJavaFunctionDescriptor().getFunctionName(),
+              functionDescriptor.getJavaFunctionDescriptor().getSignature());
+    } else {
+      throw new RuntimeException("Can't build non java function descriptor");
+    }
   }
 
   private static List<FunctionArg> getFunctionArgs(TaskSpec taskSpec) {

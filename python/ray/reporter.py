@@ -7,15 +7,11 @@ import time
 import datetime
 import grpc
 import subprocess
+import sys
 from concurrent import futures
 
-try:
-    import psutil
-except ImportError:
-    print("The reporter requires psutil to run.")
-    import sys
-    sys.exit(1)
-
+import ray
+import psutil
 import ray.ray_constants as ray_constants
 import ray.services
 import ray.utils
@@ -35,7 +31,7 @@ class ReporterServer(reporter_pb2_grpc.ReporterServiceServicer):
     def GetProfilingStats(self, request, context):
         pid = request.pid
         duration = request.duration
-        profiling_file_path = os.path.join("/tmp/ray/",
+        profiling_file_path = os.path.join(ray.utils.get_ray_temp_dir(),
                                            "{}_profiling.txt".format(pid))
         process = subprocess.Popen(
             "sudo $(which py-spy) record -o {} -p {} -d {} -f speedscope"
@@ -132,7 +128,11 @@ class Reporter:
 
     @staticmethod
     def get_disk_usage():
-        return {x: psutil.disk_usage(x) for x in ["/", "/tmp"]}
+        dirs = [
+            os.environ["USERPROFILE"] if sys.platform == "win32" else os.sep,
+            ray.utils.get_user_temp_dir(),
+        ]
+        return {x: psutil.disk_usage(x) for x in dirs}
 
     @staticmethod
     def get_workers():

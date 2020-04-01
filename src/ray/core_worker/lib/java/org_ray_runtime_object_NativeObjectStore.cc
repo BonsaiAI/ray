@@ -1,3 +1,17 @@
+// Copyright 2017 The Ray Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//  http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 #include "ray/core_worker/lib/java/org_ray_runtime_object_NativeObjectStore.h"
 #include <jni.h>
 #include "ray/common/id.h"
@@ -16,7 +30,7 @@ Java_org_ray_runtime_object_NativeObjectStore_nativePut__JLorg_ray_runtime_objec
   RAY_CHECK(ray_object != nullptr);
   ray::ObjectID object_id;
   auto status = reinterpret_cast<ray::CoreWorker *>(nativeCoreWorkerPointer)
-                    ->Put(*ray_object, &object_id);
+                    ->Put(*ray_object, {}, &object_id);
   THROW_EXCEPTION_AND_RETURN_IF_NOT_OK(env, status, nullptr);
   return IdToJavaByteArray<ray::ObjectID>(env, object_id);
 }
@@ -29,7 +43,7 @@ Java_org_ray_runtime_object_NativeObjectStore_nativePut__J_3BLorg_ray_runtime_ob
   auto ray_object = JavaNativeRayObjectToNativeRayObject(env, obj);
   RAY_CHECK(ray_object != nullptr);
   auto status = reinterpret_cast<ray::CoreWorker *>(nativeCoreWorkerPointer)
-                    ->Put(*ray_object, object_id);
+                    ->Put(*ray_object, {}, object_id);
   THROW_EXCEPTION_AND_RETURN_IF_NOT_OK(env, status, (void)0);
 }
 

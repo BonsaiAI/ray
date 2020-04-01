@@ -3,8 +3,7 @@ import logging
 from ray.rllib.agents import with_common_config
 from ray.rllib.agents.ppo.ppo_tf_policy import PPOTFPolicy
 from ray.rllib.agents.trainer_template import build_trainer
-from ray.rllib.optimizers import SyncSamplesOptimizer, \
-    LocalMultiGPUOptimizer, TorchDistributedDataParallelOptimizer
+from ray.rllib.optimizers import SyncSamplesOptimizer, LocalMultiGPUOptimizer
 from ray.rllib.utils import try_import_tf
 
 tf = try_import_tf()
@@ -14,6 +13,9 @@ logger = logging.getLogger(__name__)
 # yapf: disable
 # __sphinx_doc_begin__
 DEFAULT_CONFIG = with_common_config({
+    # Should use a critic as a baseline (otherwise don't use value baseline;
+    # required for using GAE).
+    "use_critic": True,
     # If true, use the Generalized Advantage Estimator (GAE)
     # with a value function, see https://arxiv.org/pdf/1506.02438.pdf.
     "use_gae": True,
@@ -22,7 +24,7 @@ DEFAULT_CONFIG = with_common_config({
     # Initial coefficient for KL divergence.
     "kl_coeff": 0.2,
     # Size of batches collected from each worker.
-    "sample_batch_size": 200,
+    "rollout_fragment_length": 200,
     # Number of timesteps collected for each SGD round. This defines the size
     # of each SGD epoch.
     "train_batch_size": 4000,
@@ -65,8 +67,6 @@ DEFAULT_CONFIG = with_common_config({
     # usually slower, but you might want to try it if you run into issues with
     # the default optimizer.
     "simple_optimizer": False,
-    # Use the experimental torch multi-node SGD optimizer.
-    "distributed_data_parallel_optimizer": False,
     # Use PyTorch as framework?
     "use_pytorch": False
 })
@@ -75,33 +75,6 @@ DEFAULT_CONFIG = with_common_config({
 
 
 def choose_policy_optimizer(workers, config):
-    if config["distributed_data_parallel_optimizer"]:
-        if not config["use_pytorch"]:
-            raise ValueError(
-                "Distributed data parallel is only supported for PyTorch")
-        if config["num_gpus"]:
-            raise ValueError(
-                "When using distributed data parallel, you should set "
-                "num_gpus=0 since all optimization "
-                "is happening on workers. Enable GPUs for workers by setting "
-                "num_gpus_per_worker=1.")
-        if config["batch_mode"] != "truncate_episodes":
-            raise ValueError(
-                "Distributed data parallel requires truncate_episodes "
-                "batch mode.")
-        if config["sample_batch_size"] != config["train_batch_size"]:
-            raise ValueError(
-                "Distributed data parallel requires sample_batch_size to be "
-                "equal to train_batch_size. Each worker will sample and learn "
-                "on train_batch_size samples per iteration.")
-
-        return TorchDistributedDataParallelOptimizer(
-            workers,
-            num_sgd_iter=config["num_sgd_iter"],
-            train_batch_size=config["train_batch_size"],
-            sgd_minibatch_size=config["sgd_minibatch_size"],
-            standardize_fields=["advantages"])
-
     if config["simple_optimizer"]:
         return SyncSamplesOptimizer(
             workers,
@@ -115,7 +88,7 @@ def choose_policy_optimizer(workers, config):
         sgd_batch_size=config["sgd_minibatch_size"],
         num_sgd_iter=config["num_sgd_iter"],
         num_gpus=config["num_gpus"],
-        sample_batch_size=config["sample_batch_size"],
+        rollout_fragment_length=config["rollout_fragment_length"],
         num_envs_per_worker=config["num_envs_per_worker"],
         train_batch_size=config["train_batch_size"],
         standardize_fields=["advantages"],
@@ -123,10 +96,12 @@ def choose_policy_optimizer(workers, config):
 
 
 def update_kl(trainer, fetches):
+    # Single-agent.
     if "kl" in fetches:
-        # single-agent
         trainer.workers.local_worker().for_policy(
             lambda pi: pi.update_kl(fetches["kl"]))
+
+    # Multi-agent.
     else:
 
         def update(pi, pi_id):
@@ -135,7 +110,6 @@ def update_kl(trainer, fetches):
             else:
                 logger.debug("No data for {}, not updating kl".format(pi_id))
 
-        # multi-agent
         trainer.workers.local_worker().foreach_trainable_policy(update)
 
 

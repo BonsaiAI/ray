@@ -4,7 +4,6 @@ import subprocess
 import time
 
 import ray
-from ray import ray_constants
 from ray.test_utils import (
     RayTestTimeoutException,
     run_string_as_driver,
@@ -188,7 +187,7 @@ class Counter:
         self.count += 1
         return self.count
 counter = Counter.remote()
-ray.experimental.register_actor("Counter", counter)
+ray.util.register_actor("Counter", counter)
 time.sleep(100)
 """.format(address)
 
@@ -199,7 +198,7 @@ import time
 ray.init(address="{}")
 while True:
     try:
-        counter = ray.experimental.get_actor("Counter")
+        counter = ray.util.get_actor("Counter")
         break
     except ValueError:
         time.sleep(1)
@@ -480,9 +479,7 @@ print("success")
         assert "success" in out
 
 
-@pytest.mark.skipif(
-    ray_constants.direct_call_enabled(),
-    reason="fate sharing not implemented yet")
+@pytest.mark.skip(reason="fate sharing not implemented yet")
 def test_driver_exiting_when_worker_blocked(call_ray_start):
     # This test will create some drivers that submit some tasks and then
     # exit without waiting for the tasks to complete.
@@ -595,26 +592,6 @@ print("success")
 
     # Make sure we can still talk with the raylet.
     ray.get(f.remote())
-
-
-@pytest.mark.parametrize(
-    "call_ray_start", ["ray start --head --num-cpus=1 --use-pickle"],
-    indirect=True)
-def test_use_pickle(call_ray_start):
-    address = call_ray_start
-
-    ray.init(address=address, use_pickle=True)
-
-    assert ray.worker.global_worker.use_pickle
-    x = (2, "hello")
-
-    @ray.remote
-    def f(x):
-        assert x == (2, "hello")
-        assert ray.worker.global_worker.use_pickle
-        return (3, "world")
-
-    assert ray.get(f.remote(x)) == (3, "world")
 
 
 if __name__ == "__main__":

@@ -1,0 +1,68 @@
+# This template includes the steps to genarete the MacOS wheels in travis.
+
+steps:
+# Install phase of the travis MacOS wheels build
+- bash: |
+    echo Running install phase of the original travis.yml
+
+    # Set some variables to make the system looks like Travis
+    source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
+
+    # Start Original script
+    eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
+    # Commenting to force wheels generation
+    # if [ $RAY_CI_MACOS_WHEELS_AFFECTED != "1" ]; then exit; fi
+
+    # Originally with ./ci/suppress_output
+    ./ci/travis/install-dependencies.sh
+
+    # Not part of the original script
+    # Change the default deployment target
+    pip install --upgrade pip
+    pip install --upgrade setuptools
+    export MACOSX_DEPLOYMENT_TARGET="10.6"
+    export PYTHON_CONFIGURE_OPTS="--enable-universalsdk=/ --with-universal-archs=intel"
+    # End of Not part of the original script
+
+    # This command should be kept in sync with ray/python/README-building-wheels.md.
+    # Originally with ./ci/suppress_output 
+    ./python/build-wheel-macos.sh
+    # End Original script
+
+    exit 0
+  env:
+    PYTHONWARNINGS: 'ignore'
+    TRAVIS: 'true'
+    MAC_WHEELS: 1
+    RAY_INSTALL_JAVA: 1
+  displayName: 'Run original travis install phase'
+  timeoutInMinutes: 90
+# Script phase of the travis MacOS wheels build
+- bash: |
+    ls -l "$BUILD_SOURCESDIRECTORY/.whl/"
+
+    echo "MACOSX_DEPLOYMENT_TARGET: $MACOSX_DEPLOYMENT_TARGET"
+    echo "PYTHON_CONFIGURE_OPTS: $PYTHON_CONFIGURE_OPTS"
+
+    # Set some variables to make the system looks like Travis
+    source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
+
+    # Duplicate the wheel packages for the architecture of the agent
+    for f in $BUILD_SOURCESDIRECTORY/.whl/*.whl; do mv "$f" "$(echo "$f" | sed s/macosx_10_15_intel/macosx_10_13_x86_64/)"; done
+
+    # Explicitly sleep 60 seconds for logs to go through
+    ./ci/travis/test-wheels.sh || cat /tmp/ray/session_latest/logs/* || (sleep 60 && false)
+
+    # End Original script
+
+    # Duplicate the wheel packages for the architecture of the agent
+    for f in $BUILD_SOURCESDIRECTORY/.whl/*.whl; do cp "$f" "$(echo "$f" | sed s/macosx_10_13_x86_64/macosx_10_15_intel/)"; done
+
+    exit 0
+  env:
+    PYTHONWARNINGS: 'ignore'
+    TRAVIS: 'true'
+    MAC_WHEELS: 1
+    RAY_INSTALL_JAVA: 1
+  displayName: 'Run original script phase'
+  timeoutInMinutes: 30

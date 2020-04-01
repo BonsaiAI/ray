@@ -2,7 +2,7 @@
 #
 
 # You can set these variables from the command line.
-SPHINXOPTS    =
+SPHINXOPTS    = 
 SPHINXBUILD   = sphinx-build
 PAPER         =
 BUILDDIR      = _build
@@ -51,6 +51,7 @@ help:
 
 clean:
 	rm -rf $(BUILDDIR)/* $(AUTOGALLERYDIR)
+	rm -rf site/_site site/Gemfile.lock site/.sass-cache
 
 html:
 	$(SPHINXBUILD) -b html $(ALLSPHINXOPTS) $(BUILDDIR)/html

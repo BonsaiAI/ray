@@ -31,7 +31,7 @@ steps:
     # End of Not part of the original script
 
     # Originally with ./ci/suppress_output 
-    docker run -e TRAVIS_COMMIT=$TRAVIS_COMMIT --rm -w /ray -v `pwd`:/ray $MOUNT_BAZEL_CACHE -i rayproject/arrow_linux_x86_64_base:ARROW-5631 /ray/python/build-wheel-manylinux1.sh
+    docker run --rm -w /ray -v `pwd`:/ray $MOUNT_BAZEL_CACHE -e TRAVIS_COMMIT=$TRAVIS_COMMIT -i rayproject/arrow_linux_x86_64_base:python-3.8.0 /ray/python/build-wheel-manylinux1.sh
     # End Original script
 
     exit 0
@@ -71,7 +71,7 @@ steps:
     ./ci/travis/test-wheels.sh || cat /tmp/ray/session_latest/logs/* || sleep 60 || false
     # TODO: the following line is the right one. Temporal hack
     # because the agent is not allowing to install manylinux1 packages
-    # ./ci/travis/test-wheels.sh || cat /tmp/ray/session_latest/logs/* || (sleep 60 && false)
+    # ./ci/travis/test-wheels.sh || { cat /tmp/ray/session_latest/logs/* && sleep 60 && false; }
 
     # End Original script
 

@@ -20,7 +20,7 @@ steps:
     # Change the default deployment target
     pip install --upgrade pip
     pip install --upgrade setuptools
-    export MACOSX_DEPLOYMENT_TARGET="10.6"
+    export MACOSX_DEPLOYMENT_TARGET="10.9"
     export PYTHON_CONFIGURE_OPTS="--enable-universalsdk=/ --with-universal-archs=intel"
     # End of Not part of the original script
 
@@ -36,7 +36,7 @@ steps:
     MAC_WHEELS: 1
     RAY_INSTALL_JAVA: 1
   displayName: 'Run original travis install phase'
-  timeoutInMinutes: 90
+  timeoutInMinutes: 120
 # Script phase of the travis MacOS wheels build
 - bash: |
     ls -l "$BUILD_SOURCESDIRECTORY/.whl/"
@@ -55,8 +55,12 @@ steps:
 
     # End Original script
 
+    set +e
+
     # Duplicate the wheel packages for the architecture of the agent
     for f in $BUILD_SOURCESDIRECTORY/.whl/*.whl; do cp "$f" "$(echo "$f" | sed s/macosx_10_13_x86_64/macosx_10_15_intel/)"; done
+
+    ls -l "$BUILD_SOURCESDIRECTORY/.whl/"
 
     exit 0
   env:
@@ -65,4 +69,4 @@ steps:
     MAC_WHEELS: 1
     RAY_INSTALL_JAVA: 1
   displayName: 'Run original script phase'
-  timeoutInMinutes: 30
+  timeoutInMinutes: 60

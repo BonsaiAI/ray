@@ -37,4 +37,7 @@ steps:
     RAY_GCS_SERVICE_ENABLED: false
   displayName: 'Run original GCS python job'
   timeoutInMinutes: 120
+  # TODO: remove - we are allowing to continue on error because
+  # //python/ray/tests:test_iter @ test_duplicate and //python/ray/tests:test_debug_tools
+  # are failing always in our ado agents
   continueOnError: 'true'

@@ -5,7 +5,7 @@ steps:
     # the hash was computed in Mac
     if [[ $AGENT_OS == "Darwin" ]]; then 
       pushd $BUILD_SOURCESDIRECTORY
-      EXPECTED_HASH_TRAVIS='a1577a97940e4b256d2134fda855fdd3ce8acfb3f9c1107e0e8fd0562667fc99'
+      EXPECTED_HASH_TRAVIS='9d3e1006b48b65259c8075c28e5c0c22fa5e0b33d5bf2a452e65a23c836cabc6'
       CURRENT_HASH_TRAVIS=$(shasum -a 256 ./.travis.yml | awk '{print $1}')
       if [[ $EXPECTED_HASH_TRAVIS != $CURRENT_HASH_TRAVIS ]]; then 
         echo "The original Travis file of the project has changed"

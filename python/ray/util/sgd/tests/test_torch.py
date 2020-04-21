@@ -47,6 +47,42 @@ def test_single_step(ray_start_2_cpus):  # noqa: F811
     trainer.shutdown()
 
 
+def test_resize(ray_start_2_cpus):  # noqa: F811
+    trainer = TorchTrainer(
+        model_creator=model_creator,
+        data_creator=data_creator,
+        optimizer_creator=optimizer_creator,
+        loss_creator=lambda config: nn.MSELoss(),
+        num_workers=1)
+    trainer.train(num_steps=1)
+    trainer.max_replicas = 2
+    results = trainer.train(num_steps=1, reduce_results=False)
+    assert len(results) == 2
+
+
+def test_non_serialized_data(ray_start_2_cpus):  # noqa: F811
+    duration = 10
+
+    def slow_data(func):
+        def slowed_func(*args, **kwargs):
+            time.sleep(duration)
+            return func(*args, **kwargs)
+
+        return slowed_func
+
+    start = time.time()
+    trainer = TorchTrainer(
+        model_creator=model_creator,
+        data_creator=slow_data(data_creator),
+        optimizer_creator=optimizer_creator,
+        serialize_data_creation=False,
+        loss_creator=lambda config: nn.MSELoss(),
+        num_workers=2)
+    elapsed = time.time() - start
+    assert elapsed < duration * 2
+    trainer.shutdown()
+
+
 def test_dead_trainer(ray_start_2_cpus):  # noqa: F811
     trainer = TorchTrainer(
         model_creator=model_creator,
@@ -489,6 +525,46 @@ def test_save_and_restore(ray_start_2_cpus, num_workers,
         optimizer_creator=optimizer_creator,
         loss_creator=lambda config: nn.MSELoss(),
         num_workers=num_workers)
+    trainer2.load(checkpoint_path)
+
+    model2 = trainer2.get_model()
+
+    model1_state_dict = model1.state_dict()
+    model2_state_dict = model2.state_dict()
+
+    assert set(model1_state_dict.keys()) == set(model2_state_dict.keys())
+
+    for k in model1_state_dict:
+        assert torch.equal(model1_state_dict[k], model2_state_dict[k])
+    trainer2.shutdown()
+
+
+def test_wrap_ddp(ray_start_2_cpus, tmp_path):  # noqa: F811
+    if not dist.is_available():
+        return
+    trainer1 = TorchTrainer(
+        model_creator=model_creator,
+        data_creator=data_creator,
+        optimizer_creator=optimizer_creator,
+        loss_creator=lambda config: nn.MSELoss(),
+        wrap_ddp=False,
+        num_workers=2)
+    trainer1.train()
+    checkpoint_path = os.path.join(tmp_path, "checkpoint")
+    trainer1.save(checkpoint_path)
+
+    model1 = trainer1.get_model()
+    assert not hasattr(trainer1.local_worker.training_operator.model, "module")
+    assert hasattr(trainer1.local_worker.training_operator, "device_ids")
+    trainer1.shutdown()
+
+    trainer2 = TorchTrainer(
+        model_creator=model_creator,
+        data_creator=data_creator,
+        optimizer_creator=optimizer_creator,
+        loss_creator=lambda config: nn.MSELoss(),
+        wrap_ddp=False,
+        num_workers=2)
     trainer2.load(checkpoint_path)
 
     model2 = trainer2.get_model()

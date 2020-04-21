@@ -10,17 +10,11 @@ steps:
     # Start Original script
 
     # install part
-    eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-    if [ $RAY_CI_JAVA_AFFECTED != "1" ]; then exit; fi
-    ./ci/travis/install-bazel.sh
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-dependencies.sh
-    export PATH="$HOME/miniconda/bin:$PATH"
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-ray.sh
+    . ./ci/travis/ci.sh init RAY_CI_JAVA_AFFECTED
+    . ./ci/travis/ci.sh build
 
     # script part
-    if [ $RAY_CI_JAVA_AFFECTED != "1" ]; then exit; fi
+    . ./ci/travis/ci.sh preload
     ./java/test.sh
 
     # End Original script

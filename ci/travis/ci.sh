@@ -111,7 +111,7 @@ build() {
 
     # This command should be kept in sync with ray/python/README-building-wheels.md,
     # except the "${MOUNT_BAZEL_CACHE[@]}" part.
-    "${WORKSPACE_DIR}"/ci/suppress_output docker run --rm -w /ray -v "${PWD}":/ray "${MOUNT_BAZEL_CACHE[@]}" -e TRAVIS_COMMIT="${TRAVIS_COMMIT}" -ti rayproject/arrow_linux_x86_64_base:python-3.8.0 /ray/python/build-wheel-manylinux1.sh
+    "${WORKSPACE_DIR}"/ci/suppress_output docker run --rm -w /ray -v "${PWD}":/ray "${MOUNT_BAZEL_CACHE[@]}" -e TRAVIS_COMMIT="${TRAVIS_COMMIT}" -i rayproject/arrow_linux_x86_64_base:python-3.8.0 /ray/python/build-wheel-manylinux1.sh
   fi
 
   if [ "${MAC_WHEELS-}" = 1 ]; then

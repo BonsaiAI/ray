@@ -9,24 +9,10 @@ steps:
     source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
 
     # Start Original script
-    eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-    # Commenting to force wheels generation
-    # if [ $RAY_CI_MACOS_WHEELS_AFFECTED != "1" ]; then exit; fi
 
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-dependencies.sh
+    . ./ci/travis/ci.sh init RAY_CI_MACOS_WHEELS_AFFECTED
+    . ./ci/travis/ci.sh build
 
-    # Not part of the original script
-    # Change the default deployment target
-    pip install --upgrade pip
-    pip install --upgrade setuptools
-    export MACOSX_DEPLOYMENT_TARGET="10.9"
-    export PYTHON_CONFIGURE_OPTS="--enable-universalsdk=/ --with-universal-archs=intel"
-    # End of Not part of the original script
-
-    # This command should be kept in sync with ray/python/README-building-wheels.md.
-    # Originally with ./ci/suppress_output 
-    ./python/build-wheel-macos.sh
     # End Original script
 
     exit 0
@@ -49,6 +35,8 @@ steps:
 
     # Duplicate the wheel packages for the architecture of the agent
     for f in $BUILD_SOURCESDIRECTORY/.whl/*.whl; do mv "$f" "$(echo "$f" | sed s/macosx_10_15_intel/macosx_10_13_x86_64/)"; done
+
+    # Start Original script
 
     # Explicitly sleep 60 seconds for logs to go through
     ./ci/travis/test-wheels.sh || { cat /tmp/ray/session_latest/logs/* && sleep 60 && false; }

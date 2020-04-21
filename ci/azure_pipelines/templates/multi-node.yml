@@ -10,58 +10,13 @@ steps:
 
     # Start Original script
 
-    # Cause the script to exit if a single command fails.
-    set -e
+    ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE:-$0}")"; pwd)
 
-    # Show explicitly which commands are currently running.
-    set -x
+    export RUN_TUNE_TESTS=1
+    export RUN_DOC_TESTS=1
+    export RUN_SGD_TESTS=1
 
-    MEMORY_SIZE="20G"
-    SHM_SIZE="20G"
-
-    DOCKER_SHA=$($BUILD_SOURCESDIRECTORY/build-docker.sh --output-sha --no-cache)
-    SUPPRESS_OUTPUT=$BUILD_SOURCESDIRECTORY/ci/suppress_output
-    echo "Using Docker image" $DOCKER_SHA
-
-    ######################## RLLIB TESTS #################################
-
-    # DEPRECATED: All RLlib tests have been moved to /ray/rllib/BUILD
-    # source $BUILD_SOURCESDIRECTORY/ci/jenkins_tests/run_rllib_tests.sh
-
-    # TODO: [CI] All the following tests are disabled because:
-    # - In Tune here is one tune test that requires API KEY of https://sigopt.com 
-    # - The large memory test requires 60 GB of RAM
-    # ######################## TUNE TESTS #################################
-
-    # bash $BUILD_SOURCESDIRECTORY/ci/jenkins_tests/run_tune_tests.sh ${MEMORY_SIZE} ${SHM_SIZE} $DOCKER_SHA
-
-    # ######################## EXAMPLE TESTS #################################
-
-    # Originally with ./ci/suppress_output 
-    docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} --memory-swap=-1 $DOCKER_SHA \
-        python /ray/doc/examples/plot_pong_example.py
-
-    # Originally with ./ci/suppress_output 
-    docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} --memory-swap=-1 $DOCKER_SHA \
-        python /ray/doc/examples/plot_parameter_server.py
-
-    # Originally with ./ci/suppress_output 
-    docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} --memory-swap=-1 $DOCKER_SHA \
-        python /ray/doc/examples/plot_hyperparameter.py
-
-    # Originally with ./ci/suppress_output 
-    docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} --memory-swap=-1 $DOCKER_SHA \
-        python /ray/doc/examples/doc_code/torch_example.py
-
-    # Originally with ./ci/suppress_output 
-    docker run --rm --shm-size=${SHM_SIZE} --memory=${MEMORY_SIZE} --memory-swap=-1 $DOCKER_SHA \
-        python /ray/doc/examples/doc_code/tf_example.py
-
-    # ######################## RAY BACKEND TESTS #################################
-
-    # # Originally with ./ci/suppress_output
-    # docker run --rm --shm-size=60G --memory=60G --memory-swap=-1 $DOCKER_SHA \
-    #     python /ray/ci/jenkins_tests/miscellaneous/large_memory_test.py
+    bash $ROOT_DIR/entry_point.sh
 
     # End Original script
 

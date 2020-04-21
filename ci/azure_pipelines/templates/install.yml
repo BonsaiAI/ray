@@ -11,26 +11,17 @@ steps:
     source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
 
     # Start Original script
-    eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-    # Commenting to force wheels generation
-    # if [ $RAY_CI_SERVE_AFFECTED != "1" ] && [ $RAY_CI_TUNE_AFFECTED != "1" ] && [ $RAY_CI_RLLIB_AFFECTED != "1" ] && [ $RAY_CI_PYTHON_AFFECTED != "1" ]; then exit; fi
 
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-bazel.sh
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-dependencies.sh
-    export PATH="$HOME/miniconda/bin:$PATH"
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-ray.sh
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-cython-examples.sh
+    . ./ci/travis/ci.sh init RAY_CI_SERVE_AFFECTED,RAY_CI_TUNE_AFFECTED,RAY_CI_PYTHON_AFFECTED
+    . ./ci/travis/ci.sh build
 
-    eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | GIMME_GO_VERSION=master bash)"
     # End Original script
 
     exit 0
   env:
     PYTHONWARNINGS: 'ignore'
+    RAY_DEFAULT_BUILD: 1
+    RAY_CYTHON_EXAMPLES: 1
     TRAVIS: 'true'
   displayName: 'Run original travis install phase'
   timeoutInMinutes: 120

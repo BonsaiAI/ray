@@ -37,8 +37,8 @@ steps:
 
     # ray operator tests
     cd ./deploy/ray-operator/
-    go build
-    go test ./...
+    CC=gcc go build
+    CC=gcc go test ./...
     cd ../..
 
     # random python tests TODO(ekl): these should be moved to bazel

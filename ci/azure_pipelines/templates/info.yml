@@ -5,7 +5,7 @@ steps:
     # the hash was computed in Mac
     if [[ $AGENT_OS == "Darwin" ]]; then 
       pushd $BUILD_SOURCESDIRECTORY
-      EXPECTED_HASH_TRAVIS='d82cb653d3f8ac8c8850d6ec162de96fb53f3223b1ee64367f38fcf147485e57'
+      EXPECTED_HASH_TRAVIS='bf33ad58407517fa3c8b22f2906c1273c9fc2979bec79dc0c22fb3ed45185e8c'
       CURRENT_HASH_TRAVIS=$(shasum -a 256 ./.travis.yml | awk '{print $1}')
       if [[ $EXPECTED_HASH_TRAVIS != $CURRENT_HASH_TRAVIS ]]; then 
         echo "The original Travis file of the project has changed"
@@ -14,7 +14,7 @@ steps:
         echo "Please check the changes, change the azure pipelines acordingly and update the sha256"
         exit 1
       fi
-      EXPECTED_HASH_CI_FOLDER='f52f71bb1f6bbeb8e953c151fb51df61edfe387f901b0743666583eecc1845d0'
+      EXPECTED_HASH_CI_FOLDER='9a4fe57aa9ddbaf602fbad10dcbb48b3f378447820059d558e61a3565cb2e7e0'
       CURRENT_HASH_CI_FOLDER=$(find ./ci -path "./ci/azure_pipelines" -prune -o -path "./**/.DS_Store" -prune -o -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256 | awk '{print $1}')
       if [[ $EXPECTED_HASH_CI_FOLDER != $CURRENT_HASH_CI_FOLDER ]]; then 
         echo "The original CI folder of the project has changed"

@@ -32,8 +32,9 @@ steps:
     bazel test --config=ci --build_tests_only --show_progress_rate_limit=100 --test_output=errors -- //:all -rllib/...
 
     # ray serve tests
+    # Desabling this tests because is not working in ADO and is not required yet in Bonsai
     # Originally with ./ci/keep_alive
-    if [ $RAY_CI_SERVE_AFFECTED == "1" ]; then bazel test --config=ci --test_tag_filters=-jenkins_only python/ray/serve/...; fi
+    # if [ $RAY_CI_SERVE_AFFECTED == "1" ]; then bazel test --config=ci --test_tag_filters=-jenkins_only python/ray/serve/...; fi
 
     # ray operator tests
     cd ./deploy/ray-operator/
@@ -42,7 +43,10 @@ steps:
     cd ../..
 
     # random python tests TODO(ekl): these should be moved to bazel
-    if [ $RAY_CI_PYTHON_AFFECTED == "1" ]; then python -m pytest -v --durations=5 --timeout=300 python/ray/experimental/test/async_test.py; fi
+    # The following is the original line but it was modified
+    # because --timeout is not a valid parameter for pytest
+    # if [ $RAY_CI_PYTHON_AFFECTED == "1" ]; then python -m pytest -v --durations=5 --timeout=300 python/ray/experimental/test/async_test.py; fi
+    if [ $RAY_CI_PYTHON_AFFECTED == "1" ]; then python -m pytest -v --durations=5 python/ray/experimental/test/async_test.py; fi
 
     # bazel python tests. This should be run last to keep its logs at the end of travis logs.
     # Originally with ./ci/keep_alive

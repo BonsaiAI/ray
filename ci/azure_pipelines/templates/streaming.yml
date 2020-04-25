@@ -30,3 +30,7 @@ steps:
     TESTSUITE: streaming
   displayName: 'Run original streaming job'
   timeoutInMinutes: 120
+  # TODO: remove - we are allowing to continue on error because
+  # These stream test are flaky in ADO and we are not relying in
+  # that functionality yet
+  continueOnError: 'true'

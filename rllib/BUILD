@@ -46,7 +46,7 @@ py_test(
     tags = ["learning_tests", "learning_tests_cartpole"],
     size = "enormous",  # = 60min timeout
     srcs = ["tests/run_regression_tests.py"],
-    data = glob(["tuned_examples/regression_tests/cartpole*.yaml"]),
+    data = glob(["tuned_examples/regression_tests/cartpole-*.yaml"]),
     # Pass `BAZEL` option and the path to look for yaml regression files.
     args = ["BAZEL", "tuned_examples/regression_tests"]
 )
@@ -57,7 +57,7 @@ py_test(
     tags = ["learning_tests", "learning_tests_pendulum"],
     size = "enormous",  # = 60min timeout
     srcs = ["tests/run_regression_tests.py"],
-    data = glob(["tuned_examples/regression_tests/pendulum*.yaml"]),
+    data = glob(["tuned_examples/regression_tests/pendulum-*.yaml"]),
     # Pass `BAZEL` option and the path to look for yaml regression files.
     args = ["BAZEL", "tuned_examples/regression_tests"]
 )
@@ -85,19 +85,25 @@ py_test(
     srcs = ["agents/ddpg/tests/test_ddpg.py"]
 )
 
-# DQNTrainer
+# DQNTrainer/SimpleQTrainer
 py_test(
     name = "test_dqn",
     tags = ["agents_dir"],
     size = "medium",
     srcs = ["agents/dqn/tests/test_dqn.py"]
 )
+py_test(
+    name = "test_simple_q",
+    tags = ["agents_dir"],
+    size = "medium",
+    srcs = ["agents/dqn/tests/test_simple_q.py"]
+)
 
 # APEXTrainer
 py_test(
     name = "test_apex",
     tags = ["agents_dir"],
-    size = "medium",
+    size = "large",
     srcs = ["agents/dqn/tests/test_apex.py"]
 )
 
@@ -107,6 +113,14 @@ py_test(
     tags = ["agents_dir"],
     size = "small",
     srcs = ["agents/impala/tests/test_vtrace.py"]
+)
+
+# MARWILTrainer
+py_test(
+    name = "test_marwil",
+    tags = ["agents_dir"],
+    size = "small",
+    srcs = ["agents/marwil/tests/test_marwil.py"]
 )
 
 # PGTrainer
@@ -126,11 +140,27 @@ py_test(
             "agents/ppo/tests/test.py"]  # TODO(sven): Move down once PR 6889 merged
 )
 
+# DDPPO
+py_test(
+    name = "test_ddppo",
+    tags = ["agents_dir"],
+    size = "small",
+    srcs = ["agents/ppo/tests/test_ddppo.py"]
+)
+
+# APPO
+py_test(
+    name = "test_appo",
+    tags = ["agents_dir"],
+    size = "medium",
+    srcs = ["agents/ppo/tests/test_appo.py"]
+)
+
 # SAC
 py_test(
     name = "test_sac",
     tags = ["agents_dir"],
-    size = "medium",
+    size = "large",
     srcs = ["agents/sac/tests/test_sac.py"]
 )
 
@@ -567,8 +597,9 @@ py_test(
 # MARWIL
 
 py_test(
-    name = "test_marwil_cartpole_v0",
-    main = "train.py", srcs = ["train.py"],
+    name = "test_marwil_cartpole_v0_tf",
+    main = "train.py",
+    srcs = ["train.py"],
     tags = ["quick_train", "external_files"],
     size = "small",
     # Include the json data file.
@@ -578,6 +609,22 @@ py_test(
         "--run", "MARWIL",
         "--stop", "'{\"training_iteration\": 1}'",
         "--config", "'{\"input\": \"tests/data/cartpole_small\", \"learning_starts\": 0, \"input_evaluation\": [\"wis\", \"is\"], \"shuffle_buffer_size\": 10}'"
+        ]
+)
+
+py_test(
+    name = "test_marwil_cartpole_v0_torch",
+    main = "train.py",
+    srcs = ["train.py"],
+    tags = ["quick_train", "external_files"],
+    size = "small",
+    # Include the json data file.
+    data = glob(["tests/data/cartpole_small/**"]),
+    args = [
+        "--env", "CartPole-v0",
+        "--run", "MARWIL",
+        "--stop", "'{\"training_iteration\": 1}'",
+        "--config", "'{\"use_pytorch\": true, \"input\": \"tests/data/cartpole_small\", \"learning_starts\": 0, \"input_evaluation\": [\"wis\", \"is\"], \"shuffle_buffer_size\": 10}'"
         ]
 )
 
@@ -912,6 +959,13 @@ py_test(
     srcs = ["utils/exploration/tests/test_explorations.py"]
 )
 
+py_test(
+    name = "test_parameter_noise",
+    tags = ["utils"],
+    size = "small",
+    srcs = ["utils/exploration/tests/test_parameter_noise.py"]
+)
+
 # Schedules
 py_test(
     name = "test_schedules",
@@ -975,6 +1029,13 @@ py_test(
 )
 
 py_test(
+    name = "tests/test_dependency_torch",
+    tags = ["tests_dir", "tests_dir_D"],
+    size = "small",
+    srcs = ["tests/test_dependency_torch.py"]
+)
+
+py_test(
     name = "tests/test_eager_support",
     tags = ["tests_dir", "tests_dir_E"],
     size = "enormous",
@@ -1029,6 +1090,13 @@ py_test(
     tags = ["tests_dir", "tests_dir_I"],
     size = "medium",
     srcs = ["tests/test_io.py"]
+)
+
+py_test(
+    name = "tests/test_execution",
+    tags = ["tests_dir", "tests_dir_E"],
+    size = "medium",
+    srcs = ["tests/test_execution.py"]
 )
 
 py_test(
@@ -1266,6 +1334,14 @@ py_test(
     tags = ["examples", "examples_C"],
     size = "small",
     srcs = ["examples/custom_metrics_and_callbacks.py"],
+    args = ["--num-iters=2"]
+)
+
+py_test(
+    name = "examples/custom_metrics_and_callbacks_legacy",
+    tags = ["examples", "examples_C"],
+    size = "small",
+    srcs = ["examples/custom_metrics_and_callbacks_legacy.py"],
     args = ["--num-iters=2"]
 )
 

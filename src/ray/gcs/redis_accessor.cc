@@ -13,7 +13,9 @@
 // limitations under the License.
 
 #include "ray/gcs/redis_accessor.h"
+
 #include <boost/none.hpp>
+
 #include "ray/gcs/pb_util.h"
 #include "ray/gcs/redis_gcs_client.h"
 #include "ray/util/logging.h"
@@ -61,6 +63,14 @@ Status RedisLogBasedActorInfoAccessor::AsyncGet(
 
   return client_impl_->log_based_actor_table().Lookup(actor_id.JobId(), actor_id,
                                                       on_done);
+}
+
+Status RedisLogBasedActorInfoAccessor::AsyncCreateActor(
+    const ray::TaskSpecification &task_spec, const ray::gcs::StatusCallback &callback) {
+  const std::string error_msg =
+      "Unsupported method of AsyncCreateActor in RedisLogBasedActorInfoAccessor.";
+  RAY_LOG(FATAL) << error_msg;
+  return Status::Invalid(error_msg);
 }
 
 Status RedisLogBasedActorInfoAccessor::AsyncRegister(
@@ -296,7 +306,7 @@ Status RedisJobInfoAccessor::AsyncMarkFinished(const JobID &job_id,
                                                const StatusCallback &callback) {
   std::shared_ptr<JobTableData> data_ptr =
       CreateJobTableData(job_id, /*is_dead*/ true, /*time_stamp*/ std::time(nullptr),
-                         /*node_manager_address*/ "", /*driver_pid*/ -1);
+                         /*driver_ip_address*/ "", /*driver_pid*/ -1);
   return DoAsyncAppend(data_ptr, callback);
 }
 
@@ -745,6 +755,30 @@ Status RedisWorkerInfoAccessor::AsyncReportWorkerFailure(
   WorkerID worker_id = WorkerID::FromBinary(data_ptr->worker_address().worker_id());
   WorkerFailureTable &worker_failure_table = client_impl_->worker_failure_table();
   return worker_failure_table.Add(JobID::Nil(), worker_id, data_ptr, on_done);
+}
+
+Status RedisWorkerInfoAccessor::AsyncRegisterWorker(
+    rpc::WorkerType worker_type, const WorkerID &worker_id,
+    const std::unordered_map<std::string, std::string> &worker_info,
+    const StatusCallback &callback) {
+  std::vector<std::string> args;
+  args.emplace_back("HMSET");
+  if (worker_type == rpc::WorkerType::DRIVER) {
+    args.emplace_back("Drivers:" + worker_id.Binary());
+  } else {
+    args.emplace_back("Workers:" + worker_id.Binary());
+  }
+  for (const auto &entry : worker_info) {
+    args.push_back(entry.first);
+    args.push_back(entry.second);
+  }
+
+  auto status = client_impl_->primary_context()->RunArgvAsync(args);
+  if (callback) {
+    // TODO (kfstorm): Invoke the callback asynchronously.
+    callback(status);
+  }
+  return status;
 }
 
 }  // namespace gcs

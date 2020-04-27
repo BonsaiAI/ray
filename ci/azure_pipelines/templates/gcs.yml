@@ -10,18 +10,11 @@ steps:
     # Start Original script
 
     # install part
-    eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-    ./ci/travis/install-bazel.sh
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-dependencies.sh
-    export PATH="$HOME/miniconda/bin:$PATH"
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-ray.sh
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-cython-examples.sh
-    eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | GIMME_GO_VERSION=master bash)"
+    . ./ci/travis/ci.sh init RAY_CI_ONLY_RLLIB_AFFECTED
+    . ./ci/travis/ci.sh build
 
     # script part
+    . ./ci/travis/ci.sh preload
     # Originally with ./ci/suppress_output
     bash src/ray/test/run_core_worker_tests.sh
     # Originally with ./ci/suppress_output
@@ -37,5 +30,6 @@ steps:
     RAY_INSTALL_JAVA: 1
     TESTSUITE: gcs_service_disabled
     RAY_GCS_SERVICE_ENABLED: false
+    RAY_CYTHON_EXAMPLES: 1
   displayName: 'Run original GCS service job'
   timeoutInMinutes: 120

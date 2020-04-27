@@ -10,21 +10,14 @@ steps:
     # Start Original script
 
     # install part
-    eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-    ./ci/travis/install-bazel.sh
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-dependencies.sh
-    export PATH="$HOME/miniconda/bin:$PATH"
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-ray.sh
-    # Originally with ./ci/suppress_output
-    ./ci/travis/install-cython-examples.sh
-    eval "$(curl -sL https://raw.githubusercontent.com/travis-ci/gimme/master/gimme | GIMME_GO_VERSION=master bash)"
+    . ./ci/travis/ci.sh init RAY_CI_ONLY_RLLIB_AFFECTED
+    . ./ci/travis/ci.sh build
+
     # script part
-    export PATH="$HOME/miniconda/bin:$PATH"
+    . ./ci/travis/ci.sh preload
     # Originally with ./ci/keep_alive
     # The original flaky_test_attempts was 3 increasing to 4 because failure rate found in ADO
-    bazel test --spawn_strategy=local --flaky_test_attempts=3 --nocache_test_results --test_verbose_timeout_warnings --progress_report_interval=100 --show_progress_rate_limit=100 --show_timestamps --test_output=errors --test_tag_filters=-jenkins_only python/ray/tests/...
+    bazel test --config=ci --test_tag_filters=-jenkins_only python/ray/tests/...
 
       # End Original script
 
@@ -35,6 +28,7 @@ steps:
     RAY_INSTALL_JAVA: 1
     TESTSUITE: gcs_service_disabled_python_testcase
     RAY_GCS_SERVICE_ENABLED: false
+    RAY_CYTHON_EXAMPLES: 1
   displayName: 'Run original GCS python job'
   timeoutInMinutes: 120
   # TODO: remove - we are allowing to continue on error because

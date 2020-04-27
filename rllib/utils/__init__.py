@@ -56,6 +56,17 @@ def force_list(elements=None, to_tuple=False):
 
 force_tuple = partial(force_list, to_tuple=True)
 
+
+# TODO(sven): remove at some point.
+def try_import_tree():
+    try:
+        import tree
+        return tree
+    except (ImportError, ModuleNotFoundError):
+        raise ModuleNotFoundError(
+            "`dm-tree` is not installed! Run `pip install dm-tree`.")
+
+
 __all__ = [
     "add_mixins",
     "check",
@@ -79,6 +90,7 @@ __all__ = [
     "try_import_tf",
     "try_import_tfp",
     "try_import_torch",
+    "try_import_tree",
     "ConstantSchedule",
     "DeveloperAPI",
     "ExponentialSchedule",

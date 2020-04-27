@@ -10,16 +10,12 @@ steps:
       # Start Original script
   
       # install part
-      eval `python $TRAVIS_BUILD_DIR/ci/travis/determine_tests_to_run.py`
-      ./ci/travis/install-bazel.sh
-      # Originally with ./ci/suppress_output
-      ./ci/travis/install-dependencies.sh
-      export PATH="$HOME/miniconda/bin:$PATH"
-      # Originally with ./ci/suppress_output
-      ./ci/travis/install-ray.sh
+      . ./ci/travis/ci.sh init
+      . ./ci/travis/ci.sh build
       
       # script part
-      bazel test //cpp:all --build_tests_only --spawn_strategy=local --flaky_test_attempts=3 --nocache_test_results --test_verbose_timeout_warnings --progress_report_interval=100 --show_progress_rate_limit=100 --show_timestamps --test_output=streamed
+      . ./ci/travis/ci.sh preload
+      bazel test --config=ci //cpp:all --build_tests_only --test_output=streamed
   
       # End Original script
   

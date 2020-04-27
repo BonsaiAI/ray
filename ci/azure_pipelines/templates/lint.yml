@@ -17,11 +17,12 @@ steps:
 
     # Start Original lint job body
 
-    # Before install part
-    sudo apt-get update -qq
+    # Install part
+    . ./ci/travis/ci.sh init
+    . ./ci/travis/ci.sh build
 
     # Script part
-
+    . ./ci/travis/ci.sh preload
     # Modified from original to do not block CI
     ./ci/travis/check-git-clang-format-output.sh 2> /dev/null
     if [ $? -eq 0 ]
@@ -34,8 +35,6 @@ steps:
 
     # Try generating Sphinx documentation. To do this, we need to install
     # Ray first.
-    ./ci/travis/install-dependencies.sh
-    export PATH="$HOME/miniconda/bin:$PATH"
     cd doc
     # readthedocs has an antiquated build env.
     # This is a best effort to reproduce it locally to avoid doc build failures
@@ -53,8 +52,8 @@ steps:
     python setup.py check --restructuredtext --strict --metadata
     cd ..
     # Run Bazel linter Buildifier.
-    wget -q https://dl.google.com/go/go1.12.linux-amd64.tar.gz
-    tar -xf go1.12.linux-amd64.tar.gz
+    wget -q https://dl.google.com/go/go1.14.2.linux-amd64.tar.gz
+    tar -xf go1.14.2.linux-amd64.tar.gz
     mkdir $HOME/go_dir
     export GOROOT=`pwd`/go
     export GOPATH="$HOME/go_dir"

@@ -7,13 +7,13 @@ import logging
 import numpy as np
 
 from ray.util.debug import log_once
-from ray.rllib.evaluation.episode import _flatten_action
 from ray.rllib.models.catalog import ModelCatalog
 from ray.rllib.policy.policy import Policy, LEARNER_STATS_KEY
 from ray.rllib.policy.sample_batch import SampleBatch
 from ray.rllib.utils import add_mixins
 from ray.rllib.utils.annotations import override
 from ray.rllib.utils.framework import try_import_tf
+from ray.rllib.utils.space_utils import flatten_to_single_ndarray
 
 tf = try_import_tf()
 logger = logging.getLogger(__name__)
@@ -241,7 +241,7 @@ def build_eager_tf_policy(name,
                 SampleBatch.CUR_OBS: tf.convert_to_tensor(
                     np.array([observation_space.sample()])),
                 SampleBatch.PREV_ACTIONS: tf.convert_to_tensor(
-                    [_flatten_action(action_space.sample())]),
+                    [flatten_to_single_ndarray(action_space.sample())]),
                 SampleBatch.PREV_REWARDS: tf.convert_to_tensor([0.]),
             }
 
@@ -357,7 +357,9 @@ def build_eager_tf_policy(name,
                             action_distribution_fn(
                                 self, self.model,
                                 input_dict[SampleBatch.CUR_OBS],
-                                explore=explore, timestep=timestep)
+                                explore=explore,
+                                timestep=timestep,
+                                is_training=False)
                     else:
                         dist_class = self.dist_class
                         dist_inputs, state_out = self.model(
@@ -420,7 +422,11 @@ def build_eager_tf_policy(name,
             # Action dist class and inputs are generated via custom function.
             if action_distribution_fn:
                 dist_inputs, dist_class, _ = action_distribution_fn(
-                    self, self.model, input_dict[SampleBatch.CUR_OBS])
+                    self,
+                    self.model,
+                    input_dict[SampleBatch.CUR_OBS],
+                    explore=False,
+                    is_training=False)
                 action_dist = dist_class(dist_inputs, self.model)
                 log_likelihoods = action_dist.logp(actions)
             # Default log-likelihood calculation.
@@ -560,6 +566,7 @@ def build_eager_tf_policy(name,
                 }
             else:
                 fetches[LEARNER_STATS_KEY] = {}
+
             if extra_learn_fetches_fn:
                 fetches.update(
                     {k: v

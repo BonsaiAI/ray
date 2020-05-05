@@ -193,8 +193,24 @@ class SACModel(TFModelV2):
                 q_net(dict(observations=observations, actions=actions))
             )
 
+        def build_error_net(name, observations, actions):
+            q_net = build_fcn(
+                input_shapes=dict(observations=(num_outputs,), actions=(self.action_dim,)),
+                num_outputs=1,
+                hidden_layer_sizes=(256, 256, 256),
+                hidden_activations="relu",
+                name=name
+            )
+            return tf.keras.Model(
+                [observations, actions],
+                q_net(dict(observations=observations, actions=actions))
+            )
+
         self.q_net = build_q_net("q", self.model_out, self.actions)
         self.register_variables(self.q_net.variables)
+
+        self.error_net = build_error_net("error", self.model_out, self.actions)
+        self.register_variables(self.error_net.variables)
 
         if twin_q:
             self.twin_q_net = build_q_net("twin_q", self.model_out, self.actions)
@@ -203,9 +219,10 @@ class SACModel(TFModelV2):
             self.twin_q_net = None
 
         self.log_alpha = tf.Variable(0.0, dtype=tf.float32, name="log_alpha")
+        self.tau_temp = tf.Variable(10.0, dtype=tf.float32, name="tau_temp")
         self.alpha = tf.exp(self.log_alpha)
 
-        self.register_variables([self.log_alpha])
+        self.register_variables([self.tau_temp, self.log_alpha])
 
     def get_policy_output(self, model_out, deterministic=False):
         """Return the (unscaled) output of the policy network.
@@ -273,3 +290,14 @@ class SACModel(TFModelV2):
         return self.q_net.variables + (
             self.twin_q_net.variables if self.twin_q_net else []
         )
+
+    def error_values(self, model_out, actions):
+        """
+        Return the error estimates for the most recent forward pass.
+        This implements Error(s, a).
+        """
+        return self.error_net([model_out, actions])
+
+    def error_variables(self):
+        """Return the list of variables for Error nets."""
+        return list(self.error_net.variables)

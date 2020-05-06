@@ -39,7 +39,15 @@ def build_sac_model(policy, obs_space, action_space, config):
         config["model"]["no_final_linear"] = True
     else:
         default_model = NoopModel
-        num_outputs = int(np.product(obs_space.shape))
+        model_custom_options = config["model"].get("custom_options")
+        if model_custom_options is None:
+            num_outputs = int(np.product(obs_space.shape))
+        else:
+            proc_obs_shape = model_custom_options.get("proc_obs_shape")
+            if proc_obs_shape is None:
+                num_outputs = int(np.product(obs_space.shape))
+            else:
+                num_outputs = int(proc_obs_shape)
 
     policy.model = ModelCatalog.get_model_v2(
         obs_space,

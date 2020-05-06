@@ -20,12 +20,14 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.1.0'
             mac_python35:
               imageName: 'macos-10.14'
               python.version: '3.5'
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
+              USE_BAZEL_VERSION: '3.1.0'
         displayName: Ray Tests
         pool:
           vmImage: $(imageName)
@@ -64,6 +66,7 @@ stages:
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+              USE_BAZEL_VERSION: '3.1.0'
         displayName: RLlib tests - Tune tests - Doc Examples
         pool:
           name: $(poolName)
@@ -164,6 +167,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.1.0'
         displayName: Ubuntu Wheels
         pool:
           vmImage: $(imageName)
@@ -259,6 +263,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
+              USE_BAZEL_VERSION: '3.1.0'
         displayName: MacOS Wheels
         pool:
           vmImage: $(imageName)

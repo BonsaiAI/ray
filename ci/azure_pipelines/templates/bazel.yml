@@ -9,6 +9,8 @@ steps:
 
     if [ -x "$(command -v bazel)" ]; then
       echo 'Bazel is already installed'
+      bazel info
+      bazel --version
       exit 0
     fi
 

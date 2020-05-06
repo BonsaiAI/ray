@@ -78,15 +78,21 @@ def _summarize(obj):
     elif isinstance(obj, tuple):
         return tuple(_summarize(x) for x in obj)
     elif isinstance(obj, np.ndarray):
-        if obj.dtype == np.object:
+        if obj.size == 0:
+            return _StringValue("np.ndarray({}, dtype={})".format(
+                obj.shape, obj.dtype))
+        elif obj.dtype == np.object:
             return _StringValue("np.ndarray({}, dtype={}, head={})".format(
                 obj.shape, obj.dtype, _summarize(obj[0])))
-        else:
+        elif not issubclass(obj.dtype.type, np.flexible):
             return _StringValue(
                 "np.ndarray({}, dtype={}, min={}, max={}, mean={})".format(
                     obj.shape, obj.dtype, round(float(np.min(obj)), 3),
                     round(float(np.max(obj)), 3), round(
                         float(np.mean(obj)), 3)))
+        else:
+            return _StringValue("np.ndarray({}, dtype={}, head={})".format(
+                obj.shape, obj.dtype, obj))
     elif isinstance(obj, MultiAgentBatch):
         return {
             "type": "MultiAgentBatch",

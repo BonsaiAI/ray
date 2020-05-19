@@ -290,6 +290,7 @@ def _env_runner(base_env, extra_batch_callback, policies, policy_mapping_fn,
                 "env": base_env,
                 "policy": policies,
                 "episode": episode,
+                "info": info
             })
         return episode
 

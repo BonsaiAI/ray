@@ -282,7 +282,7 @@ def _env_runner(base_env, extra_batch_callback, policies, policy_mapping_fn,
             return MultiAgentSampleBatchBuilder(
                 policies, clip_rewards, callbacks.get("on_postprocess_traj"))
 
-    def new_episode():
+    def new_episode(env_id):
         episode = MultiAgentEpisode(policies, policy_mapping_fn,
                                     get_batch_builder, extra_batch_callback)
         if callbacks.get("on_episode_start"):
@@ -290,10 +290,16 @@ def _env_runner(base_env, extra_batch_callback, policies, policy_mapping_fn,
                 "env": base_env,
                 "policy": policies,
                 "episode": episode,
+                "env_infos": infos[env_id]
             })
         return episode
 
-    active_episodes = defaultdict(new_episode)
+    class DefaultDictWithKey(defaultdict):
+        def __missing__(self, key):
+            ret = self[key] = self.default_factory(key)
+            return ret
+
+    active_episodes = DefaultDictWithKey(new_episode)
 
     while True:
         perf_stats.iters += 1

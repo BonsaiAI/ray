@@ -39,7 +39,8 @@ class PPOLoss(object):
                  clip_param=0.1,
                  vf_clip_param=0.1,
                  vf_loss_coeff=1.0,
-                 use_gae=True):
+                 use_gae=True,
+                 model_config={}):
         """Constructs the loss for Proximal Policy Objective.
 
         Arguments:
@@ -70,7 +71,7 @@ class PPOLoss(object):
         def reduce_mean_valid(t):
             return tf.reduce_mean(tf.boolean_mask(t, valid_mask))
 
-        dist_cls, _ = ModelCatalog.get_action_dist(action_space, {})
+        dist_cls, _ = ModelCatalog.get_action_dist(action_space, model_config)
         prev_dist = dist_cls(logits)
         # Make loss functions.
         logp_ratio = tf.exp(
@@ -284,7 +285,9 @@ class PPOPolicyGraph(LearningRateSchedule, PPOPostprocessing, TFPolicyGraph):
             clip_param=self.config["clip_param"],
             vf_clip_param=self.config["vf_clip_param"],
             vf_loss_coeff=self.config["vf_loss_coeff"],
-            use_gae=self.config["use_gae"])
+            use_gae=self.config["use_gae"],
+            model_config=self.config["model"]
+        )
 
         LearningRateSchedule.__init__(self, self.config["lr"],
                                       self.config["lr_schedule"])

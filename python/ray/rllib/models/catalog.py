@@ -14,7 +14,8 @@ from ray.tune.registry import RLLIB_MODEL, RLLIB_PREPROCESSOR, \
 from ray.rllib.models.extra_spaces import Simplex
 from ray.rllib.models.action_dist import (Categorical, MultiCategorical,
                                           Deterministic, DiagGaussian,
-                                          MultiActionDistribution, Dirichlet)
+                                          MultiActionDistribution, Dirichlet,
+                                          MultiVariateDiagGaussian)
 from ray.rllib.models.torch_action_dist import (TorchCategorical,
                                                 TorchDiagGaussian)
 from ray.rllib.models.preprocessors import get_preprocessor
@@ -114,7 +115,17 @@ class ModelCatalog(object):
                     "Consider reshaping this into a single dimension, "
                     "using a Tuple action space, or the multi-agent API.")
             if dist_type is None:
-                dist = TorchDiagGaussian if torch else DiagGaussian
+                if torch:
+                    dist = TorchDiagGaussian
+                else:
+                    custom_options = config.get("custom_options")
+                    if custom_options is None:
+                        dist = DiagGaussian
+                    else:
+                        if custom_options.get("use_multi_variate_normal_diag") is None:
+                            dist = DiagGaussian
+                        else:
+                            dist = MultiVariateDiagGaussian
                 if config.get("squash_to_range"):
                     raise ValueError(
                         "The squash_to_range option is deprecated. See the "

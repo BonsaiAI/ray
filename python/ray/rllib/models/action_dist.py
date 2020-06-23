@@ -6,6 +6,7 @@ from collections import namedtuple
 import distutils.version
 import tensorflow as tf
 import numpy as np
+from tensorflow.contrib.distributions import MultivariateNormalDiag
 
 from ray.rllib.utils.annotations import override, DeveloperAPI
 
@@ -137,6 +138,45 @@ class MultiCategorical(ActionDistribution):
 
     def _build_sample_op(self):
         return tf.stack([cat.sample() for cat in self.cats], axis=1)
+
+
+class MultiVariateDiagGaussian(ActionDistribution):
+    """
+    Action distribution where each vector element is a gaussian with
+    its independent mean and correlated std.
+    """
+    def __init__(self, inputs):
+        mean, log_std = tf.split(inputs, 2, axis=1)
+        self.mean = mean
+        self.log_std = log_std
+        self.std = tf.exp(log_std)
+        self.distribution = MultivariateNormalDiag(loc=self.mean, scale_diag=self.std)
+        ActionDistribution.__init__(self, inputs)
+
+    @override(ActionDistribution)
+    def logp(self, x):
+        return self.distribution.log_prob(x)
+
+    @override(ActionDistribution)
+    def kl(self, other):
+        if not isinstance(other, MultiVariateDiagGaussian):
+            raise TypeError(
+                "Argument other expected type MultiVariateDiagGaussian. "
+                "Received type {}.".format(type(other))
+            )
+        return tf.reduce_sum(
+            other.log_std - self.log_std +
+            (tf.square(self.std) + tf.square(self.mean - other.mean)) /
+            (2.0 * tf.square(other.std)) - 0.5,
+            reduction_indices=[1])
+
+    @override(ActionDistribution)
+    def entropy(self):
+        return self.distribution.entropy()
+
+    @override(ActionDistribution)
+    def _build_sample_op(self):
+        return self.distribution.sample()
 
 
 class DiagGaussian(ActionDistribution):

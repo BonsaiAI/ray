@@ -5,8 +5,8 @@ from __future__ import print_function
 from collections import namedtuple
 import distutils.version
 import tensorflow as tf
+import tensorflow_probability as tfp
 import numpy as np
-from tensorflow.contrib.distributions import MultivariateNormalDiag
 
 from ray.rllib.utils.annotations import override, DeveloperAPI
 
@@ -147,10 +147,9 @@ class MultiVariateDiagGaussian(ActionDistribution):
     """
     def __init__(self, inputs):
         mean, log_std = tf.split(inputs, 2, axis=1)
-        self.mean = mean
-        self.log_std = log_std
-        self.std = tf.exp(log_std)
-        self.distribution = MultivariateNormalDiag(loc=self.mean, scale_diag=self.std)
+        std = tf.exp(log_std)
+        self.distribution = tfp.distributions.MultivariateNormalDiag(
+            loc=mean, scale_diag=std)
         ActionDistribution.__init__(self, inputs)
 
     @override(ActionDistribution)
@@ -164,11 +163,7 @@ class MultiVariateDiagGaussian(ActionDistribution):
                 "Argument other expected type MultiVariateDiagGaussian. "
                 "Received type {}.".format(type(other))
             )
-        return tf.reduce_sum(
-            other.log_std - self.log_std +
-            (tf.square(self.std) + tf.square(self.mean - other.mean)) /
-            (2.0 * tf.square(other.std)) - 0.5,
-            reduction_indices=[1])
+        return self.distribution.kl_divergence(other.distribution)
 
     @override(ActionDistribution)
     def entropy(self):

@@ -17,7 +17,8 @@ from rllib.agents.trainer_factory import (
 )
 from rllib.tests.agents.parameters import (
     test_compilation_params,
-    test_convergence_params, test_monotonic_convergence_params,
+    test_convergence_params,
+    test_monotonic_convergence_params,
 )
 
 logger = logging.getLogger(__name__)

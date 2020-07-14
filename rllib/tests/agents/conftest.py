@@ -50,13 +50,13 @@ def ray_env(request: FixtureRequest) -> None:
             used for test teardown
     """
 
-    def clean_up():
+    def cleanup():
         """All teardown functionality goes in this function."""
         if ray.is_initialized():
             ray.shutdown()
 
     ray.init()
-    request.addfinalizer(clean_up)
+    request.addfinalizer(cleanup)
 
 
 def _using_torch_framework_(config_overrides_: dict) -> None:
@@ -148,8 +148,20 @@ def using_framework(config_overrides: dict, framework: Framework) -> None:
 
 
 @pytest.fixture()
-def trainer(algorithm: Algorithm, config_overrides: dict, env: str) -> Trainer:
+def trainer(
+    algorithm: Algorithm, config_overrides: dict, env: str, request: FixtureRequest
+) -> Trainer:
     """Constructs a trainer using its default config updated with given config."""
-    return trainer_factory(
+    trainer = trainer_factory(
         algorithm=algorithm, config_overrides=config_overrides, env=env
     )
+
+    def cleanup():
+        try:
+            trainer.stop()
+        except Exception as e:
+            logger.error(e)
+
+    request.addfinalizer(cleanup)
+
+    return trainer

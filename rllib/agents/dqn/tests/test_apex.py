@@ -33,11 +33,6 @@ class TestApex(unittest.TestCase):
             eps = [i["cur_epsilon"] for i in infos]
             assert np.allclose(eps, [0.0, 0.4, 0.016190862, 0.00065536])
 
-            # TODO(ekl) fix iterator metrics bugs w/multiple trainers.
-            #            for i in range(1):
-            #                results = trainer.train()
-            #                print(results)
-
             trainer.stop()
 
 

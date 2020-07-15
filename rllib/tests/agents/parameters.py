@@ -5,7 +5,7 @@ from typing import List, Optional, Tuple
 import attr
 import pytest
 
-from rllib.agents.trainer_factory import (
+from ray.rllib.agents.trainer_factory import (
     Algorithm,
     DiscreteActionSpaceAlgorithm,
     ContinuousActionSpaceAlgorithm,

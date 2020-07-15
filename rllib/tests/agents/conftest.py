@@ -20,8 +20,8 @@ import pytest
 import ray
 from _pytest.fixtures import FixtureRequest
 
-from rllib.agents.trainer import Trainer
-from rllib.agents.trainer_factory import (
+from ray.rllib.agents.trainer import Trainer
+from ray.rllib.agents.trainer_factory import (
     Algorithm,
     Framework,
     trainer_factory,

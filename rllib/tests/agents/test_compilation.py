@@ -10,12 +10,12 @@ import logging
 
 import pytest
 
-from rllib.agents.trainer import Trainer
-from rllib.agents.trainer_factory import (
+from ray.rllib.agents.trainer import Trainer
+from ray.rllib.agents.trainer_factory import (
     Algorithm,
     Framework,
 )
-from rllib.tests.agents.parameters import (
+from ray.rllib.tests.agents.parameters import (
     test_compilation_params,
 )
 

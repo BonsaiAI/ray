@@ -996,15 +996,15 @@ py_test(
 py_test(
     name = "test_compilation",
     tags = ["tests_dir", "tests_dir_A", "quick_train"],
-    srcs = ["tests/agents/test_tests_compilation.py"]
+    srcs = ["tests/agents/test_compilation.py"]
 )
 
 # All new parametrized pytest tests - Learning
 py_test(
-    name = "test_compilation",
-    tags = ["tests_dir", "tests_dir_A"],
+    name = "test_learning",
+    tags = ["tests_dir", "tests_dir_A", "learning_tests"],
     size = "large",
-    srcs = ["tests/agents/test_tests_compilation.py"]
+    srcs = ["tests/agents/test_learning.py"]
 )
 
 py_test(

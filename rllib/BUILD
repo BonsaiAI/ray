@@ -141,14 +141,6 @@ py_test(
 )
 
 
-# APPO
-py_test(
-    name = "test_appo",
-    tags = ["agents_dir"],
-    size = "medium",
-    srcs = ["agents/ppo/tests/test_appo.py"]
-)
-
 # SAC
 py_test(
     name = "test_sac",

@@ -21,8 +21,13 @@ install_base() {
       sudo apt-get update -qq
       pkg_install_helper build-essential curl unzip tmux gdb libunwind-dev python3-pip python3-setuptools
       if [ "${LINUX_WHEELS-}" = 1 ]; then
-        pkg_install_helper docker
-        sudo usermod -a -G docker vsts
+        if [ -x "$(command -v docker)" ]; then
+          echo 'Docker is already installed'
+          docker --version
+        else
+          pkg_install_helper docker
+          sudo usermod -a -G docker vsts
+        fi
       fi
       if [ -n "${PYTHON-}" ]; then
         "${ROOT_DIR}/install-strace.sh" || true

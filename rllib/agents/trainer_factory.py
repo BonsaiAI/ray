@@ -4,11 +4,11 @@ algorithm."""
 import enum
 from typing import List, Optional, Type
 
-from rllib.agents import ddpg, dqn, ppo, sac
-from rllib.agents.ddpg import apex, td3
-from rllib.agents.dqn import apex
-from rllib.agents.ppo import ddppo, appo
-from rllib.agents.trainer import Trainer
+from ray.rllib.agents import ddpg, dqn, ppo, sac
+from ray.rllib.agents.ddpg import apex, td3
+from ray.rllib.agents.dqn import apex
+from ray.rllib.agents.ppo import ddppo, appo
+from ray.rllib.agents.trainer import Trainer
 
 
 class Framework(enum.Enum):

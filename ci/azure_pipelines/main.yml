@@ -33,7 +33,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
-              USE_BAZEL_VERSION: '3.3.0'
+              USE_BAZEL_VERSION: '3.3.1'
         displayName: Ray Tests
         pool:
           vmImage: $(imageName)
@@ -153,6 +153,8 @@ stages:
               versionSpec: '>=10.x'
               checkLatest: true
             displayName: 'Install latest Node.js'
+          # Template containing steps to show info
+          - template: templates/info.yml
           # Template containing the installation of steps of python
           - template: templates/python.yml
           # Template containing the installation of steps of bazel
@@ -178,7 +180,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
-              USE_BAZEL_VERSION: '3.3.0'
+              USE_BAZEL_VERSION: '3.3.1'
         displayName: MacOS Wheels
         pool:
           vmImage: $(imageName)

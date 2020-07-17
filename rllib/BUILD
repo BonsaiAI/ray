@@ -140,21 +140,6 @@ py_test(
             "agents/ppo/tests/test.py"]  # TODO(sven): Move down once PR 6889 merged
 )
 
-# DDPPO
-py_test(
-    name = "test_ddppo",
-    tags = ["agents_dir"],
-    size = "small",
-    srcs = ["agents/ppo/tests/test_ddppo.py"]
-)
-
-# APPO
-py_test(
-    name = "test_appo",
-    tags = ["agents_dir"],
-    size = "medium",
-    srcs = ["agents/ppo/tests/test_appo.py"]
-)
 
 # SAC
 py_test(
@@ -999,6 +984,20 @@ py_test(
 # it correctly by its starting letter, e.g. tags=["tests_dir", "tests_dir_A"]
 # for `tests/test_all_stuff.py`.
 # --------------------------------------------------------------------
+# All new parametrized pytest tests - Compilation
+py_test(
+    name = "test_compilation",
+    tags = ["tests_dir", "tests_dir_A", "quick_train"],
+    srcs = ["tests/agents/test_compilation.py"]
+)
+
+# All new parametrized pytest tests - Learning
+py_test(
+    name = "test_learning",
+    tags = ["tests_dir", "tests_dir_A", "learning_tests"],
+    size = "large",
+    srcs = ["tests/agents/test_learning.py"]
+)
 
 py_test(
     name = "tests/test_avail_actions_qmix",

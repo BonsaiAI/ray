@@ -16,7 +16,7 @@ APEX_DDPG_DEFAULT_CONFIG = DDPGTrainer.merge_trainer_configs(
         "n_step": 3,
         "num_gpus": 0,
         "num_workers": 32,
-        "buffer_size": 2000001,
+        "buffer_size": 2000000,
         "learning_starts": 50000,
         "train_batch_size": 512,
         "rollout_fragment_length": 50,

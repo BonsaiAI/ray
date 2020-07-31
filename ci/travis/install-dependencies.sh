@@ -147,7 +147,7 @@ install_dependencies() {
     pip_packages=(scipy tensorflow=="${TF_VERSION:-2.0.0b1}" cython==0.29.0 gym opencv-python-headless pyyaml \
       pandas==0.24.2 requests feather-format lxml openpyxl xlrd py-spy pytest pytest-timeout networkx tabulate aiohttp \
       uvicorn dataclasses pygments werkzeug kubernetes flask grpcio pytest-sugar pytest-rerunfailures pytest-asyncio \
-      scikit-learn numba urllib3 numpy)
+      scikit-learn numba urllib3 numpy pickle5==0.0.11)
     if [ "${OSTYPE}" != msys ]; then
       # These packages aren't Windows-compatible
       pip_packages+=(blist)  # https://github.com/DanielStutzbach/blist/issues/81#issue-391460716

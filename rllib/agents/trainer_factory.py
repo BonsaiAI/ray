@@ -8,6 +8,7 @@ from ray.rllib.agents import ddpg, dqn, ppo, sac
 from ray.rllib.agents.ddpg import apex, td3
 from ray.rllib.agents.dqn import apex
 from ray.rllib.agents.ppo import ddppo, appo
+from ray.rllib.agents.sac import apex
 from ray.rllib.agents.trainer import Trainer
 
 
@@ -31,6 +32,7 @@ class Algorithm(enum.Enum):
 
 class DiscreteActionSpaceAlgorithm(Algorithm):
     APEX_DQN = (dqn.ApexTrainer, dqn.apex.APEX_DEFAULT_CONFIG)
+    APEX_SAC = (sac.ApexSACTrainer, sac.apex.APEX_SAC_DEFAULT_CONFIG)
     APPO = (ppo.APPOTrainer, ppo.appo.DEFAULT_CONFIG)
     SIMPLE_Q = (dqn.SimpleQTrainer, dqn.SIMPLE_Q_DEFAULT_CONFIG)
     DDPPO = (ppo.ddppo.DDPPOTrainer, ppo.ddppo.DEFAULT_CONFIG)
@@ -44,6 +46,7 @@ class ContinuousActionSpaceAlgorithm(Algorithm):
         ddpg.ApexDDPGTrainer,
         ddpg.apex.APEX_DDPG_DEFAULT_CONFIG,
     )
+    APEX_SAC = (sac.ApexSACTrainer, sac.apex.APEX_SAC_DEFAULT_CONFIG)
     APPO = (ppo.APPOTrainer, ppo.appo.DEFAULT_CONFIG)
     DDPG = (ddpg.DDPGTrainer, ddpg.DEFAULT_CONFIG)
     DDPPO = (ppo.ddppo.DDPPOTrainer, ppo.ddppo.DEFAULT_CONFIG)

@@ -54,10 +54,12 @@ class PerWorkerEpsilonGreedy(EpsilonGreedy):
                        epsilon_schedule=None
                        ):
         epsilon_schedule = None
-        if self.num_workers > 0:
+        if self.num_workers == 1:
+            epsilon_schedule = ConstantSchedule(self.eps, framework=self.framework)
+        elif self.num_workers > 1:
             if self.worker_index > 0:
                 # The values used here, by default (see constructor defaults),
-                # are the same epsilon and alpha of the e-greedy plocy use in
+                # are the same epsilon and alpha of the e-greedy policy use in
                 # page 6 of https://arxiv.org/pdf/1803.00933.pdf
                 i = self.worker_index - 1
                 epsilon_schedule = ConstantSchedule(

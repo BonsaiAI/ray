@@ -35,7 +35,7 @@ public class RunManager {
   private static final Logger LOGGER = LoggerFactory.getLogger(RunManager.class);
 
   private static final DateTimeFormatter DATE_TIME_FORMATTER =
-      DateTimeFormatter.ofPattern("YYYY-MM-dd_HH-mm-ss");
+      DateTimeFormatter.ofPattern("yyyy-MM-dd_HH-mm-ss");
 
   private static final String WORKER_CLASS = "io.ray.runtime.runner.worker.DefaultWorker";
 

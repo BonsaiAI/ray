@@ -33,7 +33,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
-              USE_BAZEL_VERSION: '3.3.1'
+              USE_BAZEL_VERSION: '3.4.1'
         displayName: Ray Tests
         pool:
           vmImage: $(imageName)
@@ -180,7 +180,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
-              USE_BAZEL_VERSION: '3.3.1'
+              USE_BAZEL_VERSION: '3.4.1'
         displayName: MacOS Wheels
         pool:
           vmImage: $(imageName)

@@ -430,7 +430,9 @@ def test_pandas_parquet_serialization():
     pd.DataFrame({"col1": [0, 1], "col2": [0, 1]}).to_parquet(filename)
     with open(os.path.join(tempdir, "parquet-compression"), "wb") as f:
         table = pa.Table.from_arrays([pa.array([1, 2, 3])], ["hello"])
-        pq.write_table(table, f, compression="lz4")
+        # Using gzip instead of lz4 because the following issue in PyArrow
+        # https://github.com/apache/arrow/pull/7757
+        pq.write_table(table, f, compression="gzip")
     # Clean up
     shutil.rmtree(tempdir)
 

@@ -40,6 +40,8 @@
 # inside rllib/tuned_examples/regression_tests for actual learning success.
 # --------------------------------------------------------------------
 
+SRCS = ["tests/conftest.py"]
+
 py_test(
     name = "run_regression_tests_cartpole",
     main = "tests/run_regression_tests.py",
@@ -1095,7 +1097,7 @@ py_test(
     name = "tests/test_execution",
     tags = ["tests_dir", "tests_dir_E"],
     size = "medium",
-    srcs = ["tests/test_execution.py"]
+    srcs = SRCS + ["tests/test_execution.py"]
 )
 
 py_test(

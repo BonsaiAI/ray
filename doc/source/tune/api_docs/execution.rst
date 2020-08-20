@@ -1,5 +1,7 @@
-Training (tune.run, tune.Experiment)
-====================================
+Execution (tune.run, tune.Experiment)
+=====================================
+
+.. _tune-run-ref:
 
 tune.run
 --------
@@ -16,6 +18,7 @@ tune.Experiment
 
 .. autofunction:: ray.tune.Experiment
 
+.. _tune-stop-ref:
 
 Stopper (tune.Stopper)
 ----------------------

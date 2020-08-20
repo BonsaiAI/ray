@@ -14,7 +14,6 @@ steps:
     . ./ci/travis/ci.sh build
 
     # script part
-    . ./ci/travis/ci.sh preload
     # Originally with ./ci/keep_alive
     # The original flaky_test_attempts was 3 increasing to 4 because failure rate found in ADO
     bazel test --config=ci --test_tag_filters=-jenkins_only python/ray/tests/...
@@ -29,9 +28,9 @@ steps:
     TESTSUITE: gcs_service_disabled_python_testcase
     RAY_GCS_SERVICE_ENABLED: false
     RAY_CYTHON_EXAMPLES: 1
+    RAY_USE_RANDOM_PORTS: 1
   displayName: 'Run original GCS python job'
   timeoutInMinutes: 120
   # TODO: remove - we are allowing to continue on error because
-  # //python/ray/tests:test_iter @ test_duplicate and //python/ray/tests:test_debug_tools
-  # are failing always in our ado agents
+  # because some tests are very flaky in our agents
   continueOnError: 'true'

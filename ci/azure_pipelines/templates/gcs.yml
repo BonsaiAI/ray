@@ -14,9 +14,6 @@ steps:
     . ./ci/travis/ci.sh build
 
     # script part
-    . ./ci/travis/ci.sh preload
-    # Originally with ./ci/suppress_output
-    bash src/ray/test/run_core_worker_tests.sh
     # Originally with ./ci/suppress_output
     bash streaming/src/test/run_streaming_queue_test.sh
     ./java/test.sh

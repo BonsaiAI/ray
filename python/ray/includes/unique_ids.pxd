@@ -122,6 +122,8 @@ cdef extern from "ray/common/id.h" namespace "ray" nogil:
         CTaskID ForNormalTask(CJobID job_id, CTaskID parent_task_id,
                               int64_t parent_task_counter)
 
+        CActorID ActorId() const
+
     cdef cppclass CObjectID" ray::ObjectID"(CBaseID[CObjectID]):
 
         @staticmethod
@@ -148,12 +150,6 @@ cdef extern from "ray/common/id.h" namespace "ray" nogil:
 
         c_bool is_put()
 
-        c_bool IsDirectCallType()
-
-        CObjectID WithPlasmaTransportType()
-
-        CObjectID WithDirectTransportType()
-
         int64_t ObjectIndex() const
 
         CTaskID TaskId() const
@@ -162,3 +158,18 @@ cdef extern from "ray/common/id.h" namespace "ray" nogil:
 
         @staticmethod
         CWorkerID FromBinary(const c_string &binary)
+
+    cdef cppclass CPlacementGroupID "ray::PlacementGroupID" \
+                                    (CBaseID[CPlacementGroupID]):
+
+        @staticmethod
+        CPlacementGroupID FromBinary(const c_string &binary)
+
+        @staticmethod
+        const CActorID Nil()
+
+        @staticmethod
+        size_t Size()
+
+        @staticmethod
+        CPlacementGroupID FromRandom()

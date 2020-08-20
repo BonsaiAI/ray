@@ -17,46 +17,40 @@ steps:
 
     # Start Original install part
 
-    # The following is the original line but we are desabling Serve tests
     . ./ci/travis/ci.sh init RAY_CI_SERVE_AFFECTED,RAY_CI_TUNE_AFFECTED,RAY_CI_PYTHON_AFFECTED
     . ./ci/travis/ci.sh build
 
     # Start Original script part
 
-    . ./ci/travis/ci.sh preload
-
-    # raylet integration tests
-    # Originally with ./ci/suppress_output
-    bash src/ray/test/run_core_worker_tests.sh
+    # raylet integration tests (core_worker_tests included in bazel tests below)
     # Originally with ./ci/suppress_output
     bash src/ray/test/run_object_manager_tests.sh
 
     # cc bazel tests (w/o RLlib)
     # Originally with ./ci/suppress_output
-    bazel test --config=ci --build_tests_only --show_progress_rate_limit=100 --test_output=errors -- //:all -rllib/...
+    bazel test --config=ci --build_tests_only -- //:all -rllib/...
 
     # ray serve tests
     # Desabling this tests because is not working in ADO and is not required yet in Bonsai
     # Originally with ./ci/keep_alive
     # if [ $RAY_CI_SERVE_AFFECTED == "1" ]; then bazel test --config=ci --test_tag_filters=-jenkins_only python/ray/serve/...; fi
 
-    # ray operator tests
-    cd ./deploy/ray-operator/
-    CC=gcc go build
-    CC=gcc go test ./...
-    cd ../..
+    # ray dashboard tests
+    # Originally with ./ci/keep_alive
+    if [ "$RAY_CI_DASHBOARD_AFFECTED" == "1" ]; then bazel test python/ray/dashboard/...; fi
 
-    # random python tests TODO(ekl): these should be moved to bazel
-    # The following is the original line but it was modified
-    # because --timeout is not a valid parameter for pytest
-    # if [ $RAY_CI_PYTHON_AFFECTED == "1" ]; then python -m pytest -v --durations=5 --timeout=300 python/ray/experimental/test/async_test.py; fi
-    if [ $RAY_CI_PYTHON_AFFECTED == "1" ]; then python -m pytest -v --durations=5 python/ray/experimental/test/async_test.py; fi
+    # ray operator tests
+    # Originally with ./ci/suppress_output
+    (cd deploy/ray-operator && export CC=gcc && go build && go test ./...)
+
+    # test ray typing
+    mypy --strict ./ci/travis/check_typing_good.py
+    mypy --strict ./ci/travis/check_typing_bad.py || true
 
     # bazel python tests. This should be run last to keep its logs at the end of travis logs.
     # Originally with ./ci/keep_alive
     if [ $RAY_CI_PYTHON_AFFECTED == "1" ]; then bazel test --config=ci --test_tag_filters=-jenkins_only python/ray/tests/...; fi
     # Originally with ./ci/keep_alive
-    if [ $RAY_CI_TUNE_AFFECTED == "1" ]; then bazel test --config=ci --test_tag_filters=-jenkins_only python/ray/tune/...; fi
     # NO MORE TESTS BELOW, keep them above.
     # End Original script
 
@@ -66,5 +60,6 @@ steps:
     RAY_DEFAULT_BUILD: 1
     RAY_CYTHON_EXAMPLES: 1
     TRAVIS: 'true'
+    RAY_USE_RANDOM_PORTS: 1
   displayName: 'Run original Ray tests'
   timeoutInMinutes: 180

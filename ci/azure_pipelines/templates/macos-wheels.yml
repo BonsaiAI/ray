@@ -22,7 +22,7 @@ steps:
     MAC_WHEELS: 1
     RAY_INSTALL_JAVA: 1
   displayName: 'Run original travis install phase'
-  timeoutInMinutes: 120
+  timeoutInMinutes: 180
 # Script phase of the travis MacOS wheels build
 - bash: |
     ls -l "$BUILD_SOURCESDIRECTORY/.whl/"
@@ -34,19 +34,14 @@ steps:
     source $BUILD_SOURCESDIRECTORY/ci/azure_pipelines/templates/travis-legacy/pre-install.sh
 
     # Duplicate the wheel packages for the architecture of the agent
-    for f in $BUILD_SOURCESDIRECTORY/.whl/*.whl; do mv "$f" "$(echo "$f" | sed s/macosx_10_15_intel/macosx_10_13_x86_64/)"; done
 
     # Start Original script
 
-    # Explicitly sleep 60 seconds for logs to go through
-    ./ci/travis/test-wheels.sh || { cat /tmp/ray/session_latest/logs/* && sleep 60 && false; }
+    . ./ci/travis/ci.sh test_wheels
 
     # End Original script
 
     set +e
-
-    # Duplicate the wheel packages for the architecture of the agent
-    for f in $BUILD_SOURCESDIRECTORY/.whl/*.whl; do cp "$f" "$(echo "$f" | sed s/macosx_10_13_x86_64/macosx_10_15_intel/)"; done
 
     ls -l "$BUILD_SOURCESDIRECTORY/.whl/"
 

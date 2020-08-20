@@ -5,7 +5,7 @@ steps:
     # the hash was computed in Mac
     if [[ $AGENT_OS == "Darwin" ]]; then 
       pushd $BUILD_SOURCESDIRECTORY
-      EXPECTED_HASH_TRAVIS='0b760640446d4b72d424b2ed13ecd8669f507837538d18b8f15323e05cf0d35d'
+      EXPECTED_HASH_TRAVIS='07a6df2b68caa228ec66555d4a64909304d6f9b62813e44db6bc2c1738ddfccd'
       CURRENT_HASH_TRAVIS=$(shasum -a 256 ./.travis.yml | awk '{print $1}')
       if [[ $EXPECTED_HASH_TRAVIS != $CURRENT_HASH_TRAVIS ]]; then 
         echo "The original Travis file of the project has changed"
@@ -14,7 +14,7 @@ steps:
         echo "Please check the changes, change the azure pipelines acordingly and update the sha256"
         exit 1
       fi
-      EXPECTED_HASH_CI_FOLDER='ad0dbf05b68e3d6865c679c9318438ca8e23089dd303151e503b0f1bc0549605'
+      EXPECTED_HASH_CI_FOLDER='a48a51575ea59bc7d2a117cf04f206b5b91cdf09e25170807c04f5ff342d05ea'
       CURRENT_HASH_CI_FOLDER=$(find ./ci -path "./ci/azure_pipelines" -prune -o -path "./**/.DS_Store" -prune -o -type f -print0 | sort -z | xargs -0 shasum -a 256 | shasum -a 256 | awk '{print $1}')
       if [[ $EXPECTED_HASH_CI_FOLDER != $CURRENT_HASH_CI_FOLDER ]]; then 
         echo "The original CI folder of the project has changed"
@@ -49,7 +49,7 @@ steps:
     echo "Bazel info:"
     if [ -x "$(command -v bazel)" ]; then
       echo 'Bazel is already installed'
-      bazel info
+      bazel info || true
     else
       echo 'Bazel is not installed'
     fi

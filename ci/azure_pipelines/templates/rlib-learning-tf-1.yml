@@ -14,8 +14,7 @@ steps:
     . ./ci/travis/ci.sh build
 
     # script part
-    . ./ci/travis/ci.sh preload
-    bazel test --config=ci --test_output=streamed --build_tests_only --test_tag_filters=learning_tests rllib/...
+    bazel test --config=ci --build_tests_only --test_tag_filters=learning_tests_tf rllib/...
 
     # End Original script
 

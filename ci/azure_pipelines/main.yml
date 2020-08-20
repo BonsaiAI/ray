@@ -23,6 +23,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
             mac_python36:
               imageName: 'macOS-10.15'
               python.version: '3.6'
@@ -32,18 +33,16 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
+              USE_BAZEL_VERSION: '3.4.1'
         displayName: Ray Tests
         pool:
           vmImage: $(imageName)
         steps:
-          # TODO: [CI] uncomment step after adding a condition in 
-          # ci/travis/install-dependencies.sh that check first if 
-          # node is already installed before install it
-          # - task: NodeTool@0
-          #   inputs:
-          #     versionSpec: '>=7.x'
-          #     checkLatest: true
-          #   displayName: 'Install latest Node.js'
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '10.x'
+              checkLatest: true
+            displayName: 'Install latest Node.js'
           # Template containing steps to show info
           - template: templates/info.yml
           # Template containing the installation of steps of python
@@ -52,6 +51,42 @@ stages:
           - template: templates/bazel.yml
           # Template containing the script phase of travis.yml
           - template: templates/ray.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: RayASANTests
+        # Disabled
+        condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
+        displayName: Ray ASAN Tests
+        pool:
+          vmImage: $(imageName)
+        steps:
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '10.x'
+              checkLatest: true
+            displayName: 'Install latest Node.js'
+          # Template containing steps to show info
+          - template: templates/info.yml
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the installation of steps of bazel
+          - template: templates/bazel.yml
+          # Template containing the script phase of travis.yml
+          - template: templates/ray-asan.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
       - job: RLlibQuickTrainTF2
@@ -67,6 +102,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
         displayName: RLlib Quick Train
         pool:
@@ -78,7 +114,7 @@ stages:
           - template: templates/rlib-quick-train-tf-2.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
-      - job: RLlibTestsAtoITF2
+      - job: RLlibTestsAtoLTF2
         # Disabled
         # condition: False
         timeoutInMinutes: 240
@@ -91,18 +127,19 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
-        displayName: RLlib Tests A-to-I
+        displayName: RLlib Tests A-to-L
         pool:
           vmImage: $(imageName)
         steps:
           # Template containing the installation of steps of python
           - template: templates/python.yml
           # Template containing the first part tests of rllib with TF 2
-          - template: templates/rlib-test-a-to-i-tf-2.yml
+          - template: templates/rlib-test-a-to-l-tf-2.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
-      - job: RLlibTestsJtoZTF2
+      - job: RLlibTestsMtoZTF2
         # Disabled
         # condition: False
         timeoutInMinutes: 240
@@ -110,20 +147,21 @@ stages:
         strategy:
           matrix:
             linux_python36:
-              imageName: 'ubuntu-16.04'
+              poolName: 'RayPipelineAgentPoolStandard_E8_v3'
               python.version: '3.6'
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
-        displayName: RLlib Tests J-to-Z
+        displayName: RLlib Tests M-to-Z
         pool:
-          vmImage: $(imageName)
+          name: $(poolName)
         steps:
-          # Template containing the installation of steps of python
-          - template: templates/python.yml
+          # Template containing the installation of requirements
+          - template: templates/requirements-over-ubuntu.yml
           # Template containing the second part tests of rllib with TF 2
-          - template: templates/rlib-test-j-to-z-tf-2.yml
+          - template: templates/rlib-test-m-to-z-tf-2.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
       - job: UbuntuWheels
@@ -141,18 +179,18 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
         displayName: Ubuntu Wheels
         pool:
           vmImage: $(imageName)
         steps:
-          # TODO: [CI] uncomment step after adding a condition in 
-          # ci/travis/install-dependencies.sh that check first if 
-          # node is already installed before install it
-          # - task: NodeTool@0
-          #   inputs:
-          #     versionSpec: '>=7.x'
-          #     checkLatest: true
-          #   displayName: 'Install latest Node.js'
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '>=10.x'
+              checkLatest: true
+            displayName: 'Install latest Node.js'
+          # Template containing steps to show info
+          - template: templates/info.yml
           # Template containing the installation of steps of python
           - template: templates/python.yml
           # Template containing the installation of steps of bazel
@@ -178,18 +216,16 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'osx'
+              USE_BAZEL_VERSION: '3.4.1'
         displayName: MacOS Wheels
         pool:
           vmImage: $(imageName)
         steps:
-          # TODO: [CI] uncomment step after adding a condition in 
-          # ci/travis/install-dependencies.sh that check first if 
-          # node is already installed before install it
-          # - task: NodeTool@0
-          #   inputs:
-          #     versionSpec: '>=7.x'
-          #     checkLatest: true
-          #   displayName: 'Install latest Node.js'
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '10.x'
+              checkLatest: true
+            displayName: 'Install latest Node.js'
           # Template containing the installation of steps of python
           - template: templates/python.yml
           # Template containing the installation of steps of bazel
@@ -216,6 +252,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
         displayName: JAVA Tests
         pool:
@@ -227,35 +264,6 @@ stages:
           - template: templates/java.yml
           # Template containing the JAVA tests
           - template: templates/java-test.yml
-          # Template containing steps to publish artifacts
-          - template: templates/artifacts.yml
-      - job: GCSTests
-        # Disabled
-        # condition: False
-        timeoutInMinutes: 240
-        cancelTimeoutInMinutes: 5
-        strategy:
-          matrix:
-            linux_python36:
-              imageName: 'ubuntu-16.04'
-              python.version: '3.6'
-              TF_VERSION: 1.15.0
-              TFP_VERSION: 0.7
-              TORCH_VERSION: 1.4
-              bazel.outputRoot: $(Agent.TempDirectory)
-              TEST_TMPDIR: $(Agent.TempDirectory)
-              TRAVIS_OS_NAME: 'linux'
-              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
-        displayName: GCS Service Tests
-        pool:
-          vmImage: $(imageName)
-        steps:
-          # Template containing the installation of steps of python
-          - template: templates/python.yml
-          # Template containing the installation of steps of java
-          - template: templates/java.yml
-          # Template containing the gcs service tests
-          - template: templates/gcs.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
   - stage: Tests
@@ -276,6 +284,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
         displayName: Streaming Tests
         pool:
@@ -287,35 +296,6 @@ stages:
           - template: templates/java.yml
           # Template containing the Streaming tests
           - template: templates/streaming.yml
-          # Template containing steps to publish artifacts
-          - template: templates/artifacts.yml
-      - job: GCSPythonTests
-        # Disabled
-        # condition: False
-        timeoutInMinutes: 240
-        cancelTimeoutInMinutes: 5
-        strategy:
-          matrix:
-            linux_python36:
-              imageName: 'ubuntu-16.04'
-              python.version: '3.6'
-              TF_VERSION: 1.15.0
-              TFP_VERSION: 0.7
-              TORCH_VERSION: 1.4
-              bazel.outputRoot: $(Agent.TempDirectory)
-              TEST_TMPDIR: $(Agent.TempDirectory)
-              TRAVIS_OS_NAME: 'linux'
-              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
-        displayName: GCS Python Tests
-        pool:
-          vmImage: $(imageName)
-        steps:
-          # Template containing the installation of steps of python
-          - template: templates/python.yml
-          # Template containing the installation of steps of java
-          - template: templates/java.yml
-          # Template containing the gcs python tests
-          - template: templates/gcs-python.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
       - job: CPPWorkerTests
@@ -334,6 +314,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
         displayName: CPP Worker Tests
         pool:
@@ -361,6 +342,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
         displayName: Lint
         pool:
@@ -385,6 +367,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
         displayName: RLlib Learning Tests TF 2
         pool:
@@ -409,6 +392,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
         displayName: RLlib Learning Tests TF 1
         pool:
@@ -418,6 +402,31 @@ stages:
           - template: templates/python.yml
           # Template containing the rllib learning test with TF 1.x
           - template: templates/rlib-learning-tf-1.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: RLlibLearningTorch
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: RLlib Learning Tests Torch
+        pool:
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the rllib learning test with PyTorch
+          - template: templates/rlib-learning-torch.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
       - job: RLlibExamplesTF2
@@ -433,6 +442,7 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
         displayName: RLlib Examples
         pool:
@@ -444,6 +454,62 @@ stages:
           - template: templates/rlib-examples-tf-2.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
+      - job: TestTune
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              poolName: RayPipelineAgentPoolStandard_E8_v3
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: Test Tune
+        pool:
+          name: $(poolName)
+        steps:
+          # Template containing the installation of requirements
+          - template: templates/requirements-over-ubuntu.yml
+          # Template containing the Tune test
+          - template: templates/tune-test.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: TestSGD
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              poolName: RayPipelineAgentPoolStandard_E8_v3
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: Test SGD
+        pool:
+          name: $(poolName)
+        steps:
+          # Template containing the installation of requirements
+          - template: templates/requirements-over-ubuntu.yml
+          # Template containing the SGD test
+          - template: templates/sgd-test.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
       - job: TestDocExamples
         # Disabled
         # condition: False
@@ -452,7 +518,7 @@ stages:
         strategy:
           matrix:
             linux_python36:
-              poolName: RayPipelineAgentPoolStandardF16sv2
+              poolName: RayPipelineAgentPoolStandard_E8_v3
               python.version: '3.6'
               TF_VERSION: 1.15.0
               TFP_VERSION: 0.7
@@ -460,15 +526,44 @@ stages:
               bazel.outputRoot: $(Agent.TempDirectory)
               TEST_TMPDIR: $(Agent.TempDirectory)
               TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
               AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
         displayName: Test Doc Examples
         pool:
           name: $(poolName)
         steps:
-          # Template containing the installation of steps of python
-          - template: templates/python.yml
-          # Jenkins pipeline equivalent
-          - template: templates/multi-node.yml
+          # Template containing the installation of requirements
+          - template: templates/requirements-over-ubuntu.yml
+          # Template containing the Doc Examples test
+          - template: templates/docs-test.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
+      - job: TestMixTuneSGDExample
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              poolName: RayPipelineAgentPoolStandard_E8_v3
+              python.version: '3.6'
+              TF_VERSION: 1.15.0
+              TFP_VERSION: 0.7
+              TORCH_VERSION: 1.4
+              bazel.outputRoot: $(Agent.TempDirectory)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.3.0'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: Test Tune SGD Example
+        pool:
+          name: $(poolName)
+        steps:
+          # Template containing the installation of requirements
+          - template: templates/requirements-over-ubuntu.yml
+          # Template containing the test
+          - template: templates/tune-sgd-docs-test.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
 trigger:

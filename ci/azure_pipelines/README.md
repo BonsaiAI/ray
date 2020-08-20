@@ -1,6 +1,10 @@
 # Azure Pipelines
 
 This folder contains the code required to create the Azure Pipelines for the CI/CD of the Ray project.
+Keep in mind that this could be outdated.
+Please check the following links if you want to update the procedure.
+- [Azure virtual machine scale set agents](https://docs.microsoft.com/en-us/azure/devops/pipelines/agents/scale-set-agents?view=azure-devops)
+- [Repo for the Azure Pipelines images](https://github.com/actions/virtual-environments) 
 
 ## Self-hosted Linux Agents
 
@@ -122,20 +126,26 @@ Make sure your admin is added as the administrator in ADO in 2 places:
 
 Steps for Mac and Ubuntu:
 - Copy some files to fix some errors in the generation of the agent image:
-    - The error is due to a issue with the packer script. It's not downloading a postgresql installation script. In order to check if the image was not fully build run this: `INSTALLER_SCRIPT_FOLDER="/imagegeneration/installers" source /imagegeneration/installers/test-toolcache.sh`. If you don't get any error message, skip the following 3 steps.
+    - The error is due to a issue with the packer script. It's not downloading a postgresql installation script.
+    In order to check if the image was not fully build, connect to the vm using ssh (see steps below), and run this: `INSTALLER_SCRIPT_FOLDER="/imagegeneration/installers" source /imagegeneration/installers/test-toolcache.sh`.
+    If you don't get any error message, skip the following 3 steps.
     - Tar the image folder: `tar -zcvf image.tar.gz image`
-    - Copy to each of your machines in the Scale set: `scp -o "IdentitiesOnly=yes" -i $SSH_KEY_PAIR_PATH ./image.tar.gz agentadmin@{IP}:/home/agentadmin`
-    - Delete the tar: `rm image.tar.gz `
+    - Set Key Pair name: `export SSH_KEY_PAIR_NAME="rayagentadminrsa"`
+    - Set SSH key pair file path: `export SSH_KEY_PAIR_PATH="$HOME/.ssh/$SSH_KEY_PAIR_NAME"`
+    - Set the IP of your VM: `export IP={my.ip}`
+    - Copy to each of your machines in the Scale set: `scp -o "IdentitiesOnly=yes" -i $SSH_KEY_PAIR_PATH ./image.tar.gz agentadmin@"${IP}":/home/agentadmin`
+    - Delete the tar: `rm image.tar.gz`
 - Connect using ssh: 
-    - Set Key Pair name: `SSH_KEY_PAIR_NAME="rayagentadminrsa"`
-    - Set SSH key pair file path: `SSH_KEY_PAIR_PATH="$HOME/.ssh/$SSH_KEY_PAIR_NAME"`
-    - Sun ssh: `ssh -o "IdentitiesOnly=yes" -i $SSH_KEY_PAIR_PATH agentadmin@{ PUBLIC IP}`
+    - Open a ssh tunnel: `ssh -o "IdentitiesOnly=yes" -i $SSH_KEY_PAIR_PATH agentadmin@"${IP}"`
 - Fix the image: 
     - Untar the image file: `tar zxvf ./image.tar.gz`
     - Switch to root: `sudo -s`
-    - In your machine get PAT from the Vault: `az keyvault secret show --name $GITHUB_FEED_TOKEN_NAME --vault-name $KEY_VAULT_NAME --query 'value' --output tsv`
+    - In your machine get PAT from the Vault: 
+        - Set Key Pair name: `export GITHUB_FEED_TOKEN_NAME="raygithubfeedtoken"`
+        - Set Key Vault name: `export KEY_VAULT_NAME="ray-agent-secrets"`
+        - Get the token: `az keyvault secret show --name $GITHUB_FEED_TOKEN_NAME --vault-name $KEY_VAULT_NAME --query 'value' --output tsv`
     - Set the PAT in your ssh session: `export GITHUB_FEED_TOKEN={ GitHub Token }`
-    - `sudo gpasswd -a agentadmin root`
+    - Add agentadmin to the root group: `sudo gpasswd -a agentadmin root`
     - Install missing part: `source ./image/fix-image.sh`
     - Set the system up:
     ```
@@ -159,9 +169,9 @@ Steps for Mac and Ubuntu:
     AGENT_TOOLSDIRECTORY="/opt/hostedtoolcache/"' >> ~/.bashrc
     ```
 - Go to the [New Agent] option in the pool and follow the instructions for linux agents:
-    - Download the agent: `wget https://vstsagentpackage.azureedge.net/agent/2.164.7/vsts-agent-linux-x64-2.164.7.tar.gz`
+    - Download the agent: `wget https://vstsagentpackage.azureedge.net/agent/2.170.1/vsts-agent-linux-x64-2.170.1.tar.gz`
     - Create and move to a directory for the agent: `mkdir myagent && cd myagent`
-    - Untar the agent: `tar zxvf ../vsts-agent-linux-x64-2.164.7.tar.gz`
+    - Untar the agent: `tar zxvf ../vsts-agent-linux-x64-2.170.1.tar.gz`
     - Configure the agent: `./config.sh`
         - Accept the license.
         - Enter your organization URL.
@@ -176,17 +186,17 @@ Steps for Mac and Ubuntu:
         - `sudo ./svc.sh start`
         - `sudo ./svc.sh status`
     - Allow agent user to access Docker:
-        - `VM_ADMIN_USER="agentadmin"`
+        - `export VM_ADMIN_USER="agentadmin"`
         - `sudo gpasswd -a "${VM_ADMIN_USER}" docker`
         - `sudo chmod ga+rw /var/run/docker.sock`
         - Update group permissions so docker is available without logging out and back in: `newgrp - docker`
         - Test docker: `docker run hello-world`
-        - `VM_ADMIN_USER="agentadmin"`
+        - `export VM_ADMIN_USER="agentadmin"`
         - If `/home/"$VM_ADMIN_USER"/.docker` exist:
             - `sudo chown "$VM_ADMIN_USER":docker /home/"$VM_ADMIN_USER"/.docker -R`
             - `sudo chmod ga+rwx "$HOME/.docker" -R`
         - Create a symlink:
-            - `rm -rf /home/agentadmin/myagent/_work/_tool`
+            - `mkdir -p /home/agentadmin/myagent/_work`
             - `ln -s /opt/hostedtoolcache /home/agentadmin/myagent/_work/_tool`
 
 ### Deleting an Agent Pool

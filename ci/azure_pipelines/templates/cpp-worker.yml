@@ -14,8 +14,7 @@ steps:
       . ./ci/travis/ci.sh build
       
       # script part
-      . ./ci/travis/ci.sh preload
-      bazel test --config=ci //cpp:all --build_tests_only --test_output=streamed
+      . ./ci/travis/ci.sh test_cpp
   
       # End Original script
   

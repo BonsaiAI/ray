@@ -1,15 +1,11 @@
-#include <memory>
+#include "data_writer.h"
 
-#include <memory>
-
-#include <signal.h>
-#include <unistd.h>
 #include <chrono>
 #include <functional>
 #include <list>
+#include <memory>
 #include <numeric>
 
-#include "data_writer.h"
 #include "util/streaming_util.h"
 
 namespace ray {
@@ -134,12 +130,7 @@ StreamingStatus DataWriter::Init(const std::vector<ObjectID> &queue_id_vec,
                                  const std::vector<uint64_t> &channel_message_id_vec,
                                  const std::vector<uint64_t> &queue_size_vec) {
   STREAMING_CHECK(!queue_id_vec.empty() && !channel_message_id_vec.empty());
-
-  ray::JobID job_id =
-      JobID::FromBinary(Util::Hexqid2str(runtime_context_->GetConfig().GetTaskJobId()));
-
-  STREAMING_LOG(INFO) << "Job name => " << runtime_context_->GetConfig().GetJobName()
-                      << ", job id => " << job_id;
+  STREAMING_LOG(INFO) << "Job name => " << runtime_context_->GetConfig().GetJobName();
 
   output_queue_ids_ = queue_id_vec;
   transfer_config_->Set(ConfigEnum::QUEUE_ID_VECTOR, queue_id_vec);
@@ -274,7 +265,7 @@ bool DataWriter::CollectFromRingBuffer(ProducerChannelInfo &channel_info,
   auto &q_id = channel_info.channel_id;
 
   std::list<StreamingMessagePtr> message_list;
-  uint64_t bundle_buffer_size = 0;
+  uint32_t bundle_buffer_size = 0;
   const uint32_t max_queue_item_size = channel_info.queue_size;
   while (message_list.size() < runtime_context_->GetConfig().GetRingBufferCapacity() &&
          !buffer_ptr->IsEmpty()) {

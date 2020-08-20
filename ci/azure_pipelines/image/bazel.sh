@@ -15,4 +15,7 @@ echo "deb [arch=amd64] https://storage.googleapis.com/bazel-apt stable jdk1.8" |
 echo "Install and update Bazel"
 sudo apt update && sudo apt install bazel
 
-DocumentInstalledItem "$(bazel --version)"
+echo "Install Bazelisk"
+sudo npm install -g @bazel/bazelisk
+
+DocumentInstalledItem "$(bazel version)"

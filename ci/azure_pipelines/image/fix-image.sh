@@ -24,8 +24,6 @@ cp ./image/bazel.sh /imagegeneration/installers/bazel.sh
 
 cp ./image/toolcache.json ${INSTALLER_SCRIPT_FOLDER}/toolcache.json
 
-cp ./image/Ubuntu1604-README.md /imagegeneration/Ubuntu1604-README.md
-
 mkdir -p /etc/vsts
 chmod 777 /etc/vsts
 

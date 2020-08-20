@@ -58,19 +58,3 @@ else
     curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
     echo "nvm sh downloaded and applied."
 fi
-
-# Mac OS bug https://github.com/nvm-sh/nvm/issues/1245#issuecomment-555608208
-if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
-    npm config delete prefix
-    export NVM_DIR="$HOME/.nvm"
-    source $HOME/.nvm/nvm.sh
-    nvm use --delete-prefix v6.17.1 --silent
-    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
-    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
-
-    node -v
-    npm -v
-    # npm install -g npm
-    npm explore npm -g -- npm install node-gyp@latest
-    npm explore npm -g -- npm explore npm-lifecycle -- npm install node-gyp@latest
-fi

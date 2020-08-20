@@ -11,10 +11,9 @@ steps:
 
     # install part
     . ./ci/travis/ci.sh init RAY_CI_JAVA_AFFECTED
-    . ./ci/travis/ci.sh build
 
     # script part
-    . ./ci/travis/ci.sh preload
+    . ./ci/travis/ci.sh build
     ./java/test.sh
 
     # End Original script

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "reconstruction_policy.h"
+#include "ray/raylet/reconstruction_policy.h"
 
 #include "ray/stats/stats.h"
 
@@ -237,8 +237,7 @@ void ReconstructionPolicy::Cancel(const ObjectID &object_id) {
   if (it->second.created_objects.empty()) {
     // Cancel notifications for the task lease if we were subscribed to them.
     if (it->second.subscribed) {
-      RAY_CHECK_OK(
-          gcs_client_->Tasks().AsyncUnsubscribeTaskLease(task_id, /*done*/ nullptr));
+      RAY_CHECK_OK(gcs_client_->Tasks().AsyncUnsubscribeTaskLease(task_id));
     }
     listening_tasks_.erase(it);
   }

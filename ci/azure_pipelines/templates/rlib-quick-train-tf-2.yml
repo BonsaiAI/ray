@@ -14,12 +14,11 @@ steps:
     . ./ci/travis/ci.sh build
 
     # script part
-    . ./ci/travis/ci.sh preload
     bazel test --config=ci --build_tests_only --test_tag_filters=quick_train rllib/...
     # Test everything that does not have any of the "main" labels:
     # "learning_tests|quick_train|examples|tests_dir".
     # Originally with ./ci/keep_alive
-    bazel test --config=ci --build_tests_only --test_tag_filters=-learning_tests,-quick_train,-examples,-tests_dir rllib/...
+    bazel test --config=ci --build_tests_only --test_tag_filters=-learning_tests_tf,-learning_tests_torch,-quick_train,-examples,-tests_dir rllib/...
 
     # End Original script
 
@@ -29,7 +28,7 @@ steps:
     TRAVIS: 'true'
     RLLIB_TESTING: 1
     RLLIB_QUICK_TRAIN_AND_MISC_TESTS: 1
-    TF_VERSION: 2.0.0b1
+    TF_VERSION: 2.1.0
     TFP_VERSION: 0.8
     TORCH_VERSION: 1.4
   displayName: 'Run original rllib quick train (no learning) test job with TF 2'

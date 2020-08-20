@@ -14,7 +14,6 @@ steps:
     . ./ci/travis/ci.sh build
 
     # script part
-    . ./ci/travis/ci.sh preload
     # Streaming cpp test.
     if [ $RAY_CI_STREAMING_CPP_AFFECTED == "1" ]; then bazel test --config=ci --test_output=all //streaming:all && bash streaming/src/test/run_streaming_queue_test.sh; fi
     if [ $RAY_CI_STREAMING_PYTHON_AFFECTED == "1" ]; then python -m pytest -v --durations=5 --timeout=300 streaming/python/tests/; fi
@@ -28,6 +27,7 @@ steps:
     TRAVIS: 'true'
     RAY_INSTALL_JAVA: 1
     TESTSUITE: streaming
+    RAY_USE_RANDOM_PORTS: 1
   displayName: 'Run original streaming job'
   timeoutInMinutes: 120
   # TODO: remove - we are allowing to continue on error because

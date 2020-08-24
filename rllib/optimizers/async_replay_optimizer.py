@@ -474,20 +474,27 @@ class LearnerThread(threading.Thread):
                     except KeyError:
                         pass
                     else:
-                        is_box_action_space = all((
-                            hasattr(self.local_worker, "policy_map"),
-                            self.local_worker.policy_map.get(
-                                "default_policy", None
-                            ) is not None,
-                            isinstance(
-                                self.local_worker.policy_map[
-                                    "default_policy"
-                                ].action_space,
-                                gym.spaces.Box
+                        is_box_action_space = all(
+                            (
+                                hasattr(self.local_worker, "policy_map"),
+                                self.local_worker.policy_map.get("default_policy", None)
+                                is not None,
+                                isinstance(
+                                    self.local_worker.policy_map[
+                                        "default_policy"
+                                    ].action_space,
+                                    gym.spaces.Box,
+                                ),
                             )
-                        ))
+                        )
                         if is_box_action_space:
-                            batch["actions"] = batch["actions"].reshape((-1, 1))
+                            # Reshape to (batch_size, action_space_dim)
+                            action_space = self.local_worker.policy_map[
+                                "default_policy"
+                            ].action_space
+                            batch["actions"] = batch["actions"].reshape(
+                                (-1, action_space.shape[0])
+                            )
                     grad_out = self.local_worker.learn_on_batch(replay)
                     for pid, info in grad_out.items():
                         td_error = info.get(

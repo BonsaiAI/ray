@@ -41,8 +41,8 @@ class ReplayBuffer:
         return len(self._storage)
 
     @DeveloperAPI
-    def add(self, obs_t, action, reward, obs_tp1, done, weight):
-        data = (obs_t, action, reward, obs_tp1, done)
+    def add(self, obs_t, action, reward, obs_tp1, done, state, weight):
+        data = (obs_t, action, reward, obs_tp1, done, state)
         self._num_added += 1
 
         if self._next_idx >= len(self._storage):
@@ -58,18 +58,19 @@ class ReplayBuffer:
             self._hit_count[self._next_idx] = 0
 
     def _encode_sample(self, idxes):
-        obses_t, actions, rewards, obses_tp1, dones = [], [], [], [], []
+        obses_t, actions, rewards, obses_tp1, dones, states = [], [], [], [], [], []
         for i in idxes:
             data = self._storage[i]
-            obs_t, action, reward, obs_tp1, done = data
+            obs_t, action, reward, obs_tp1, done, state = data
             obses_t.append(np.array(unpack_if_needed(obs_t), copy=False))
             actions.append(np.array(action, copy=False))
             rewards.append(reward)
             obses_tp1.append(np.array(unpack_if_needed(obs_tp1), copy=False))
             dones.append(done)
+            states.append(state)
             self._hit_count[i] += 1
         return (np.array(obses_t), np.array(actions), np.array(rewards),
-                np.array(obses_tp1), np.array(dones))
+                np.array(obses_tp1), np.array(dones), np.array(states))
 
     @DeveloperAPI
     def sample_idxes(self, batch_size):
@@ -156,12 +157,13 @@ class PrioritizedReplayBuffer(ReplayBuffer):
         self._prio_change_stats = WindowStat("reprio", 1000)
 
     @DeveloperAPI
-    def add(self, obs_t, action, reward, obs_tp1, done, weight):
+    def add(self, obs_t, action, reward, obs_tp1, done, state, weight):
         """See ReplayBuffer.store_effect"""
 
         idx = self._next_idx
         super(PrioritizedReplayBuffer, self).add(obs_t, action, reward,
-                                                 obs_tp1, done, weight)
+                                                 obs_tp1, done, state,
+                                                 weight)
         if weight is None:
             weight = self._max_priority
         self._it_sum[idx] = weight**self._alpha
@@ -356,8 +358,8 @@ class LocalReplayBuffer(ParallelIteratorWorker):
                 for row in s.rows():
                     self.replay_buffers[policy_id].add(
                         row["obs"], row["actions"], row["rewards"],
-                        row["new_obs"], row["dones"], row["weights"]
-                        if "weights" in row else None)
+                        row["new_obs"], row["dones"], row["states"],
+                        row["weights"] if "weights" in row else None)
         self.num_added += batch.count
 
     def replay(self):
@@ -380,7 +382,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
                             self.replay_batch_size)
                 else:
                     idxes = replay_buffer.sample_idxes(self.replay_batch_size)
-                (obses_t, actions, rewards, obses_tp1, dones, weights,
+                (obses_t, actions, rewards, obses_tp1, dones, states, weights,
                  batch_indexes) = replay_buffer.sample_with_idxes(
                      idxes, beta=self.prioritized_replay_beta)
                 samples[policy_id] = SampleBatch({
@@ -390,6 +392,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
                     "new_obs": obses_tp1,
                     "dones": dones,
                     "weights": weights,
+                    "states": states,
                     "batch_indexes": batch_indexes
                 })
             return MultiAgentBatch(samples, self.replay_batch_size)
@@ -495,6 +498,7 @@ class LocalVanillaReplayBuffer(LocalReplayBuffer):
                     rewards,
                     obses_tp1,
                     dones,
+                    states,
                 ) = replay_buffer.sample_with_idxes(idxes)
                 samples[policy_id] = SampleBatch(
                     {
@@ -503,6 +507,7 @@ class LocalVanillaReplayBuffer(LocalReplayBuffer):
                         "rewards": rewards,
                         "new_obs": obses_tp1,
                         "dones": dones,
+                        "states": states,
                     }
                 )
             return MultiAgentBatch(samples, self.replay_batch_size)

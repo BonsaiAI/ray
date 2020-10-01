@@ -674,6 +674,7 @@ class _EnvRunner(Iterator[SampleBatch]):
                                agent_done),
                         infos=infos[env_id].get(agent_id, {}),
                         new_obs=filtered_obs,
+                        states=episode.rnn_state_for(agent_id),
                         **episode.last_pi_info_for(agent_id))
 
             # Invoke the step callback after the step is logged to the episode

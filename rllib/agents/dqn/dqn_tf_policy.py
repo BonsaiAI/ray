@@ -111,8 +111,15 @@ class QLoss:
 class ComputeTDErrorMixin:
     def __init__(self):
         @make_tf_callable(self.get_session(), dynamic_shape=True)
-        def compute_td_error(obs_t, act_t, rew_t, obs_tp1, done_mask,
-                             importance_weights):
+        def compute_td_error(obs_t, states_t, act_t, rew_t, obs_tp1, done_mask,
+                             states_tp1, seq_lens, importance_weights):
+            state_in_out_and_seq_lens = {}
+            for i, h in enumerate(states_t):
+                state_in_out_and_seq_lens["state_in_{}".format(i)] = h
+            for i, h in enumerate(states_tp1):
+                state_in_out_and_seq_lens["state_out_{}".format(i)] = h
+            if state_in_out_and_seq_lens:
+                state_in_out_and_seq_lens["seq_lens"] = seq_lens
             # Do forward pass on loss to update td error attribute
             build_q_losses(
                 self, self.model, None, {
@@ -122,6 +129,7 @@ class ComputeTDErrorMixin:
                     SampleBatch.NEXT_OBS: tf.convert_to_tensor(obs_tp1),
                     SampleBatch.DONES: tf.convert_to_tensor(done_mask),
                     PRIO_WEIGHTS: tf.convert_to_tensor(importance_weights),
+                    **state_in_out_and_seq_lens
                 })
 
             return self.q_loss.td_error
@@ -190,10 +198,12 @@ def build_q_model(policy, obs_space, action_space, config):
 def get_distribution_inputs_and_class(policy,
                                       model,
                                       obs_batch,
+                                      state_batches,
+                                      seq_lens,
                                       *,
                                       explore=True,
                                       **kwargs):
-    q_vals = compute_q_values(policy, model, obs_batch, explore)
+    q_vals = compute_q_values(policy, model, obs_batch, state_batches, seq_lens, explore)
     q_vals = q_vals[0] if isinstance(q_vals, tuple) else q_vals
 
     policy.q_values = q_vals
@@ -202,12 +212,25 @@ def get_distribution_inputs_and_class(policy,
 
 
 def build_q_losses(policy, model, _, train_batch):
+    states_in = []
+    i = 0
+    while "state_in_{}".format(i) in train_batch:
+        states_in.append(train_batch["state_in_{}".format(i)])
+        i += 1
+    states_out = []
+    i = 0
+    while "state_out_{}".format(i) in train_batch:
+        states_out.append(train_batch["state_out_{}".format(i)])
+        i += 1
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else None
     config = policy.config
     # q network evaluation
     q_t, q_logits_t, q_dist_t = compute_q_values(
         policy,
         policy.q_model,
         train_batch[SampleBatch.CUR_OBS],
+        states_in,
+        seq_lens,
         explore=False)
 
     # target q network evalution
@@ -215,6 +238,8 @@ def build_q_losses(policy, model, _, train_batch):
         policy,
         policy.target_q_model,
         train_batch[SampleBatch.NEXT_OBS],
+        states_out,
+        seq_lens,
         explore=False)
     policy.target_q_func_vars = policy.target_q_model.variables()
 
@@ -232,6 +257,8 @@ def build_q_losses(policy, model, _, train_batch):
             q_dist_tp1_using_online_net = compute_q_values(
                 policy, policy.q_model,
                 train_batch[SampleBatch.NEXT_OBS],
+                states_out,
+                seq_lens,
                 explore=False)
         q_tp1_best_using_online_net = tf.argmax(q_tp1_using_online_net, 1)
         q_tp1_best_one_hot_selection = tf.one_hot(q_tp1_best_using_online_net,
@@ -293,13 +320,13 @@ def setup_late_mixins(policy, obs_space, action_space, config):
     TargetNetworkMixin.__init__(policy, obs_space, action_space, config)
 
 
-def compute_q_values(policy, model, obs, explore):
+def compute_q_values(policy, model, obs, states, seq_lens, explore):
     config = policy.config
 
     model_out, state = model({
         SampleBatch.CUR_OBS: obs,
         "is_training": policy._get_is_training_placeholder(),
-    }, [], None)
+    }, states, seq_lens)
 
     if config["num_atoms"] > 1:
         (action_scores, z, support_logits_per_action, logits,
@@ -335,7 +362,8 @@ def compute_q_values(policy, model, obs, explore):
     return value, logits, dist
 
 
-def _adjust_nstep(n_step, gamma, obs, actions, rewards, new_obs, dones):
+def _adjust_nstep(n_step, gamma, obs, states_in, actions, rewards, new_obs, dones,
+                  states_out, seq_lens):
     """Rewrites the given trajectory fragments to encode n-step rewards.
 
     reward[i] = (
@@ -358,15 +386,27 @@ def _adjust_nstep(n_step, gamma, obs, actions, rewards, new_obs, dones):
                 new_obs[i] = new_obs[i + j]
                 dones[i] = dones[i + j]
                 rewards[i] += gamma**j * rewards[i + j]
+                states_out[i] = states_out[i + j]
 
 
 def postprocess_nstep_and_prio(policy, batch, other_agent=None, episode=None):
+    states_in = []
+    i = 0
+    while "state_in_{}".format(i) in batch:
+        states_in.append(batch["state_in_{}".format(i)])
+        i += 1
+    states_out = []
+    i = 0
+    while "state_out_{}".format(i) in batch:
+        states_out.append(batch["state_out_{}".format(i)])
+        i += 1
+    seq_lens = batch["seq_lens"] if "seq_lens" in batch else None
     # N-step Q adjustments
     if policy.config["n_step"] > 1:
         _adjust_nstep(policy.config["n_step"], policy.config["gamma"],
-                      batch[SampleBatch.CUR_OBS], batch[SampleBatch.ACTIONS],
+                      batch[SampleBatch.CUR_OBS], states_in, batch[SampleBatch.ACTIONS],
                       batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS],
-                      batch[SampleBatch.DONES])
+                      batch[SampleBatch.DONES], states_out, seq_lens)
 
     if PRIO_WEIGHTS not in batch:
         batch[PRIO_WEIGHTS] = np.ones_like(batch[SampleBatch.REWARDS])
@@ -379,9 +419,9 @@ def postprocess_nstep_and_prio(policy, batch, other_agent=None, episode=None):
         elif isinstance(policy.action_space, Discrete) and actions.shape[-1] == 1:
             actions = np.reshape(actions, [-1])
         td_errors = policy.compute_td_error(
-            batch[SampleBatch.CUR_OBS], actions,
+            batch[SampleBatch.CUR_OBS], states_in, actions,
             batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS],
-            batch[SampleBatch.DONES], batch[PRIO_WEIGHTS])
+            batch[SampleBatch.DONES], states_out, seq_lens, batch[PRIO_WEIGHTS])
         new_priorities = (
             np.abs(td_errors) + policy.config["prioritized_replay_eps"])
         batch.data[PRIO_WEIGHTS] = new_priorities

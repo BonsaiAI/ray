@@ -111,15 +111,11 @@ class QLoss:
 class ComputeTDErrorMixin:
     def __init__(self):
         @make_tf_callable(self.get_session(), dynamic_shape=True)
-        def compute_td_error(obs_t, states_t, act_t, rew_t, obs_tp1, done_mask,
-                             states_tp1, seq_lens, importance_weights):
-            state_in_out_and_seq_lens = {}
-            for i, h in enumerate(states_t):
-                state_in_out_and_seq_lens["state_in_{}".format(i)] = h
-            for i, h in enumerate(states_tp1):
-                state_in_out_and_seq_lens["state_out_{}".format(i)] = h
-            if state_in_out_and_seq_lens:
-                state_in_out_and_seq_lens["seq_lens"] = seq_lens
+        def compute_td_error(obs_t, act_t, rew_t, obs_tp1, done_mask,
+                             importance_weights, **kwargs):
+            # kwargs should contain only state input tensors,
+            # state output tensors and the seq_lens tensor
+            state_in_out_and_seq_lens = kwargs
             # Do forward pass on loss to update td error attribute
             build_q_losses(
                 self, self.model, None, {
@@ -222,7 +218,7 @@ def build_q_losses(policy, model, _, train_batch):
     while "state_out_{}".format(i) in train_batch:
         states_out.append(train_batch["state_out_{}".format(i)])
         i += 1
-    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else None
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else np.array([])
     config = policy.config
     # q network evaluation
     q_t, q_logits_t, q_dist_t = compute_q_values(
@@ -323,6 +319,8 @@ def setup_late_mixins(policy, obs_space, action_space, config):
 def compute_q_values(policy, model, obs, states, seq_lens, explore):
     config = policy.config
 
+    if type(states) is tuple:
+        states = list(states)
     model_out, state = model({
         SampleBatch.CUR_OBS: obs,
         "is_training": policy._get_is_training_placeholder(),
@@ -386,21 +384,30 @@ def _adjust_nstep(n_step, gamma, obs, states_in, actions, rewards, new_obs, done
                 new_obs[i] = new_obs[i + j]
                 dones[i] = dones[i + j]
                 rewards[i] += gamma**j * rewards[i + j]
-                states_out[i] = states_out[i + j]
+                if states_out:
+                    states_out[i] = states_out[i + j]
 
 
 def postprocess_nstep_and_prio(policy, batch, other_agent=None, episode=None):
+    state_in_out_and_seq_lens = {}
     states_in = []
     i = 0
-    while "state_in_{}".format(i) in batch:
-        states_in.append(batch["state_in_{}".format(i)])
+    key ="state_in_{}".format(i)
+    while key in batch:
+        states_in.append(batch[key])
+        state_in_out_and_seq_lens[key] = batch[key]
         i += 1
+        key ="state_in_{}".format(i)
     states_out = []
     i = 0
-    while "state_out_{}".format(i) in batch:
-        states_out.append(batch["state_out_{}".format(i)])
+    key ="state_out_{}".format(i)
+    while key in batch:
+        states_out.append(batch[key])
+        state_in_out_and_seq_lens[key] = batch[key]
         i += 1
-    seq_lens = batch["seq_lens"] if "seq_lens" in batch else None
+        key = "state_out_{}".format(i)
+    seq_lens = batch["seq_lens"] if "seq_lens" in batch else np.array([])
+    state_in_out_and_seq_lens["seq_lens"] = seq_lens
     # N-step Q adjustments
     if policy.config["n_step"] > 1:
         _adjust_nstep(policy.config["n_step"], policy.config["gamma"],
@@ -419,9 +426,9 @@ def postprocess_nstep_and_prio(policy, batch, other_agent=None, episode=None):
         elif isinstance(policy.action_space, Discrete) and actions.shape[-1] == 1:
             actions = np.reshape(actions, [-1])
         td_errors = policy.compute_td_error(
-            batch[SampleBatch.CUR_OBS], states_in, actions,
+            batch[SampleBatch.CUR_OBS], actions,
             batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS],
-            batch[SampleBatch.DONES], states_out, seq_lens, batch[PRIO_WEIGHTS])
+            batch[SampleBatch.DONES], batch[PRIO_WEIGHTS], **state_in_out_and_seq_lens)
         new_priorities = (
             np.abs(td_errors) + policy.config["prioritized_replay_eps"])
         batch.data[PRIO_WEIGHTS] = new_priorities

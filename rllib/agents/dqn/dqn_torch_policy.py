@@ -60,13 +60,17 @@ class QLoss:
 class ComputeTDErrorMixin:
     def __init__(self):
         def compute_td_error(obs_t, act_t, rew_t, obs_tp1, done_mask,
-                             importance_weights):
+                             importance_weights, **kwargs):
+            # kwargs should contain only state input tensors,
+            # state output tensors and the seq_lens tensor
+            state_in_out_and_seq_lens = kwargs
             input_dict = self._lazy_tensor_dict({SampleBatch.CUR_OBS: obs_t})
             input_dict[SampleBatch.ACTIONS] = act_t
             input_dict[SampleBatch.REWARDS] = rew_t
             input_dict[SampleBatch.NEXT_OBS] = obs_tp1
             input_dict[SampleBatch.DONES] = done_mask
             input_dict[PRIO_WEIGHTS] = importance_weights
+            input_dict.update(state_in_out_and_seq_lens)
 
             # Do forward pass on loss to update td error attribute
             build_q_losses(self, self.model, None, input_dict)
@@ -137,11 +141,13 @@ def build_q_model_and_distribution(policy, obs_space, action_space, config):
 def get_distribution_inputs_and_class(policy,
                                       model,
                                       obs_batch,
+                                      state_batches,
+                                      seq_lens,
                                       *,
                                       explore=True,
                                       is_training=False,
                                       **kwargs):
-    q_vals = compute_q_values(policy, model, obs_batch, explore, is_training)
+    q_vals = compute_q_values(policy, model, obs_batch, state_batches, seq_lens, explore, is_training)
     q_vals = q_vals[0] if isinstance(q_vals, tuple) else q_vals
 
     policy.q_values = q_vals
@@ -149,12 +155,25 @@ def get_distribution_inputs_and_class(policy,
 
 
 def build_q_losses(policy, model, _, train_batch):
+    states_in = []
+    i = 0
+    while "state_in_{}".format(i) in train_batch:
+        states_in.append(train_batch["state_in_{}".format(i)])
+        i += 1
+    states_out = []
+    i = 0
+    while "state_out_{}".format(i) in train_batch:
+        states_out.append(train_batch["state_out_{}".format(i)])
+        i += 1
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else []
     config = policy.config
     # q network evaluation
     q_t = compute_q_values(
         policy,
         policy.q_model,
         train_batch[SampleBatch.CUR_OBS],
+        states_in,
+        seq_lens,
         explore=False,
         is_training=True)
 
@@ -163,6 +182,8 @@ def build_q_losses(policy, model, _, train_batch):
         policy,
         policy.target_q_model,
         train_batch[SampleBatch.NEXT_OBS],
+        states_out,
+        seq_lens,
         explore=False,
         is_training=True)
 
@@ -177,6 +198,8 @@ def build_q_losses(policy, model, _, train_batch):
             policy,
             policy.q_model,
             train_batch[SampleBatch.NEXT_OBS],
+            states_out,
+            seq_lens,
             explore=False,
             is_training=True)
         q_tp1_best_using_online_net = torch.argmax(q_tp1_using_online_net, 1)
@@ -221,14 +244,14 @@ def after_init(policy, obs_space, action_space, config):
     policy.target_q_model = policy.target_q_model.to(policy.device)
 
 
-def compute_q_values(policy, model, obs, explore, is_training=False):
+def compute_q_values(policy, model, obs, states, seq_lens, explore, is_training=False):
     if policy.config["num_atoms"] > 1:
         raise ValueError("torch DQN does not support distributional DQN yet!")
 
     model_out, state = model({
         SampleBatch.CUR_OBS: obs,
         "is_training": is_training,
-    }, [], None)
+    }, states, seq_lens)
 
     advantages_or_q_values = model.get_advantages_or_q_values(model_out)
 

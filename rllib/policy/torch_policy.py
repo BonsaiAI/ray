@@ -142,6 +142,8 @@ class TorchPolicy(Policy):
                             self,
                             self.model,
                             input_dict[SampleBatch.CUR_OBS],
+                            state_batches=state_batches,
+                            seq_lens=seq_lens,
                             explore=explore,
                             timestep=timestep,
                             is_training=False)

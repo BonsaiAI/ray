@@ -35,6 +35,18 @@ def ddpg_actor_critic_loss(policy, model, _, train_batch):
     huber_threshold = policy.config["huber_threshold"]
     l2_reg = policy.config["l2_reg"]
 
+    states_in = []
+    i = 0
+    while "state_in_{}".format(i) in train_batch:
+        states_in.append(train_batch["state_in_{}".format(i)])
+        i += 1
+    states_out = []
+    i = 0
+    while "state_out_{}".format(i) in train_batch:
+        states_out.append(train_batch["state_out_{}".format(i)])
+        i += 1
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else []
+
     input_dict = {
         "obs": train_batch[SampleBatch.CUR_OBS],
         "is_training": True,
@@ -44,9 +56,9 @@ def ddpg_actor_critic_loss(policy, model, _, train_batch):
         "is_training": True,
     }
 
-    model_out_t, _ = model(input_dict, [], None)
-    model_out_tp1, _ = model(input_dict_next, [], None)
-    target_model_out_tp1, _ = policy.target_model(input_dict_next, [], None)
+    model_out_t, _ = model(input_dict, states_in, seq_lens)
+    model_out_tp1, _ = model(input_dict_next, states_out, seq_lens)
+    target_model_out_tp1, _ = policy.target_model(input_dict_next, states_out, seq_lens)
 
     # Policy network evaluation.
     # prev_update_ops = set(tf.get_collection(tf.GraphKeys.UPDATE_OPS))
@@ -146,6 +158,10 @@ def ddpg_actor_critic_loss(policy, model, _, train_batch):
         input_dict[SampleBatch.REWARDS] = train_batch[SampleBatch.REWARDS]
         input_dict[SampleBatch.DONES] = train_batch[SampleBatch.DONES]
         input_dict[SampleBatch.NEXT_OBS] = train_batch[SampleBatch.NEXT_OBS]
+        for i, h in enumerate(states_in):
+            input_dict["state_in_{}".format(i)] = h
+        for i, h in enumerate(states_out):
+            input_dict["state_out_{}".format(i)] = h
         [actor_loss, critic_loss] = model.custom_loss(
             [actor_loss, critic_loss], input_dict)
 
@@ -214,7 +230,10 @@ def before_init_fn(policy, obs_space, action_space, config):
 class ComputeTDErrorMixin:
     def __init__(self, loss_fn):
         def compute_td_error(obs_t, act_t, rew_t, obs_tp1, done_mask,
-                             importance_weights):
+                             importance_weights, **kwargs):
+            # kwargs should contain only state input tensors,
+            # state output tensors and the seq_lens tensor
+            state_in_out_and_seq_lens = kwargs
             input_dict = self._lazy_tensor_dict({
                 SampleBatch.CUR_OBS: obs_t,
                 SampleBatch.ACTIONS: act_t,
@@ -223,6 +242,7 @@ class ComputeTDErrorMixin:
                 SampleBatch.DONES: done_mask,
                 PRIO_WEIGHTS: importance_weights,
             })
+            input_dict.update(state_in_out_and_seq_lens)
             # Do forward pass on loss to update td errors attribute
             # (one TD-error value per item in batch to update PR weights).
             loss_fn(self, self.model, None, input_dict)

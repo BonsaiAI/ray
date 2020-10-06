@@ -105,6 +105,8 @@ def build_ddpg_models(policy, observation_space, action_space, config):
 def get_distribution_inputs_and_class(policy,
                                       model,
                                       obs_batch,
+                                      state_batches,
+                                      seq_lens,
                                       *,
                                       explore=True,
                                       is_training=False,
@@ -112,7 +114,7 @@ def get_distribution_inputs_and_class(policy,
     model_out, _ = model({
         "obs": obs_batch,
         "is_training": is_training,
-    }, [], None)
+    }, state_batches, seq_lens)
     dist_inputs = model.get_policy_output(model_out)
 
     return dist_inputs, (TorchDeterministic
@@ -128,6 +130,18 @@ def ddpg_actor_critic_loss(policy, model, _, train_batch):
     huber_threshold = policy.config["huber_threshold"]
     l2_reg = policy.config["l2_reg"]
 
+    states_in = []
+    i = 0
+    while "state_in_{}".format(i) in train_batch:
+        states_in.append(train_batch["state_in_{}".format(i)])
+        i += 1
+    states_out = []
+    i = 0
+    while "state_out_{}".format(i) in train_batch:
+        states_out.append(train_batch["state_out_{}".format(i)])
+        i += 1
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else []
+
     input_dict = {
         "obs": train_batch[SampleBatch.CUR_OBS],
         "is_training": True,
@@ -137,9 +151,9 @@ def ddpg_actor_critic_loss(policy, model, _, train_batch):
         "is_training": True,
     }
 
-    model_out_t, _ = model(input_dict, [], None)
-    model_out_tp1, _ = model(input_dict_next, [], None)
-    target_model_out_tp1, _ = policy.target_model(input_dict_next, [], None)
+    model_out_t, _ = model(input_dict, states_in, seq_lens)
+    model_out_tp1, _ = model(input_dict_next, states_out, seq_lens)
+    target_model_out_tp1, _ = policy.target_model(input_dict_next, states_out, seq_lens)
 
     # Policy network evaluation.
     with tf.variable_scope(POLICY_SCOPE, reuse=True):
@@ -246,6 +260,10 @@ def ddpg_actor_critic_loss(policy, model, _, train_batch):
         input_dict[SampleBatch.REWARDS] = train_batch[SampleBatch.REWARDS]
         input_dict[SampleBatch.DONES] = train_batch[SampleBatch.DONES]
         input_dict[SampleBatch.NEXT_OBS] = train_batch[SampleBatch.NEXT_OBS]
+        for i, h in enumerate(states_in):
+            input_dict["state_in_{}".format(i)] = h
+        for i, h in enumerate(states_out):
+            input_dict["state_out_{}".format(i)] = h
         if log_once("ddpg_custom_loss"):
             logger.warning(
                 "You are using a state-preprocessor with DDPG and "
@@ -362,7 +380,10 @@ class ComputeTDErrorMixin:
     def __init__(self, loss_fn):
         @make_tf_callable(self.get_session(), dynamic_shape=True)
         def compute_td_error(obs_t, act_t, rew_t, obs_tp1, done_mask,
-                             importance_weights):
+                             importance_weights, **kwargs):
+            # kwargs should contain only state input tensors,
+            # state output tensors and the seq_lens tensor
+            state_in_out_and_seq_lens = kwargs
             # Do forward pass on loss to update td errors attribute
             # (one TD-error value per item in batch to update PR weights).
             loss_fn(
@@ -373,6 +394,7 @@ class ComputeTDErrorMixin:
                     SampleBatch.NEXT_OBS: tf.convert_to_tensor(obs_tp1),
                     SampleBatch.DONES: tf.convert_to_tensor(done_mask),
                     PRIO_WEIGHTS: tf.convert_to_tensor(importance_weights),
+                    **state_in_out_and_seq_lens
                 })
             # `self.td_error` is set in loss_fn.
             return self.td_error

@@ -39,9 +39,9 @@ def get_dist_class(config, action_space):
 def action_distribution_fn(policy,
                            model,
                            obs_batch,
+                           state_batches,
+                           seq_lens,
                            *,
-                           state_batches=None,
-                           seq_lens=None,
                            prev_action_batch=None,
                            prev_reward_batch=None,
                            explore=None,
@@ -50,7 +50,7 @@ def action_distribution_fn(policy,
     model_out, _ = model({
         "obs": obs_batch,
         "is_training": is_training,
-    }, [], None)
+    }, state_batches, seq_lens)
     distribution_inputs = model.get_policy_output(model_out)
     action_dist_class = get_dist_class(policy.config, policy.action_space)
 
@@ -61,20 +61,32 @@ def actor_critic_loss(policy, model, _, train_batch):
     # Should be True only for debugging purposes (e.g. test cases)!
     deterministic = policy.config["_deterministic_loss"]
 
+    states_in = []
+    i = 0
+    while "state_in_{}".format(i) in train_batch:
+        states_in.append(train_batch["state_in_{}".format(i)])
+        i += 1
+    states_out = []
+    i = 0
+    while "state_out_{}".format(i) in train_batch:
+        states_out.append(train_batch["state_out_{}".format(i)])
+        i += 1
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else []
+
     model_out_t, _ = model({
         "obs": train_batch[SampleBatch.CUR_OBS],
         "is_training": True,
-    }, [], None)
+    }, states_in, seq_lens)
 
     model_out_tp1, _ = model({
         "obs": train_batch[SampleBatch.NEXT_OBS],
         "is_training": True,
-    }, [], None)
+    }, states_out, seq_lens)
 
     target_model_out_tp1, _ = policy.target_model({
         "obs": train_batch[SampleBatch.NEXT_OBS],
         "is_training": True,
-    }, [], None)
+    }, states_out, seq_lens)
 
     alpha = torch.exp(model.log_alpha)
 
@@ -280,7 +292,10 @@ def optimizer_fn(policy, config):
 class ComputeTDErrorMixin:
     def __init__(self):
         def compute_td_error(obs_t, act_t, rew_t, obs_tp1, done_mask,
-                             importance_weights):
+                             importance_weights, **kwargs):
+            # kwargs should contain only state input tensors,
+            # state output tensors and the seq_lens tensor
+            state_in_out_and_seq_lens = kwargs
             input_dict = self._lazy_tensor_dict({
                 SampleBatch.CUR_OBS: obs_t,
                 SampleBatch.ACTIONS: act_t,
@@ -289,6 +304,7 @@ class ComputeTDErrorMixin:
                 SampleBatch.DONES: done_mask,
                 PRIO_WEIGHTS: importance_weights,
             })
+            input_dict.update(state_in_out_and_seq_lens)
             # Do forward pass on loss to update td errors attribute
             # (one TD-error value per item in batch to update PR weights).
             actor_critic_loss(self, self.model, None, input_dict)

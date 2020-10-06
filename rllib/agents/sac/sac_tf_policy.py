@@ -116,6 +116,8 @@ def get_dist_class(config, action_space):
 def get_distribution_inputs_and_class(policy,
                                       model,
                                       obs_batch,
+                                      state_batches,
+                                      seq_lens,
                                       *,
                                       explore=True,
                                       **kwargs):
@@ -123,7 +125,7 @@ def get_distribution_inputs_and_class(policy,
     model_out, state_out = model({
         "obs": obs_batch,
         "is_training": policy._get_is_training_placeholder(),
-    }, [], None)
+    }, state_batches, seq_lens)
     # Get action model output from base-model output.
     distribution_inputs = model.get_policy_output(model_out)
     action_dist_class = get_dist_class(policy.config, policy.action_space)
@@ -134,20 +136,32 @@ def sac_actor_critic_loss(policy, model, _, train_batch):
     # Should be True only for debugging purposes (e.g. test cases)!
     deterministic = policy.config["_deterministic_loss"]
 
+    states_in = []
+    i = 0
+    while "state_in_{}".format(i) in train_batch:
+        states_in.append(train_batch["state_in_{}".format(i)])
+        i += 1
+    states_out = []
+    i = 0
+    while "state_out_{}".format(i) in train_batch:
+        states_out.append(train_batch["state_out_{}".format(i)])
+        i += 1
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else []
+
     model_out_t, _ = model({
         "obs": train_batch[SampleBatch.CUR_OBS],
         "is_training": policy._get_is_training_placeholder(),
-    }, [], None)
+    }, states_in, seq_lens)
 
     model_out_tp1, _ = model({
         "obs": train_batch[SampleBatch.NEXT_OBS],
         "is_training": policy._get_is_training_placeholder(),
-    }, [], None)
+    }, states_out, seq_lens)
 
     target_model_out_tp1, _ = policy.target_model({
         "obs": train_batch[SampleBatch.NEXT_OBS],
         "is_training": policy._get_is_training_placeholder(),
-    }, [], None)
+    }, states_out, seq_lens)
 
     # Discrete case.
     if model.discrete:

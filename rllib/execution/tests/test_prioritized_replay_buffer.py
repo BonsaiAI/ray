@@ -20,9 +20,12 @@ class TestPrioritizedReplayBuffer(unittest.TestCase):
         return (
             np.random.random((4, )),  # obs_t
             np.random.choice([0, 1]),  # action
+            [np.random.random((2, )), np.random.random((3, ))], # state t
             np.random.rand(),  # reward
             np.random.random((4, )),  # obs_tp1
             np.random.choice([False, True]),  # done
+            [np.random.random((2,)), np.random.random((3,))],  # state tp1
+            np.random.rand(),  # seq lens
         )
 
     def test_add(self):
@@ -65,7 +68,7 @@ class TestPrioritizedReplayBuffer(unittest.TestCase):
             self.assertTrue(memory._next_idx == i + 1)
 
         # Fetch records, their indices and weights.
-        _, _, _, _, _, weights, indices = \
+        _, _, _, _, _, _, _, _, weights, indices = \
             memory.sample(3, beta=self.beta)
         check(weights, np.ones(shape=(3, )))
         self.assertEqual(3, len(indices))
@@ -78,7 +81,7 @@ class TestPrioritizedReplayBuffer(unittest.TestCase):
         # Expect to sample almost only index 1
         # (which still has a weight of 1.0).
         for _ in range(10):
-            _, _, _, _, _, weights, indices = memory.sample(
+            _, _, _, _, _, _, _, _, weights, indices = memory.sample(
                 1000, beta=self.beta)
             self.assertTrue(970 < np.sum(indices) < 1100)
 
@@ -87,7 +90,7 @@ class TestPrioritizedReplayBuffer(unittest.TestCase):
         for _ in range(10):
             rand = np.random.random() + 0.2
             memory.update_priorities(np.array([0, 1]), np.array([rand, rand]))
-            _, _, _, _, _, _, indices = memory.sample(1000, beta=self.beta)
+            _, _, _, _, _, _, _, _, _, indices = memory.sample(1000, beta=self.beta)
             # Expect biased to higher values due to some 2s, 3s, and 4s.
             # print(np.sum(indices))
             self.assertTrue(400 < np.sum(indices) < 800)
@@ -99,7 +102,7 @@ class TestPrioritizedReplayBuffer(unittest.TestCase):
             rand = np.random.random() + 0.2
             memory.update_priorities(
                 np.array([0, 1]), np.array([rand, rand * 2]))
-            _, _, _, _, _, _, indices = memory.sample(1000, beta=self.beta)
+            _, _, _, _, _, _, _, _, _, indices = memory.sample(1000, beta=self.beta)
             # print(np.sum(indices))
             self.assertTrue(600 < np.sum(indices) < 850)
 
@@ -110,7 +113,7 @@ class TestPrioritizedReplayBuffer(unittest.TestCase):
             rand = np.random.random() + 0.2
             memory.update_priorities(
                 np.array([0, 1]), np.array([rand, rand * 4]))
-            _, _, _, _, _, _, indices = memory.sample(1000, beta=self.beta)
+            _, _, _, _, _, _, _, _, _, indices = memory.sample(1000, beta=self.beta)
             # print(np.sum(indices))
             self.assertTrue(750 < np.sum(indices) < 950)
 
@@ -121,7 +124,7 @@ class TestPrioritizedReplayBuffer(unittest.TestCase):
             rand = np.random.random() + 0.2
             memory.update_priorities(
                 np.array([0, 1]), np.array([rand, rand * 9]))
-            _, _, _, _, _, _, indices = memory.sample(1000, beta=self.beta)
+            _, _, _, _, _, _, _, _, _, indices = memory.sample(1000, beta=self.beta)
             # print(np.sum(indices))
             self.assertTrue(850 < np.sum(indices) < 1100)
 
@@ -139,7 +142,7 @@ class TestPrioritizedReplayBuffer(unittest.TestCase):
             np.array([0.001, 0.1, 2., 8., 16., 32., 64., 128., 256., 512.]))
         counts = Counter()
         for _ in range(10):
-            _, _, _, _, _, _, indices = memory.sample(
+            _, _, _, _, _, _, _, _, _, indices = memory.sample(
                 np.random.randint(100, 600), beta=self.beta)
             for i in indices:
                 counts[i] += 1
@@ -163,7 +166,7 @@ class TestPrioritizedReplayBuffer(unittest.TestCase):
             self.assertTrue(memory._next_idx == i + 1)
 
         # Fetch records, their indices and weights.
-        _, _, _, _, _, weights, indices = \
+        _, _, _, _, _, _, _, _, weights, indices = \
             memory.sample(1000, beta=self.beta)
         counts = Counter()
         for i in indices:

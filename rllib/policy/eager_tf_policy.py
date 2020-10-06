@@ -248,7 +248,9 @@ def build_eager_tf_policy(name,
 
             if action_distribution_fn:
                 dist_inputs, self.dist_class, _ = action_distribution_fn(
-                    self, self.model, input_dict[SampleBatch.CUR_OBS])
+                    self, self.model, input_dict[SampleBatch.CUR_OBS],
+                    state_batches=self._state_in,
+                    seq_lens=tf.convert_to_tensor([1]))
             else:
                 self.model(input_dict, self._state_in,
                            tf.convert_to_tensor([1]))
@@ -360,6 +362,8 @@ def build_eager_tf_policy(name,
                             action_distribution_fn(
                                 self, self.model,
                                 input_dict[SampleBatch.CUR_OBS],
+                                state_batches=state_batches,
+                                seq_lens=seq_lens,
                                 explore=explore,
                                 timestep=timestep,
                                 is_training=False)
@@ -428,6 +432,8 @@ def build_eager_tf_policy(name,
                     self,
                     self.model,
                     input_dict[SampleBatch.CUR_OBS],
+                    state_batches=state_batches,
+                    seq_lens=seq_lens,
                     explore=False,
                     is_training=False)
                 action_dist = dist_class(dist_inputs, self.model)

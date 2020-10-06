@@ -12,17 +12,23 @@ from ray.tune.registry import register_env
 class EvalTest(unittest.TestCase):
     def test_dqn_n_step(self):
         obs = [1, 2, 3, 4, 5, 6, 7]
+        state_in = [[1], [2], [3], [4], [5], [6], [7]]
         actions = ["a", "b", "a", "a", "a", "b", "a"]
         rewards = [10.0, 0.0, 100.0, 100.0, 100.0, 100.0, 100.0]
         new_obs = [2, 3, 4, 5, 6, 7, 8]
         dones = [0, 0, 0, 0, 0, 0, 1]
-        _adjust_nstep(3, 0.9, obs, actions, rewards, new_obs, dones)
+        state_out = [[1], [2], [3], [4], [5], [6], [7]]
+        seq_lens = [1, 2, 3, 4, 5, 6, 7]
+        _adjust_nstep(3, 0.9, obs, state_in, actions, rewards, new_obs, dones, state_out, seq_lens)
         self.assertEqual(obs, [1, 2, 3, 4, 5, 6, 7])
+        self.assertEqual(state_in, [[1], [2], [3], [4], [5], [6], [7]])
         self.assertEqual(actions, ["a", "b", "a", "a", "a", "b", "a"])
         self.assertEqual(new_obs, [4, 5, 6, 7, 8, 8, 8])
         self.assertEqual(dones, [0, 0, 0, 0, 1, 1, 1])
         self.assertEqual(rewards,
                          [91.0, 171.0, 271.0, 271.0, 271.0, 190.0, 100.0])
+        self.assertEqual(state_out, [[3], [4], [5], [6], [7], [7], [7]])
+        self.assertEqual(seq_lens, [1, 2, 3, 4, 5, 6, 7])
 
     def test_evaluation_option(self):
         def env_creator(env_config):

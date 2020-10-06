@@ -209,6 +209,8 @@ class TorchPolicy(Policy):
                     policy=self,
                     model=self.model,
                     obs_batch=input_dict[SampleBatch.CUR_OBS],
+                    state_batches=state_batches,
+                    seq_lens=seq_lens,
                     explore=False,
                     is_training=False)
             # Default action-dist inputs calculation.

@@ -598,6 +598,10 @@ class TFPolicy(Policy):
             raise ValueError(
                 "Must pass in RNN state batches for placeholders {}, got {}".
                 format(self._state_inputs, state_batches))
+        if len(obs_batch) == 0 and state_batches:
+            raise ValueError(
+                "Must pass obs_batch in order to build RNN properly {}, got {}".
+                format(obs_batch, state_batches))
 
         builder.add_feed_dict(self.extra_compute_action_feed_dict())
         builder.add_feed_dict({self._obs_input: obs_batch})

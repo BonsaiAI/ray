@@ -386,7 +386,7 @@ class LocalReplayBuffer(ParallelIteratorWorker):
                     self.replay_buffers[policy_id].add(
                         row["obs"], states_in, row["actions"], row["rewards"],
                         row["new_obs"], row["dones"], states_out,
-                        row["seq_lens"] if "seq_lens" in row else None,
+                        row["seq_lens"] if "seq_lens" in row else np.ones(len(row["obs"])),
                         row["weights"] if "weights" in row else None)
         self.num_added += batch.count
 

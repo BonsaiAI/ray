@@ -1,5 +1,6 @@
 from gym.spaces import Box, Discrete
 import logging
+import numpy as np
 
 import ray
 import ray.experimental.tf_utils
@@ -146,7 +147,7 @@ def sac_actor_critic_loss(policy, model, _, train_batch):
     while "state_out_{}".format(i) in train_batch:
         states_out.append(train_batch["state_out_{}".format(i)])
         i += 1
-    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else []
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else np.ones(len(train_batch[SampleBatch.CUR_OBS]))
 
     model_out_t, _ = model({
         "obs": train_batch[SampleBatch.CUR_OBS],

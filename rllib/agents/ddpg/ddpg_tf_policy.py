@@ -111,7 +111,7 @@ def get_distribution_inputs_and_class(policy,
                                       explore=True,
                                       is_training=False,
                                       **kwargs):
-    model_out, _ = model({
+    model_out, state_out = model({
         "obs": obs_batch,
         "is_training": is_training,
     }, state_batches, seq_lens)
@@ -119,7 +119,7 @@ def get_distribution_inputs_and_class(policy,
 
     return dist_inputs, (TorchDeterministic
                          if policy.config["framework"] == "torch" else
-                         Deterministic), []  # []=state out
+                         Deterministic), state_out  # state out
 
 
 def ddpg_actor_critic_loss(policy, model, _, train_batch):
@@ -140,7 +140,7 @@ def ddpg_actor_critic_loss(policy, model, _, train_batch):
     while "state_out_{}".format(i) in train_batch:
         states_out.append(train_batch["state_out_{}".format(i)])
         i += 1
-    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else []
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else np.ones(len(train_batch[SampleBatch.CUR_OBS]))
 
     input_dict = {
         "obs": train_batch[SampleBatch.CUR_OBS],
@@ -151,9 +151,9 @@ def ddpg_actor_critic_loss(policy, model, _, train_batch):
         "is_training": True,
     }
 
-    model_out_t, _ = model(input_dict, states_in, seq_lens)
-    model_out_tp1, _ = model(input_dict_next, states_out, seq_lens)
-    target_model_out_tp1, _ = policy.target_model(input_dict_next, states_out, seq_lens)
+    model_out_t, states_out_t = model(input_dict, states_in, seq_lens)
+    model_out_tp1, states_out_tp1 = model(input_dict_next, states_out, seq_lens)
+    target_model_out_tp1, target_states_out_tp1 = policy.target_model(input_dict_next, states_out, seq_lens)
 
     # Policy network evaluation.
     with tf.variable_scope(POLICY_SCOPE, reuse=True):

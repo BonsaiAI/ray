@@ -1,4 +1,5 @@
 import logging
+import numpy as np
 
 import ray
 from ray.rllib.agents.ddpg.ddpg_tf_policy import build_ddpg_models, \
@@ -45,7 +46,7 @@ def ddpg_actor_critic_loss(policy, model, _, train_batch):
     while "state_out_{}".format(i) in train_batch:
         states_out.append(train_batch["state_out_{}".format(i)])
         i += 1
-    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else []
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else np.ones(len(train_batch[SampleBatch.CUR_OBS]))
 
     input_dict = {
         "obs": train_batch[SampleBatch.CUR_OBS],
@@ -56,9 +57,9 @@ def ddpg_actor_critic_loss(policy, model, _, train_batch):
         "is_training": True,
     }
 
-    model_out_t, _ = model(input_dict, states_in, seq_lens)
-    model_out_tp1, _ = model(input_dict_next, states_out, seq_lens)
-    target_model_out_tp1, _ = policy.target_model(input_dict_next, states_out, seq_lens)
+    model_out_t, states_out_t = model(input_dict, states_in, seq_lens)
+    model_out_tp1, states_out_tp1 = model(input_dict_next, states_out, seq_lens)
+    target_model_out_tp1, target_states_out_tp1 = policy.target_model(input_dict_next, states_out, seq_lens)
 
     # Policy network evaluation.
     # prev_update_ops = set(tf.get_collection(tf.GraphKeys.UPDATE_OPS))

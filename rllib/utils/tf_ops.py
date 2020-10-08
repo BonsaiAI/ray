@@ -98,7 +98,8 @@ def make_tf_callable(session_or_none, dynamic_shape=False):
                                 shape=shape,
                                 name="karg_{}".format(k))
                         symbolic_out[0] = fn(*args_placeholders, **kwargs_placeholders)
-                feed_dict = dict(zip(args_placeholders, args))
+                feed_dict = dict(list(zip(args_placeholders, args)) +
+                                 [(p, kwargs[k]) for k, p in kwargs_placeholders.items()])
                 ret = session_or_none.run(symbolic_out[0], feed_dict)
                 return ret
 

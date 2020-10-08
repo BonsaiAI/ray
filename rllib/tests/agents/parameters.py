@@ -1,8 +1,9 @@
 """Contains the pytest params used in `test_agents` tests."""
 from itertools import chain
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 
 import attr
+import gym
 import pytest
 
 from ray.rllib.agents.trainer_factory import (
@@ -11,6 +12,7 @@ from ray.rllib.agents.trainer_factory import (
     ContinuousActionSpaceAlgorithm,
     Framework,
 )
+from ray.rllib.examples.env.stateless_cartpole import StatelessCartPole
 
 
 @attr.s(auto_attribs=True)
@@ -27,7 +29,7 @@ class TestAgentParams:
         cls,
         algorithm: Algorithm,
         config_updates: dict,
-        env: str,
+        env: Union[str, gym.Env],
         frameworks: Optional[List[Framework]] = None,
         n_iter=2,
         threshold=1.0,
@@ -59,6 +61,24 @@ class TestAgentParams:
             algorithm=algorithm,
             config_updates=config_updates,
             env="CartPole-v1",
+            frameworks=frameworks,
+            n_iter=n_iter,
+            threshold=threshold,
+        )
+
+    @classmethod
+    def for_stateless_cart_pole(
+        cls,
+        algorithm: Algorithm,
+        config_updates: dict,
+        frameworks: Optional[List[Framework]] = None,
+        n_iter=2,
+        threshold=1.0,
+    ) -> List["TestAgentParams"]:
+        return cls.for_frameworks(
+            algorithm=algorithm,
+            config_updates=config_updates,
+            env=StatelessCartPole,
             frameworks=frameworks,
             n_iter=n_iter,
             threshold=threshold,
@@ -333,6 +353,46 @@ test_monotonic_convergence_params: List[
             },
             n_iter=200,
             threshold=-750.0,
+        ),
+    )
+]
+
+
+test_rnn_monotonic_convergence_params: List[
+    Tuple[Algorithm, dict, str, Framework, int, float]
+] = [
+    x.astuple()
+    for x in chain(
+        # TestAgentParams.for_pendulum(
+        #     algorithm=ContinuousActionSpaceAlgorithm.APEX_DDPG,
+        #     config_updates={
+        #         "use_huber": True,
+        #         "clip_rewards": False,
+        #         "num_workers": 4,
+        #         "n_step": 1,
+        #         "target_network_update_freq": 50000,
+        #         "tau": 1.0,
+        #     },
+        #     n_iter=200,
+        #     threshold=-750.0,
+        # ),
+        TestAgentParams.for_stateless_cart_pole(
+        # TestAgentParams.for_cart_pole(
+            algorithm=DiscreteActionSpaceAlgorithm.APEX_DQN,
+            config_updates={
+                "target_network_update_freq": 20000,
+                "num_workers": 1,
+                "num_envs_per_worker": 8,
+                "train_batch_size": 64,
+                "gamma": 0.95,
+                "model": {
+                    "use_lstm": True,
+                    "lstm_use_prev_action_reward": True,
+                },
+            },
+            n_iter=200,
+            threshold=150.0,
+            frameworks=[Framework.TensorFlow]
         ),
     )
 ]

@@ -200,11 +200,12 @@ def get_distribution_inputs_and_class(policy,
                                       explore=True,
                                       **kwargs):
     q_vals = compute_q_values(policy, model, obs_batch, state_batches, seq_lens, explore)
+    state_out = q_vals[3] if isinstance(q_vals, tuple) else []
     q_vals = q_vals[0] if isinstance(q_vals, tuple) else q_vals
 
     policy.q_values = q_vals
     policy.q_func_vars = model.variables()
-    return policy.q_values, Categorical, []  # state-out
+    return policy.q_values, Categorical, state_out  # state-out
 
 
 def build_q_losses(policy, model, _, train_batch):
@@ -218,10 +219,10 @@ def build_q_losses(policy, model, _, train_batch):
     while "state_out_{}".format(i) in train_batch:
         states_out.append(train_batch["state_out_{}".format(i)])
         i += 1
-    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else np.array([])
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else np.ones(len(train_batch[SampleBatch.CUR_OBS]))
     config = policy.config
     # q network evaluation
-    q_t, q_logits_t, q_dist_t = compute_q_values(
+    q_t, q_logits_t, q_dist_t, q_state_t = compute_q_values(
         policy,
         policy.q_model,
         train_batch[SampleBatch.CUR_OBS],
@@ -230,7 +231,7 @@ def build_q_losses(policy, model, _, train_batch):
         explore=False)
 
     # target q network evalution
-    q_tp1, q_logits_tp1, q_dist_tp1 = compute_q_values(
+    q_tp1, q_logits_tp1, q_dist_tp1, q_state_tp1 = compute_q_values(
         policy,
         policy.target_q_model,
         train_batch[SampleBatch.NEXT_OBS],
@@ -250,7 +251,7 @@ def build_q_losses(policy, model, _, train_batch):
     # compute estimate of best possible value starting from state at t + 1
     if config["double_q"]:
         q_tp1_using_online_net, q_logits_tp1_using_online_net, \
-            q_dist_tp1_using_online_net = compute_q_values(
+            q_dist_tp1_using_online_net, q_state_tp1_using_online_net = compute_q_values(
                 policy, policy.q_model,
                 train_batch[SampleBatch.NEXT_OBS],
                 states_out,
@@ -357,7 +358,7 @@ def compute_q_values(policy, model, obs, states, seq_lens, explore):
     else:
         value = action_scores
 
-    return value, logits, dist
+    return value, logits, dist, state
 
 
 def _adjust_nstep(n_step, gamma, obs, states_in, actions, rewards, new_obs, dones,
@@ -384,8 +385,10 @@ def _adjust_nstep(n_step, gamma, obs, states_in, actions, rewards, new_obs, done
                 new_obs[i] = new_obs[i + j]
                 dones[i] = dones[i + j]
                 rewards[i] += gamma**j * rewards[i + j]
-                if states_out:
+                if len(states_out) >= (i + j + 1):
                     states_out[i] = states_out[i + j]
+                elif len(states_out) >= (i + 1):
+                    states_out[i] = states_out[-1]
 
 
 def postprocess_nstep_and_prio(policy, batch, other_agent=None, episode=None):
@@ -406,7 +409,7 @@ def postprocess_nstep_and_prio(policy, batch, other_agent=None, episode=None):
         state_in_out_and_seq_lens[key] = batch[key]
         i += 1
         key = "state_out_{}".format(i)
-    seq_lens = batch["seq_lens"] if "seq_lens" in batch else np.array([])
+    seq_lens = batch["seq_lens"] if "seq_lens" in batch else np.ones(len(batch[SampleBatch.CUR_OBS]))
     state_in_out_and_seq_lens["seq_lens"] = seq_lens
     # N-step Q adjustments
     if policy.config["n_step"] > 1:

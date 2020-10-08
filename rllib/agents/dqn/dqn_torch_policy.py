@@ -1,4 +1,5 @@
 from gym.spaces import Discrete
+import numpy as np
 
 import ray
 from ray.rllib.agents.dqn.dqn_tf_policy import postprocess_nstep_and_prio, \
@@ -147,11 +148,11 @@ def get_distribution_inputs_and_class(policy,
                                       explore=True,
                                       is_training=False,
                                       **kwargs):
-    q_vals = compute_q_values(policy, model, obs_batch, state_batches, seq_lens, explore, is_training)
+    q_vals, state_out = compute_q_values(policy, model, obs_batch, state_batches, seq_lens, explore, is_training)
     q_vals = q_vals[0] if isinstance(q_vals, tuple) else q_vals
 
     policy.q_values = q_vals
-    return policy.q_values, TorchCategorical, []  # state-out
+    return policy.q_values, TorchCategorical, state_out  # state-out
 
 
 def build_q_losses(policy, model, _, train_batch):
@@ -165,10 +166,10 @@ def build_q_losses(policy, model, _, train_batch):
     while "state_out_{}".format(i) in train_batch:
         states_out.append(train_batch["state_out_{}".format(i)])
         i += 1
-    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else []
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else np.ones(len(train_batch[SampleBatch.CUR_OBS]))
     config = policy.config
     # q network evaluation
-    q_t = compute_q_values(
+    q_t, q_state_t = compute_q_values(
         policy,
         policy.q_model,
         train_batch[SampleBatch.CUR_OBS],
@@ -178,7 +179,7 @@ def build_q_losses(policy, model, _, train_batch):
         is_training=True)
 
     # target q network evalution
-    q_tp1 = compute_q_values(
+    q_tp1, q_state_tp1 = compute_q_values(
         policy,
         policy.target_q_model,
         train_batch[SampleBatch.NEXT_OBS],
@@ -194,7 +195,7 @@ def build_q_losses(policy, model, _, train_batch):
 
     # compute estimate of best possible value starting from state at t + 1
     if config["double_q"]:
-        q_tp1_using_online_net = compute_q_values(
+        q_tp1_using_online_net, q_state_tp1_using_online_net = compute_q_values(
             policy,
             policy.q_model,
             train_batch[SampleBatch.NEXT_OBS],
@@ -264,7 +265,7 @@ def compute_q_values(policy, model, obs, states, seq_lens, explore, is_training=
     else:
         q_values = advantages_or_q_values
 
-    return q_values
+    return q_values, state
 
 
 def grad_process_and_td_error_fn(policy, optimizer, loss):

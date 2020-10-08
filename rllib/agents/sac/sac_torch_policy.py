@@ -1,5 +1,6 @@
 from gym.spaces import Discrete
 import logging
+import numpy as np
 
 import ray
 import ray.experimental.tf_utils
@@ -47,14 +48,14 @@ def action_distribution_fn(policy,
                            explore=None,
                            timestep=None,
                            is_training=None):
-    model_out, _ = model({
+    model_out, state_out = model({
         "obs": obs_batch,
         "is_training": is_training,
     }, state_batches, seq_lens)
     distribution_inputs = model.get_policy_output(model_out)
     action_dist_class = get_dist_class(policy.config, policy.action_space)
 
-    return distribution_inputs, action_dist_class, []
+    return distribution_inputs, action_dist_class, state_out
 
 
 def actor_critic_loss(policy, model, _, train_batch):
@@ -71,7 +72,7 @@ def actor_critic_loss(policy, model, _, train_batch):
     while "state_out_{}".format(i) in train_batch:
         states_out.append(train_batch["state_out_{}".format(i)])
         i += 1
-    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else []
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else np.ones(len(train_batch[SampleBatch.CUR_OBS]))
 
     model_out_t, _ = model({
         "obs": train_batch[SampleBatch.CUR_OBS],

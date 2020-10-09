@@ -219,7 +219,10 @@ def build_q_losses(policy, model, _, train_batch):
     while "state_out_{}".format(i) in train_batch:
         states_out.append(train_batch["state_out_{}".format(i)])
         i += 1
-    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else np.ones(len(train_batch[SampleBatch.CUR_OBS]))
+    batch_size = (train_batch[SampleBatch.CUR_OBS].shape[0]
+                  if isinstance(train_batch[SampleBatch.CUR_OBS], tf.Tensor)
+                  else len(train_batch[SampleBatch.CUR_OBS]))
+    seq_lens = train_batch["seq_lens"] if "seq_lens" in train_batch else np.ones(batch_size)
     config = policy.config
     # q network evaluation
     q_t, q_logits_t, q_dist_t, q_state_t = compute_q_values(

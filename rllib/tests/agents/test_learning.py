@@ -86,7 +86,7 @@ def test_monotonically_improving_algorithms_can_converge_with_different_framewor
 
     assert learnt, f"{episode_reward_mean} < {threshold}"
 
-@pytest.mark.skip("WIP")
+
 @pytest.mark.minutes
 @pytest.mark.usefixtures("ray_env")
 @pytest.mark.usefixtures("using_framework")

@@ -1,8 +1,10 @@
 # Ray Kubernetes Operator (experimental)
 
-This is a variation implementation of (Design 1B)[https://docs.google.com/document/d/1DPS-e34DkqQ4AeJpoBnSrUM8SnHnQVkiLlcmI4zWEWg/edit?ts=5f906e13#heading=h.825wx4vpnxmb] discussed with the Ray community 
+This is a variation implementation of [Design 1B](https://docs.google.com/document/d/1DPS-e34DkqQ4AeJpoBnSrUM8SnHnQVkiLlcmI4zWEWg/edit?ts=5f906e13#heading=h.825wx4vpnxmb) discussed with the Ray community
 
-NOTE: The operator is still under active development and not yet recommended for production deployments. Please see [the documentation](https://docs.ray.io/en/latest/deploy-on-kubernetes.html#deploying-on-kubernetes) for current best practices.
+![overview](media/overview.png)
+
+NOTE: The documentation is still in progress and incomplete. The operator is still under active development. Please see [the documentation](https://docs.ray.io/en/latest/deploy-on-kubernetes.html#deploying-on-kubernetes) for current best practices.
 
 This directory contains the source code for a Ray operator for Kubernetes.
 

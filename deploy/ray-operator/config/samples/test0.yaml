@@ -1,0 +1,55 @@
+apiVersion: ray.io/v1alpha1
+kind: RayCluster
+metadata:
+  labels:
+    controller-tools.k8s.io: "1.0"
+    # An unique identifier for the head node and workers of this cluster.
+  name: raycluster-test
+spec:
+  rayVersion: '0.8.6'
+  ######################headService#################################
+  # head service {namespace}.svc , follows Kubernetes standard
+  headService: 
+    metadata:
+      name: "ray-operator.svc"
+    spec:
+      selector:
+        raycluster.group.name: headgroup
+      ports:
+        - protocol: TCP
+          port: 80
+          targetPort: 6379
+  ######################headGroupSpecs#################################
+  # head group template and specs, (perhaps 'group' is not needed in the name)
+  headGroupSpec:
+    # the pod replicas in this group typed head (assuming there could be more than 1 in the future)
+    replicas: 1
+    # logical group name, for this called head-group, also can be functional
+    # pod type head or worker
+    # rayNodeType: head # Not needed since it is under the headgroup
+    # the following params are used to complete the ray start: ray start --head --block --redis-port=6379 ...
+    rayStartParams:
+      redis-port: '6379'
+      object-manager-port: '12345'
+      node-manager-port: '12346'
+      object-store-memory: '100000000'
+      num-cpus: '1' # can be auto-completed from the limits
+      node-ip-address: $MY_POD_IP # auto-completed as the head pod IP
+    #pod template
+    template:
+      metadata:
+        labels:
+          # custom labels. NOTE: do not define custom labels start with `raycluster.`, they may be used in controller.
+          # Refer to https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/
+          rayCluster: raycluster-sample # will be injected if missing
+          rayNodeType: headNode # will be injected if missing
+          groupName: headgroup # will be injected if missing
+        # annotations for pod
+        annotations:
+          key: value
+      spec:
+        containers:
+        - name: ray-head
+          image: rayproject/autoscaler
+          ports:
+          - containerPort: 6379

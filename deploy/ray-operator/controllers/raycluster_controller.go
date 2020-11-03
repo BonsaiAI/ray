@@ -3,19 +3,20 @@ package controllers
 import (
 	"context"
 	"fmt"
-	mapset "github.com/deckarep/golang-set"
-	"github.com/go-logr/logr"
-	_ "k8s.io/api/apps/v1beta1"
 	rayiov1alpha1 "ray-operator/api/v1alpha1"
 	"ray-operator/controllers/common"
 	_ "ray-operator/controllers/common"
 	"ray-operator/controllers/utils"
 	"strings"
 
+	mapset "github.com/deckarep/golang-set"
+	"github.com/go-logr/logr"
+	_ "k8s.io/api/apps/v1beta1"
+
 	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -53,6 +54,7 @@ type RayClusterReconciler struct {
 // +kubebuilder:rbac:groups=core,resources=pods/status,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=core,resources=services,verbs=get;list;watch;create;update;patch;delete
 
+// Reconcile used to bridge the desired state with the current state
 func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.Result, error) {
 	_ = r.Log.WithValues("raycluster", request.NamespacedName)
 	log.Info("Reconciling RayCluster", "cluster name", request.Name)
@@ -78,7 +80,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 	log.Info("Print instance - ", "Instance.ToString", instance)
 
 	// Build pods for instance
-	expectedPods := r.buildPods(instance)
+	expectedPods := r.buildHeadPods(instance)
 
 	expectedPodNameList := mapset.NewSet()
 	expectedPodMap := make(map[string]corev1.Pod)
@@ -127,11 +129,11 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 			svcConf := common.DefaultServiceConfig(*instance, podName)
 			rayPodSvc := common.ServiceForPod(svcConf)
 			blockOwnerDeletion := true
-			ownerReference :=  metav1.OwnerReference{
-				APIVersion: instance.APIVersion,
-				Kind: instance.Kind,
-				Name: instance.Name,
-				UID: instance.UID,
+			ownerReference := metav1.OwnerReference{
+				APIVersion:         instance.APIVersion,
+				Kind:               instance.Kind,
+				Name:               instance.Name,
+				UID:                instance.UID,
 				BlockOwnerDeletion: &blockOwnerDeletion,
 			}
 			rayPodSvc.OwnerReferences = append(rayPodSvc.OwnerReferences, ownerReference)
@@ -143,7 +145,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 					return reconcile.Result{}, errSvc
 				}
 			} else {
-				log.Info("Pod Service create anew successfully", "podName", rayPodSvc.Name)
+				log.Info("Pod Service created successfully", "service name", rayPodSvc.Name)
 			}
 		}
 	}
@@ -151,9 +153,16 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 	// Check if each pod exists and if not, create it.
 	for i, replica := range replicas {
 		if !utils.IsCreated(&replica) {
+			log.Info("Creating pod", "podName", replica)
+
 			log.Info("Creating pod", "index", i, "create pod", replica.Name)
 			if err := r.Create(context.TODO(), &replica); err != nil {
-				return reconcile.Result{}, err
+				if errors.IsAlreadyExists(err) {
+					log.Info("Creating pod", "Pod already exists", replica.Name)
+				} else {
+					return reconcile.Result{}, err
+				}
+
 			}
 		}
 	}
@@ -182,27 +191,40 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 	return reconcile.Result{}, nil
 }
 
-// Build cluster instance pods.
-func (r *RayClusterReconciler) buildPods(instance *rayiov1alpha1.RayCluster) []corev1.Pod {
+// Build head instance pod(s).
+func (r *RayClusterReconciler) buildHeadPods(instance *rayiov1alpha1.RayCluster) []corev1.Pod {
 	var pods []corev1.Pod
-	if instance.Spec.Extensions != nil && len(instance.Spec.Extensions) > 0 {
-		for _, extension := range instance.Spec.Extensions {
-			var i int32 = 0
-			for i = 0; i < *extension.Replicas; i++ {
-				podType := fmt.Sprintf("%v", extension.Type)
-				podName := instance.Name + common.DashSymbol + extension.GroupName + common.DashSymbol + podType + common.DashSymbol + utils.FormatInt32(i)
-				podConf := common.DefaultPodConfig(instance, podType, podName)
-				podConf.Extension = extension
-				pod := common.BuildPod(podConf)
-				// Set raycluster instance as the owner and controller
-				if err := controllerutil.SetControllerReference(instance, pod, r.Scheme); err != nil {
-					log.Error(err, "Failed to set controller reference for raycluster pod")
-				}
-				pods = append(pods, *pod)
-			}
+
+	for i := int32(0); i < *instance.Spec.HeadGroupSpec.Replicas; i++ {
+		podType := fmt.Sprintf("%v", "head")
+		podName := strings.ToLower(instance.Name + common.DashSymbol + "headGroup" + common.DashSymbol + utils.FormatInt32(i))
+		podConf := common.DefaultHeadPodConfig(instance, podType, podName)
+		pod := common.BuildPod(podConf, rayiov1alpha1.HeadNode, instance.Spec.HeadGroupSpec.RayStartParams)
+		// Set raycluster instance as the owner and controller
+		if err := controllerutil.SetControllerReference(instance, pod, r.Scheme); err != nil {
+			log.Error(err, "Failed to set controller reference for raycluster pod")
 		}
-	} else {
-		log.Info("RayCluster extensions are nil or empty")
+		pods = append(pods, *pod)
+	}
+
+	return pods
+}
+
+// Build worker instance pods.
+func (r *RayClusterReconciler) buildWorkerPods(instance *rayiov1alpha1.RayCluster) []corev1.Pod {
+	var pods []corev1.Pod
+	for _, worker := range instance.Spec.WorkerGroupsSpec {
+		for i := int32(0); i < *worker.Replicas; i++ {
+			podType := fmt.Sprintf("%v", "worker")
+			podName := instance.Name + common.DashSymbol + podType + common.DashSymbol + worker.GroupName + common.DashSymbol + utils.FormatInt32(i)
+			podConf := common.DefaultWorkerPodConfig(instance, &worker, podType, podName)
+			pod := common.BuildPod(podConf, rayiov1alpha1.WorkerNode, worker.RayStartParams)
+			// Set raycluster instance as the owner and controller
+			if err := controllerutil.SetControllerReference(instance, pod, r.Scheme); err != nil {
+				log.Error(err, "Failed to set controller reference for raycluster pod")
+			}
+			pods = append(pods, *pod)
+		}
 	}
 
 	return pods

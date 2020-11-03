@@ -153,7 +153,6 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 	// Check if each pod exists and if not, create it.
 	for i, replica := range replicas {
 		if !utils.IsCreated(&replica) {
-			log.Info("Creating pod", "podName", replica)
 
 			log.Info("Creating pod", "index", i, "create pod", replica.Name)
 			if err := r.Create(context.TODO(), &replica); err != nil {

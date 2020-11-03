@@ -29,10 +29,11 @@ spec:
     # rayNodeType: head # Not needed since it is under the headgroup
     # the following params are used to complete the ray start: ray start --head --block --redis-port=6379 ...
     rayStartParams:
-      redis-port: '6379'
+      port: '6379'
       object-manager-port: '12345'
       node-manager-port: '12346'
       object-store-memory: '100000000'
+      redis-password: 'LetMeInRay'
       num-cpus: '1' # can be auto-completed from the limits
       node-ip-address: $MY_POD_IP # auto-completed as the head pod IP
     #pod template
@@ -51,5 +52,10 @@ spec:
         containers:
         - name: ray-head
           image: rayproject/autoscaler
+          # you can have any command and args here to run your code. 
+          # the below command/args will be appended after the Ray start command and it args, and executed after Ray start.
+          command: ["sleep"]
+          args:
+          - '100000'
           ports:
           - containerPort: 6379

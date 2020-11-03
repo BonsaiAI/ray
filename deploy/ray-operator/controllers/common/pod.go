@@ -6,6 +6,8 @@ import (
 	rayiov1alpha1 "ray-operator/api/v1alpha1"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/types"
+
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
 
 	v1 "k8s.io/api/core/v1"
@@ -102,8 +104,36 @@ func BuildPod(conf *PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartPa
 	index := getRayContainerIndex(pod)
 	cont := concatinateContainerCommand(rayNodeType, rayStartParams)
 	// using a single line command in the container
-	pod.Spec.Containers[index].Command[0] = fmt.Sprintf("%s;%s", cont, convertCmdToString(pod.Spec.Containers[index].Command))
+	// i want args to be ulimit + ray start + oldCOmmnand
+	// i want command to be bash -c
 
+	//saving temporarly the old command and args
+	var cmd, args string
+	if len(pod.Spec.Containers[index].Command) > 0 {
+		cmd = convertCmdToString(pod.Spec.Containers[index].Command)
+	}
+	if len(pod.Spec.Containers[index].Args) > 0 {
+		cmd += convertCmdToString(pod.Spec.Containers[index].Args)
+	}
+	// replacing the old command
+	pod.Spec.Containers[index].Command = []string{"/bin/bash", "-c", "--"}
+	if cmd != "" {
+		args = fmt.Sprintf("%s;%s", cont, cmd)
+	} else {
+		args = fmt.Sprintf("%s", cont)
+	}
+
+	pod.Spec.Containers[index].Args = []string{args}
+	/*
+		if pod.Spec.Containers[index].Args == nil || len(pod.Spec.Containers[index].Args) == 0 {
+			pod.Spec.Containers[index].Command = []string{""}
+			pod.Spec.Containers[index].Command[0] = fmt.Sprintf("%s", cont)
+		} else {
+			Args := fmt.Sprintf("%s;%s", cont, convertCmdToString(pod.Spec.Containers[index].Command))
+			pod.Spec.Containers[index].Command[0] = fmt.Sprintf("%s;%s", cont, convertCmdToString(pod.Spec.Containers[index].Command))
+
+		}
+	*/
 	return pod
 }
 
@@ -149,17 +179,71 @@ func labelPod(rayNodeType string, rayClusterName string, groupName string, label
 }
 
 //TODO set container extra env vars, such as head service IP and port
-func setContainerEnvVars() {}
+func setContainerEnvVars(container *v1.Container, head bool, svcName types.NamespacedName, rayStartParams map[string]string) {
+	// set IP to local host if head, or the the svc otherwise  RAY_IP
+	// set the port RAY_PORT
+	// set the password?
+	if container.Env == nil || len(container.Env) == 0 {
+		container.Env = []v1.EnvVar{}
+	}
+	if !envVarExists("RAY_IP", container.Env) {
+		ip := v1.EnvVar{Name: "RAY_IP"}
+		if head {
+			// if head, use localhost
+			ip.Value = "127.0.0.1"
+		} else {
+			// if worker, use the service name of the head
+			ip.Value = fmt.Sprintf("%s.%s", svcName.Namespace, svcName.Name)
+		}
+		container.Env = append(container.Env, ip)
+	}
+	if !envVarExists("RAY_PORT", container.Env) {
+		port := v1.EnvVar{Name: "RAY_PORT"}
+		if value, ok := rayStartParams["port"]; !ok {
+			// using default port
+			port.Value = "6379"
+		} else {
+			// setting the RAY_PORT env var from the params
+			port.Value = value
+		}
+		container.Env = append(container.Env, port)
+	}
+	if !envVarExists("REDIS_PASSWORD", container.Env) {
+		// setting the REDIS_PASSWORD env var from the params
+		port := v1.EnvVar{Name: "REDIS_PASSWORD"}
+		if value, ok := rayStartParams["redis-password"]; ok {
+			port.Value = value
+		}
+		container.Env = append(container.Env, port)
+	}
+
+}
+
+func envVarExists(envName string, envVars []v1.EnvVar) bool {
+	for _, env := range envVars {
+		if env.Name == envName {
+			return true
+		}
+
+	}
+	return false
+
+}
+
+//TODO auto complete params
+func setMissingRayStartParams() {
+	// set the # of CPU
+}
 
 //TODO concatinateContainerCommand with ray start
 func concatinateContainerCommand(nodeType rayiov1alpha1.RayNodeType, rayStartParams map[string]string) (fullCmd string) {
 	switch nodeType {
 	case rayiov1alpha1.HeadNode:
-		return fmt.Sprintf("ulimit -n 65536; ray start --head %s;", convertParamMap(rayStartParams))
+		return fmt.Sprintf("ulimit -n 65536; ray start --head %s", convertParamMap(rayStartParams))
 	case rayiov1alpha1.WorkerNode:
-		fmt.Println("worker")
+		return fmt.Sprintf("ulimit -n 65536; ray start --block %s", convertParamMap(rayStartParams))
 	default:
-		fmt.Println("no good!")
+		log.Error(fmt.Errorf("missing node type"), "a node must be either head or worker")
 	}
 	return ""
 }
@@ -173,8 +257,6 @@ func convertParamMap(rayStartParams map[string]string) (s string) {
 }
 
 /*
-# Command to start ray on the head node. You don't need to change this.
-# Note webui-host is set to 0.0.0.0 so that kubernetes can port forward.
 head_start_ray_commands:
     - ray stop
     - ulimit -n 65536; ray start --head --num-cpus=$MY_CPU_REQUEST --port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host 0.0.0.0

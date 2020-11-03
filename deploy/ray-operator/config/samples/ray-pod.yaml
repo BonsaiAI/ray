@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ray-head
+  labels:
+    name: ray
+spec:
+  containers:
+  - name: ray-head
+    image: rayproject/autoscaler
+    command: ["/bin/bash", "-c", "--"]
+    args: ["ray start --head --block --port=6379 --node-ip-address=localhost --object-manager-port=12345 --node-manager-port=12346 --object-store-memory=100000000 --num-cpus=1"]
+    ports:
+    - containerPort: 6379

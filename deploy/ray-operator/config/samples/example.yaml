@@ -109,7 +109,7 @@ spec:
       rayNodeType: worker
       # the following params are used to complete the ray start: ray start --block --node-ip-address= ...
       rayWorkerStartParams:
-        address: $CLUSTER_NAME-head:6379 # can be auto-completed
+        #address: $RAY_IP:6379 # can be auto-completed
         object-manager-port: 12345
         node-manager-port: 12346
         object-store-memory: 100000000

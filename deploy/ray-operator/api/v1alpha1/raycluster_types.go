@@ -17,7 +17,7 @@ type RayClusterSpec struct {
 	// HeadGroupSpecs are the spec for the head pod
 	HeadGroupSpec HeadGroupSpec `json:"headGroupSpec"`
 	// WorkerGroupSpecs are the specs for the worker pods
-	WorkerGroupsSpec []WorkerGroupSpec `json:"workerGroupSpec,omitempty"`
+	WorkerGroupsSpec []WorkerGroupSpec `json:"workerGroupsSpec,omitempty"`
 	// RayVersion is the version of ray being used. this affects the command used to start ray
 	RayVersion string `json:"rayVersion,omitempty"`
 }

@@ -4655,7 +4655,7 @@ spec:
               description: RayVersion is the version of ray being used. this affects
                 the command used to start ray
               type: string
-            workerGroupSpec:
+            workerGroupsSpec:
               description: WorkerGroupSpecs are the specs for the worker pods
               items:
                 description: WorkerGroupSpec are the specs for the worker pods

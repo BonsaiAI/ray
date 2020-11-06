@@ -20,6 +20,7 @@ const (
 	defaultServiceAccountName = "default"
 )
 
+// PodConfig contains pod config
 type PodConfig struct {
 	RayCluster  *rayiov1alpha1.RayCluster
 	PodTypeName string
@@ -50,12 +51,14 @@ func DefaultHeadPodConfig(instance *rayiov1alpha1.RayCluster, podTypeName string
 	if pConfig.podTemplate.Labels == nil {
 		pConfig.podTemplate.Labels = make(map[string]string)
 	}
-	pConfig.podTemplate.Labels = labelPod("head", instance.Name, "headGroup", instance.Spec.HeadGroupSpec.Template.ObjectMeta.Labels)
+	pConfig.podTemplate.Labels = labelPod(string(rayiov1alpha1.HeadNode), instance.Name, "headGroup", instance.Spec.HeadGroupSpec.Template.ObjectMeta.Labels)
 
 	if pConfig.podTemplate.ObjectMeta.Namespace == "" {
 		pConfig.podTemplate.ObjectMeta.Namespace = instance.Namespace
 		log.Info("Setting pod namespaces", "namespace", instance.Namespace)
 	}
+
+	instance.Spec.HeadGroupSpec.RayStartParams = setMissingRayStartParams(instance.Spec.HeadGroupSpec.RayStartParams, rayiov1alpha1.HeadNode, types.NamespacedName{Name: instance.Spec.HeadService.Name, Namespace: instance.Spec.HeadService.Namespace})
 
 	pConfig.podTemplate.Name = podName
 
@@ -78,12 +81,13 @@ func DefaultWorkerPodConfig(instance *rayiov1alpha1.RayCluster, workerSpec *rayi
 	if pConfig.podTemplate.Labels == nil {
 		pConfig.podTemplate.Labels = make(map[string]string)
 	}
-	pConfig.podTemplate.Labels = labelPod("worker", instance.Name, workerSpec.GroupName, workerSpec.Template.ObjectMeta.Labels)
+	pConfig.podTemplate.Labels = labelPod(string(rayiov1alpha1.WorkerNode), instance.Name, workerSpec.GroupName, workerSpec.Template.ObjectMeta.Labels)
 
 	if pConfig.podTemplate.ObjectMeta.Namespace == "" {
 		pConfig.podTemplate.ObjectMeta.Namespace = instance.Namespace
 		log.Info("Setting pod namespaces", "namespace", instance.Namespace)
 	}
+	workerSpec.RayStartParams = setMissingRayStartParams(workerSpec.RayStartParams, rayiov1alpha1.WorkerNode, types.NamespacedName{Name: instance.Spec.HeadService.Name, Namespace: instance.Spec.HeadService.Namespace})
 
 	pConfig.podTemplate.Name = podName
 
@@ -91,7 +95,7 @@ func DefaultWorkerPodConfig(instance *rayiov1alpha1.RayCluster, workerSpec *rayi
 }
 
 // BuildPod a pod config
-func BuildPod(conf *PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartParams map[string]string) *v1.Pod {
+func BuildPod(conf *PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartParams map[string]string, svcName types.NamespacedName) *v1.Pod {
 
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -103,9 +107,6 @@ func BuildPod(conf *PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartPa
 	}
 	index := getRayContainerIndex(pod)
 	cont := concatinateContainerCommand(rayNodeType, rayStartParams)
-	// using a single line command in the container
-	// i want args to be ulimit + ray start + oldCOmmnand
-	// i want command to be bash -c
 
 	//saving temporarly the old command and args
 	var cmd, args string
@@ -115,25 +116,21 @@ func BuildPod(conf *PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartPa
 	if len(pod.Spec.Containers[index].Args) > 0 {
 		cmd += convertCmdToString(pod.Spec.Containers[index].Args)
 	}
-	// replacing the old command
-	pod.Spec.Containers[index].Command = []string{"/bin/bash", "-c", "--"}
-	if cmd != "" {
-		args = fmt.Sprintf("%s;%s", cont, cmd)
-	} else {
-		args = fmt.Sprintf("%s", cont)
+	if !strings.Contains(cmd, "ray start") {
+		// replacing the old command
+		pod.Spec.Containers[index].Command = []string{"/bin/bash", "-c", "--"}
+		if cmd != "" {
+			// sleep infinity is used to keep the pod `running` after the last command exits, and not go into `completed` state
+			args = fmt.Sprintf("%s; %s && %s", cont, cmd, "sleep infinity")
+		} else {
+			args = fmt.Sprintf("%s && %s", cont, "sleep infinity")
+		}
+
+		pod.Spec.Containers[index].Args = []string{args}
 	}
 
-	pod.Spec.Containers[index].Args = []string{args}
-	/*
-		if pod.Spec.Containers[index].Args == nil || len(pod.Spec.Containers[index].Args) == 0 {
-			pod.Spec.Containers[index].Command = []string{""}
-			pod.Spec.Containers[index].Command[0] = fmt.Sprintf("%s", cont)
-		} else {
-			Args := fmt.Sprintf("%s;%s", cont, convertCmdToString(pod.Spec.Containers[index].Command))
-			pod.Spec.Containers[index].Command[0] = fmt.Sprintf("%s;%s", cont, convertCmdToString(pod.Spec.Containers[index].Command))
+	setContainerEnvVars(&pod.Spec.Containers[index], rayNodeType, rayStartParams, svcName)
 
-		}
-	*/
 	return pod
 }
 
@@ -164,13 +161,21 @@ func getRayContainerIndex(pod *v1.Pod) (index int) {
 // The function labelsForCluster returns the labels for selecting the resources
 // belonging to the given RayCluster CR name.
 func labelPod(rayNodeType string, rayClusterName string, groupName string, labels map[string]string) (ret map[string]string) {
+
 	ret = map[string]string{
-		rayClusterName: rayClusterName,
-		rayNodeType:    rayNodeType,
-		groupName:      groupName,
+		"rayClusterName": rayClusterName,
+		"rayNodeType":    rayNodeType,
+		"groupName":      groupName,
+		"identifier":     fmt.Sprintf("%s-%s", rayClusterName, rayNodeType),
 	}
 
 	for k, v := range ret {
+		if k == rayNodeType {
+			// overriding invalide values for this label
+			if v != string(rayiov1alpha1.HeadNode) && v != string(rayiov1alpha1.WorkerNode) {
+				labels[k] = v
+			}
+		}
 		if _, ok := labels[k]; !ok {
 			labels[k] = v
 		}
@@ -179,7 +184,7 @@ func labelPod(rayNodeType string, rayClusterName string, groupName string, label
 }
 
 //TODO set container extra env vars, such as head service IP and port
-func setContainerEnvVars(container *v1.Container, head bool, svcName types.NamespacedName, rayStartParams map[string]string) {
+func setContainerEnvVars(container *v1.Container, rayNodeType rayiov1alpha1.RayNodeType, rayStartParams map[string]string, svcName types.NamespacedName) {
 	// set IP to local host if head, or the the svc otherwise  RAY_IP
 	// set the port RAY_PORT
 	// set the password?
@@ -188,7 +193,7 @@ func setContainerEnvVars(container *v1.Container, head bool, svcName types.Names
 	}
 	if !envVarExists("RAY_IP", container.Env) {
 		ip := v1.EnvVar{Name: "RAY_IP"}
-		if head {
+		if rayNodeType == rayiov1alpha1.HeadNode {
 			// if head, use localhost
 			ip.Value = "127.0.0.1"
 		} else {
@@ -231,8 +236,19 @@ func envVarExists(envName string, envVars []v1.EnvVar) bool {
 }
 
 //TODO auto complete params
-func setMissingRayStartParams() {
-	// set the # of CPU
+func setMissingRayStartParams(rayStartParams map[string]string, nodeType rayiov1alpha1.RayNodeType, svcName types.NamespacedName) (completeStartParams map[string]string) {
+	if nodeType == rayiov1alpha1.WorkerNode {
+		if _, ok := rayStartParams["address"]; !ok {
+			address := fmt.Sprintf("%s.%s", svcName.Name, svcName.Namespace)
+			if _, okPort := rayStartParams["port"]; !okPort {
+				address = fmt.Sprintf("%s:%s", address, "6379")
+			} else {
+				address = fmt.Sprintf("%s:%s", address, rayStartParams["port"])
+			}
+			rayStartParams["address"] = address
+		}
+	}
+	return rayStartParams
 }
 
 //TODO concatinateContainerCommand with ray start

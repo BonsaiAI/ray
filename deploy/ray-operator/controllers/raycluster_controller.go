@@ -8,6 +8,7 @@ import (
 	_ "ray-operator/controllers/common"
 	"ray-operator/controllers/utils"
 	"strings"
+	"time"
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/go-logr/logr"
@@ -18,6 +19,7 @@ import (
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -77,10 +79,22 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, nil
 	}
 
-	log.Info("Print instance - ", "Instance.ToString", instance)
+	if instance.Spec.HeadService.Namespace == "" {
+		if instance.Namespace != "" {
+			// the Custom resource namespace is assumed to be the same for all the pods and the head service.
+			instance.Spec.HeadService.Namespace = instance.Namespace
+		} else {
+			instance.Spec.HeadService.Namespace = "default"
+		}
+	}
+	svcName := types.NamespacedName{
+		Name:      instance.Spec.HeadService.Name,
+		Namespace: instance.Spec.HeadService.Namespace,
+	}
 
 	// Build pods for instance
-	expectedPods := r.buildHeadPods(instance)
+	expectedPods := r.buildHeadPods(instance, svcName)
+	expectedPods = append(expectedPods, r.buildWorkerPods(instance, svcName)...)
 
 	expectedPodNameList := mapset.NewSet()
 	expectedPodMap := make(map[string]corev1.Pod)
@@ -88,7 +102,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 	for _, pod := range expectedPods {
 		expectedPodNameList.Add(pod.Name)
 		expectedPodMap[pod.Name] = pod
-		if strings.EqualFold(pod.Labels[common.ClusterPodType], common.Head) {
+		if strings.EqualFold(pod.Labels["rayNodeType"], string(rayiov1alpha1.HeadNode)) {
 			needServicePodMap.Add(pod.Name)
 		}
 	}
@@ -124,28 +138,59 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 
 	// Create the head node service.
 	if needServicePodMap.Cardinality() > 0 {
-		for elem := range needServicePodMap.Iterator().C {
-			podName := elem.(string)
-			svcConf := common.DefaultServiceConfig(*instance, podName)
-			rayPodSvc := common.ServiceForPod(svcConf)
-			blockOwnerDeletion := true
-			ownerReference := metav1.OwnerReference{
-				APIVersion:         instance.APIVersion,
-				Kind:               instance.Kind,
-				Name:               instance.Name,
-				UID:                instance.UID,
-				BlockOwnerDeletion: &blockOwnerDeletion,
-			}
-			rayPodSvc.OwnerReferences = append(rayPodSvc.OwnerReferences, ownerReference)
-			if errSvc := r.Create(context.TODO(), rayPodSvc); errSvc != nil {
-				if errors.IsAlreadyExists(errSvc) {
-					log.Info("Pod service already exist,no need to create")
-				} else {
-					log.Error(errSvc, "Pod Service create error!", "Pod.Service.Error", errSvc)
-					return reconcile.Result{}, errSvc
-				}
+		//podName := elem.(string)
+		//svcConf := common.DefaultServiceConfig(*instance, podName)
+		rayPodSvc := &instance.Spec.HeadService
+		// Use a headless service, meaning that the DNS record for the service will
+		// point directly to the head node pod's IP address.
+		rayPodSvc.Spec.ClusterIP = corev1.ClusterIPNone
+
+		blockOwnerDeletion := true
+		ownerReference := metav1.OwnerReference{
+			APIVersion:         instance.APIVersion,
+			Kind:               instance.Kind,
+			Name:               instance.Name,
+			UID:                instance.UID,
+			BlockOwnerDeletion: &blockOwnerDeletion,
+		}
+		rayPodSvc.OwnerReferences = append(rayPodSvc.OwnerReferences, ownerReference)
+		if errSvc := r.Create(context.TODO(), rayPodSvc); errSvc != nil {
+			if errors.IsAlreadyExists(errSvc) {
+				log.Info("Pod service already exist,no need to create")
 			} else {
-				log.Info("Pod Service created successfully", "service name", rayPodSvc.Name)
+				log.Error(errSvc, "Pod Service create error!", "Pod.Service.Error", errSvc)
+				return reconcile.Result{}, errSvc
+			}
+		} else {
+			log.Info("Pod Service created successfully", "service name", rayPodSvc.Name)
+		}
+		count := 0
+		endPoint := &corev1.Endpoints{}
+		for {
+			if errEp := r.Get(context.TODO(), svcName, endPoint); errEp != nil {
+				if !errors.IsNotFound(errEp) {
+					log.Error(errEp, "getting endpoint error!", "Pod.Service..EndpointError", errEp)
+					break
+				} else {
+					if count < 2 {
+						log.Info("waiting for endpoint ...")
+						time.Sleep(2)
+						count++
+					} else {
+						break
+					}
+				}
+			}
+			if len(endPoint.Subsets) != 0 {
+				break
+			} else {
+				if count < 2 {
+					log.Info("waiting for endpoint ...")
+					time.Sleep(2)
+					count++
+				} else {
+					break
+				}
 			}
 		}
 	}
@@ -176,8 +221,8 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 					return reconcile.Result{}, err
 				}
 				if strings.EqualFold(runtimePod.Labels[common.ClusterPodType], common.Head) {
-					svcConf := common.DefaultServiceConfig(*instance, runtimePod.Name)
-					raySvcHead := common.ServiceForPod(svcConf)
+					//svcConf := common.DefaultServiceConfig(*instance, runtimePod.Name)
+					raySvcHead := &instance.Spec.HeadService
 					log.Info("delete head service", "headName", runtimePod.Name)
 					if err := r.Delete(context.TODO(), raySvcHead); err != nil {
 						return reconcile.Result{}, err
@@ -191,14 +236,14 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 }
 
 // Build head instance pod(s).
-func (r *RayClusterReconciler) buildHeadPods(instance *rayiov1alpha1.RayCluster) []corev1.Pod {
+func (r *RayClusterReconciler) buildHeadPods(instance *rayiov1alpha1.RayCluster, svcName types.NamespacedName) []corev1.Pod {
 	var pods []corev1.Pod
 
 	for i := int32(0); i < *instance.Spec.HeadGroupSpec.Replicas; i++ {
 		podType := fmt.Sprintf("%v", "head")
 		podName := strings.ToLower(instance.Name + common.DashSymbol + "headGroup" + common.DashSymbol + utils.FormatInt32(i))
 		podConf := common.DefaultHeadPodConfig(instance, podType, podName)
-		pod := common.BuildPod(podConf, rayiov1alpha1.HeadNode, instance.Spec.HeadGroupSpec.RayStartParams)
+		pod := common.BuildPod(podConf, rayiov1alpha1.HeadNode, instance.Spec.HeadGroupSpec.RayStartParams, svcName)
 		// Set raycluster instance as the owner and controller
 		if err := controllerutil.SetControllerReference(instance, pod, r.Scheme); err != nil {
 			log.Error(err, "Failed to set controller reference for raycluster pod")
@@ -210,14 +255,14 @@ func (r *RayClusterReconciler) buildHeadPods(instance *rayiov1alpha1.RayCluster)
 }
 
 // Build worker instance pods.
-func (r *RayClusterReconciler) buildWorkerPods(instance *rayiov1alpha1.RayCluster) []corev1.Pod {
+func (r *RayClusterReconciler) buildWorkerPods(instance *rayiov1alpha1.RayCluster, svcName types.NamespacedName) []corev1.Pod {
 	var pods []corev1.Pod
 	for _, worker := range instance.Spec.WorkerGroupsSpec {
 		for i := int32(0); i < *worker.Replicas; i++ {
 			podType := fmt.Sprintf("%v", "worker")
 			podName := instance.Name + common.DashSymbol + podType + common.DashSymbol + worker.GroupName + common.DashSymbol + utils.FormatInt32(i)
 			podConf := common.DefaultWorkerPodConfig(instance, &worker, podType, podName)
-			pod := common.BuildPod(podConf, rayiov1alpha1.WorkerNode, worker.RayStartParams)
+			pod := common.BuildPod(podConf, rayiov1alpha1.WorkerNode, worker.RayStartParams, svcName)
 			// Set raycluster instance as the owner and controller
 			if err := controllerutil.SetControllerReference(instance, pod, r.Scheme); err != nil {
 				log.Error(err, "Failed to set controller reference for raycluster pod")

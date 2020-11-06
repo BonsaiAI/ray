@@ -1,20 +1,45 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: ray-code
+data: 
+  code.py: |
+    import ray
+    from os import environ
+    redis_pass = environ.get("REDIS_PASSWORD") 
+    print("trying to connect to Ray!")
+    ray.init(address="auto", _redis_password=redis_pass)
+    print("now executing some code with Ray!")
+    import time
+    start = time.time()
+    @ray.remote
+    def f():
+      time.sleep(0.01)
+      return ray.services.get_node_ip_address()
+    print(set(ray.get([f.remote() for _ in range(100)])))
+    end = time.time()
+    print("Execution time = ",end - start)
+    while True:
+      print("now sleeping...")
+      time.sleep(100000)
+---
 apiVersion: ray.io/v1alpha1
 kind: RayCluster
 metadata:
   labels:
     controller-tools.k8s.io: "1.0"
     # An unique identifier for the head node and workers of this cluster.
-  name: raycluster-single-test
+  name: raycluster-test
 spec:
-  rayVersion: '0.8.6' # should match the Ray version in the image of the containers
+  rayVersion: '0.8.6'
   ######################headService#################################
   # head service {namespace}.svc , follows Kubernetes standard
   headService: 
     metadata:
-      name: "ray-operator-single-svc"
+      name: "ray-operator.svc"
     spec:
       selector:
-        identifier: raycluster-single-test-head # <clusterName>-<rayNodeType>
+        raycluster.group.name: headgroup
       ports:
         - protocol: TCP
           port: 80
@@ -29,7 +54,7 @@ spec:
     # rayNodeType: head # Not needed since it is under the headgroup
     # the following params are used to complete the ray start: ray start --head --block --redis-port=6379 ...
     rayStartParams:
-      port: '6379' # should match headService targetPort
+      port: '6379'
       object-manager-port: '12345'
       node-manager-port: '12346'
       object-store-memory: '100000000'
@@ -56,7 +81,7 @@ spec:
           # the below command/args will be appended after the Ray start command and it args, and executed after Ray start.
           command: ["python"]
           args:
-          - '/opt/code.py'
+          - '/var/code.py'
           env:
           - name: MY_POD_IP
             valueFrom:
@@ -65,44 +90,15 @@ spec:
           ports:
           - containerPort: 6379
           volumeMounts:
-          - mountPath: /opt
+          - mountPath: /var
             name: config
         volumes:
         # You set volumes at the Pod level, then mount them into containers inside that Pod
         - name: config
           configMap:
             # Provide the name of the ConfigMap you want to mount.
-            name: ray-code-single
+            name: ray-code
             # An array of keys from the ConfigMap to create as files
             items:
             - key: code.py
               path: code.py
-
-
-######################Ray code sample#################################
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ray-code-single
-data: 
-  code.py: |
-    import ray
-    from os import environ
-    redis_pass = environ.get("REDIS_PASSWORD") 
-    print("trying to connect to Ray!")
-    ray.init(address="auto", _redis_password=redis_pass)
-    print("now executing some code with Ray!")
-    import time
-    start = time.time()
-    @ray.remote
-    def f():
-      time.sleep(0.01)
-      return ray.services.get_node_ip_address()
-    values=set(ray.get([f.remote() for _ in range(1000)]))
-    print("Ray Nodes: ",str(values))
-    f = open("/var/ray_nodes.txt","a")
-    f.write("str(values)")
-    f.close()
-    end = time.time()
-    print("Execution time = ",end - start)

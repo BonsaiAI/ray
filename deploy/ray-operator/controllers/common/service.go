@@ -1,11 +1,10 @@
 package common
 
 import (
+	rayiov1alpha1 "ray-operator/api/v1alpha1"
+
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	rayiov1alpha1 "ray-operator/api/v1alpha1"
-	"ray-operator/controllers/utils"
-	"strings"
 )
 
 type ServiceConfig struct {
@@ -22,17 +21,12 @@ func DefaultServiceConfig(instance rayiov1alpha1.RayCluster, podName string) *Se
 
 // Build the service for a pod. Currently, there is only one service that allows
 // the worker nodes to connect to the head node.
-func ServiceForPod(conf *ServiceConfig) *corev1.Service {
-	name := conf.PodName
-	// Format the service name as "<cluster_name>-head."
-	if strings.Contains(conf.PodName, Head) {
-		name = utils.Before(conf.PodName, Head) + "head"
-	}
-
+func ServiceForPod(instance rayiov1alpha1.RayCluster, conf *ServiceConfig) *corev1.Service {
+	//TODO add prefix the Ray cluster name
 	svc := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      name,
-			Namespace: conf.RayCluster.Namespace,
+			Name:      instance.Spec.HeadService.Name,
+			Namespace: instance.Spec.HeadService.Namespace,
 		},
 		Spec: corev1.ServiceSpec{
 			Ports: []corev1.ServicePort{{Name: "redis", Port: int32(defaultRedisPort)}},

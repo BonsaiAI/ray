@@ -30,6 +30,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
 
+// K8sClient client used query K8s outside the RayClusterReconciler
+var K8sClient client.Client
 var log = logf.Log.WithName("RayCluster-Controller")
 
 // newReconciler returns a new reconcile.Reconciler
@@ -87,6 +89,9 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 			instance.Spec.HeadService.Namespace = "default"
 		}
 	}
+	// adding prefix of cluster-name
+	//TODO check the name format before changing it
+	instance.Spec.HeadService.Name = fmt.Sprintf("%s-%s", instance.Name, instance.Spec.HeadService.Name)
 	svcName := types.NamespacedName{
 		Name:      instance.Spec.HeadService.Name,
 		Namespace: instance.Spec.HeadService.Namespace,
@@ -126,13 +131,13 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 	// Record that the pod needs to be deleted.
 	difference := runtimePodNameList.Difference(expectedPodNameList)
 
-	// fill replicas with runtime if exists or expectedPod if not exists
-	var replicas []corev1.Pod
+	// fill requiredPods with runtime if exists or expectedPod if not exists
+	var requiredPods []corev1.Pod
 	for _, pod := range expectedPods {
 		if runtimePodNameList.Contains(pod.Name) {
-			replicas = append(replicas, runtimePodMap[pod.Name])
+			requiredPods = append(requiredPods, runtimePodMap[pod.Name])
 		} else {
-			replicas = append(replicas, pod)
+			requiredPods = append(requiredPods, pod)
 		}
 	}
 
@@ -169,7 +174,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 		for {
 			if errEp := r.Get(context.TODO(), svcName, endPoint); errEp != nil {
 				if !errors.IsNotFound(errEp) {
-					log.Error(errEp, "getting endpoint error!", "Pod.Service..EndpointError", errEp)
+					log.Error(errEp, "getting endpoint error!", "Endpoint Error", errEp)
 					break
 				} else {
 					if count < 2 {
@@ -196,9 +201,8 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 	}
 
 	// Check if each pod exists and if not, create it.
-	for i, replica := range replicas {
+	for i, replica := range requiredPods {
 		if !utils.IsCreated(&replica) {
-
 			log.Info("Creating pod", "index", i, "create pod", replica.Name)
 			if err := r.Create(context.TODO(), &replica); err != nil {
 				if errors.IsAlreadyExists(err) {
@@ -206,8 +210,42 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 				} else {
 					return reconcile.Result{}, err
 				}
-
 			}
+			//if this is a head, we want to wait until it is ready before creating the workers.
+			if value, ok := replica.Labels["rayNodeType"]; ok && value == string(rayiov1alpha1.HeadNode) {
+				podIdentifier := types.NamespacedName{
+					Name:      replica.Name,
+					Namespace: replica.Namespace,
+				}
+				count := 2
+				for {
+					if errPod := r.Get(context.TODO(), podIdentifier, &replica); errPod != nil {
+						if !errors.IsNotFound(errPod) {
+							log.Error(errPod, "getting pod error!", "podIdentifier", podIdentifier)
+							break
+						} else {
+							if count < 2 {
+								log.Info("waiting for pod ...")
+								time.Sleep(2)
+								count++
+							} else {
+								break
+							}
+						}
+					}
+					if replica.Status.Phase != corev1.PodRunning {
+						if count < 2 {
+							log.Info("waiting for head pod to be ready", "pod:", replica.Name)
+							time.Sleep(2)
+							count++
+						} else {
+							break
+						}
+					}
+				}
+				//end of wait logic
+			}
+
 		}
 	}
 
@@ -240,8 +278,8 @@ func (r *RayClusterReconciler) buildHeadPods(instance *rayiov1alpha1.RayCluster,
 	var pods []corev1.Pod
 
 	for i := int32(0); i < *instance.Spec.HeadGroupSpec.Replicas; i++ {
-		podType := fmt.Sprintf("%v", "head")
-		podName := strings.ToLower(instance.Name + common.DashSymbol + "headGroup" + common.DashSymbol + utils.FormatInt32(i))
+		podType := rayiov1alpha1.HeadNode
+		podName := strings.ToLower(instance.Name + common.DashSymbol + string(rayiov1alpha1.HeadNode) + common.DashSymbol + utils.FormatInt32(i))
 		podConf := common.DefaultHeadPodConfig(instance, podType, podName)
 		pod := common.BuildPod(podConf, rayiov1alpha1.HeadNode, instance.Spec.HeadGroupSpec.RayStartParams, svcName)
 		// Set raycluster instance as the owner and controller
@@ -259,8 +297,8 @@ func (r *RayClusterReconciler) buildWorkerPods(instance *rayiov1alpha1.RayCluste
 	var pods []corev1.Pod
 	for _, worker := range instance.Spec.WorkerGroupsSpec {
 		for i := int32(0); i < *worker.Replicas; i++ {
-			podType := fmt.Sprintf("%v", "worker")
-			podName := instance.Name + common.DashSymbol + podType + common.DashSymbol + worker.GroupName + common.DashSymbol + utils.FormatInt32(i)
+			podType := rayiov1alpha1.WorkerNode
+			podName := instance.Name + common.DashSymbol + string(podType) + common.DashSymbol + worker.GroupName + common.DashSymbol + utils.FormatInt32(i)
 			podConf := common.DefaultWorkerPodConfig(instance, &worker, podType, podName)
 			pod := common.BuildPod(podConf, rayiov1alpha1.WorkerNode, worker.RayStartParams, svcName)
 			// Set raycluster instance as the owner and controller
@@ -277,7 +315,7 @@ func (r *RayClusterReconciler) buildWorkerPods(instance *rayiov1alpha1.RayCluste
 // SetupWithManager builds the reconciler.
 func (r *RayClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&rayiov1alpha1.RayCluster{}).
+		For(&rayiov1alpha1.RayCluster{}).Named("ray-operator").
 		Watches(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
 			IsController: true,
 			OwnerType:    &rayiov1alpha1.RayCluster{},

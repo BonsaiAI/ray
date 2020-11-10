@@ -2,6 +2,7 @@ package common
 
 import (
 	rayiov1alpha1 "ray-operator/api/v1alpha1"
+	"strings"
 
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -41,4 +42,12 @@ func ServiceForPod(instance rayiov1alpha1.RayCluster, conf *ServiceConfig) *core
 	}
 
 	return svc
+}
+
+//TODO change this logic
+func checkSvcName(instanceName, svcName string) (name string) {
+	if strings.Contains(svcName, instanceName) {
+		return svcName
+	}
+	return svcName
 }

@@ -23,28 +23,28 @@ const (
 // PodConfig contains pod config
 type PodConfig struct {
 	RayCluster  *rayiov1alpha1.RayCluster
-	PodTypeName string
+	PodType     rayiov1alpha1.RayNodeType
 	PodName     string
 	podTemplate *v1.PodTemplateSpec
 }
 
 // DefaultPodConfig to be removed
-func DefaultPodConfig(instance *rayiov1alpha1.RayCluster, podTypeName string, podName string) *PodConfig {
+func DefaultPodConfig(instance *rayiov1alpha1.RayCluster, rayNodeType rayiov1alpha1.RayNodeType, podName string) *PodConfig {
 	return &PodConfig{
-		RayCluster:  instance,
-		PodTypeName: podTypeName,
-		PodName:     podName,
+		RayCluster: instance,
+		PodType:    rayNodeType,
+		PodName:    podName,
 	}
 }
 
 // DefaultHeadPodConfig sets the config values
-func DefaultHeadPodConfig(instance *rayiov1alpha1.RayCluster, podTypeName string, podName string) *PodConfig {
+func DefaultHeadPodConfig(instance *rayiov1alpha1.RayCluster, rayNodeType rayiov1alpha1.RayNodeType, podName string) *PodConfig {
 	podTemplate := &instance.Spec.HeadGroupSpec.Template
 	podTemplate.ObjectMeta = instance.Spec.HeadGroupSpec.Template.ObjectMeta
 	podTemplate.Spec = instance.Spec.HeadGroupSpec.Template.Spec
 	pConfig := &PodConfig{
 		RayCluster:  instance,
-		PodTypeName: podTypeName,
+		PodType:     rayNodeType,
 		PodName:     podName,
 		podTemplate: podTemplate,
 	}
@@ -68,13 +68,13 @@ func DefaultHeadPodConfig(instance *rayiov1alpha1.RayCluster, podTypeName string
 // todo verify the values here
 
 // DefaultWorkerPodConfig sets the config values
-func DefaultWorkerPodConfig(instance *rayiov1alpha1.RayCluster, workerSpec *rayiov1alpha1.WorkerGroupSpec, podTypeName string, podName string) *PodConfig {
+func DefaultWorkerPodConfig(instance *rayiov1alpha1.RayCluster, workerSpec *rayiov1alpha1.WorkerGroupSpec, rayNodeType rayiov1alpha1.RayNodeType, podName string) *PodConfig {
 	podTemplate := &workerSpec.Template
 	podTemplate.ObjectMeta = workerSpec.Template.ObjectMeta
 	podTemplate.Spec = workerSpec.Template.Spec
 	pConfig := &PodConfig{
 		RayCluster:  instance,
-		PodTypeName: podTypeName,
+		PodType:     rayNodeType,
 		PodName:     podName,
 		podTemplate: podTemplate,
 	}
@@ -271,15 +271,3 @@ func convertParamMap(rayStartParams map[string]string) (s string) {
 	}
 	return flags.String()
 }
-
-/*
-head_start_ray_commands:
-    - ray stop
-    - ulimit -n 65536; ray start --head --num-cpus=$MY_CPU_REQUEST --port=6379 --object-manager-port=8076 --autoscaling-config=~/ray_bootstrap_config.yaml --dashboard-host 0.0.0.0
-
-# Command to start ray on worker nodes. You don't need to change this.
-worker_start_ray_commands:
-    - ray stop
-    - ulimit -n 65536; ray start --num-cpus=$MY_CPU_REQUEST --address=$RAY_HEAD_IP:6379 --object-manager-port=8076
-
-*/

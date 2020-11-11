@@ -100,6 +100,9 @@ The instructions assume you have access to a running Kubernetes cluster via ``ku
 
 ### Running the unit tests
 
+sudo apt install golang-ginkgo-dev
+ginkgo .
+
 ```
 go build
 go test ./...

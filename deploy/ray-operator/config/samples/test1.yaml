@@ -8,6 +8,7 @@ data:
     print("Waiting 10s for worker nodes to join!")
     time.sleep(10) # allowing workers to register
     import ray
+    from ray import services
     from os import environ
     redis_pass = environ.get("REDIS_PASSWORD") 
     print("trying to connect to Ray!")
@@ -83,8 +84,10 @@ spec:
           # you can have any command and args here to run your code. 
           # the below command/args will be appended after the Ray start command and it args, and executed after Ray start.
           command: ["python"]
+          #command: ["echo"]
           args:
           - '/opt/code.py'
+          #- 'hello'
           env:
           - name: MY_POD_IP
             valueFrom:
@@ -109,7 +112,7 @@ spec:
   # worker group template and specs
   workerGroupsSpec:
     # the pod replicas in this group typed worker
-    - replicas: 2
+    - replicas: 1
       minReplicas: 1
       maxReplicas: 10
       # logical group name, for this called small-group, also can be functional
@@ -130,6 +133,7 @@ spec:
         #object-store-memory: '100000000'
         #num-cpus: '1' # can be auto-completed from the limits
         redis-password: 'LetMeInRay'
+        node-ip-address: $MY_POD_IP
       #pod template
       template:
         metadata:
@@ -166,6 +170,11 @@ spec:
             - containerPort: 80
             # use volumeMounts.Optional.
             # Refer to https://kubernetes.io/docs/concepts/storage/volumes/
+            startupProbe:
+              exec:
+                command: ["/bin/bash","-c","ray start --block  --redis_password=$REDIS_PASSWORD  --address=$RAY_IP:$RAY_PORT && ray stop"]
+              failureThreshold: 30
+              periodSeconds: 10
             volumeMounts:
               - mountPath: /var/log
                 name: log-volume

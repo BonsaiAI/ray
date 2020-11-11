@@ -1,10 +1,51 @@
 apiVersion: v1
+kind: Pod
+metadata:
+  name: ray-head
+  labels:
+    name: ray
+spec:
+  containers:
+  - name: ray-head
+    image: rayproject/autoscaler
+    command: ["/bin/bash", "-c", "--"]
+    args: ["ray start --head --block --port=6379 --redis-password=LetMeInRay --node-ip-address=$MY_POD_IP; python /opt/code.py"]
+    lifecycle:
+      postStart:
+        exec:
+          command: ["/bin/sh", "-c", "ray"] 
+    ports:
+    - containerPort: 6379
+    env:
+    - name: MY_POD_IP
+      valueFrom:
+        fieldRef:
+          fieldPath: status.podIP
+    - name: REDIS_PASSWORD
+      value: LetMeInRay
+    volumeMounts:
+          - mountPath: /opt/
+            name: config
+            readOnly: false
+  volumes:
+  # You set volumes at the Pod level, then mount them into containers inside that Pod
+  - name: config
+    configMap:
+      # Provide the name of the ConfigMap you want to mount.
+      name: ray-code-single
+      # An array of keys from the ConfigMap to create as files
+      items:
+      - key: code.py
+        path: code.py
+---
+apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: ray-code
+  name: ray-code-single
 data: 
   code.py: |
     import ray
+    from ray import services
     from os import environ
     redis_pass = environ.get("REDIS_PASSWORD") 
     print("trying to connect to Ray!")
@@ -22,39 +63,3 @@ data:
     while True:
       print("now sleeping...")
       time.sleep(100000)
----
-apiVersion: v1
-kind: Pod
-metadata:
-  name: ray-head
-  labels:
-    name: ray
-spec:
-  containers:
-  - name: ray-head
-    image: rayproject/autoscaler
-    command: ["/bin/bash", "-c", "--"]
-    args: ["ray start --head --block --port=6379 --redis-password=LetMeInRay --node-ip-address=$MY_POD_IP --object-manager-port=12345 --node-manager-port=12346 --object-store-memory=100000000 --num-cpus=1 ; echo 'inside Ray'"]
-    ports:
-    - containerPort: 6379
-    env:
-    - name: MY_POD_IP
-      valueFrom:
-        fieldRef:
-          fieldPath: status.podIP
-    - name: REDIS_PASSWORD
-      value: LetMeInRay
-    volumeMounts:
-          - mountPath: /var/tmp
-            name: config
-            readOnly: false
-  volumes:
-  # You set volumes at the Pod level, then mount them into containers inside that Pod
-  - name: config
-    configMap:
-      # Provide the name of the ConfigMap you want to mount.
-      name: ray-code
-      # An array of keys from the ConfigMap to create as files
-      items:
-      - key: code.py
-        path: code.py

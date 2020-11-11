@@ -198,7 +198,7 @@ func setContainerEnvVars(container *v1.Container, rayNodeType rayiov1alpha1.RayN
 			ip.Value = "127.0.0.1"
 		} else {
 			// if worker, use the service name of the head
-			ip.Value = fmt.Sprintf("%s.%s", svcName.Namespace, svcName.Name)
+			ip.Value = fmt.Sprintf("%s", svcName.Name)
 		}
 		container.Env = append(container.Env, ip)
 	}
@@ -239,7 +239,7 @@ func envVarExists(envName string, envVars []v1.EnvVar) bool {
 func setMissingRayStartParams(rayStartParams map[string]string, nodeType rayiov1alpha1.RayNodeType, svcName types.NamespacedName) (completeStartParams map[string]string) {
 	if nodeType == rayiov1alpha1.WorkerNode {
 		if _, ok := rayStartParams["address"]; !ok {
-			address := fmt.Sprintf("%s.%s", svcName.Name, svcName.Namespace)
+			address := fmt.Sprintf("%s", svcName.Name)
 			if _, okPort := rayStartParams["port"]; !okPort {
 				address = fmt.Sprintf("%s:%s", address, "6379")
 			} else {

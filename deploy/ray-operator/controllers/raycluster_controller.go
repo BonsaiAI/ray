@@ -8,7 +8,6 @@ import (
 	_ "ray-operator/controllers/common"
 	"ray-operator/controllers/utils"
 	"strings"
-	"time"
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/go-logr/logr"
@@ -81,15 +80,6 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, nil
 	}
 
-	if instance.Spec.HeadService.Namespace == "" {
-		if instance.Namespace != "" {
-			// the Custom resource namespace is assumed to be the same for all the pods and the head service.
-			instance.Spec.HeadService.Namespace = instance.Namespace
-		} else {
-			instance.Spec.HeadService.Namespace = "default"
-		}
-	}
-	// adding prefix of cluster-name
 	//TODO check the name format before changing it
 	instance.Spec.HeadService.Name = fmt.Sprintf("%s-%s", instance.Name, instance.Spec.HeadService.Name)
 	svcName := types.NamespacedName{
@@ -115,7 +105,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 	log.Info("Build pods according to the ray cluster instance", "size", len(expectedPods), "podNames", expectedPodNameList)
 
 	runtimePods := corev1.PodList{}
-	if err = r.List(context.TODO(), &runtimePods, client.InNamespace(instance.Namespace), client.MatchingLabels{common.RayClusterOwnerKey: request.Name}); err != nil {
+	if err = r.List(context.TODO(), &runtimePods, client.InNamespace(instance.Namespace), client.MatchingLabels{"rayClusterName": request.Name}); err != nil {
 		return reconcile.Result{}, err
 	}
 
@@ -128,7 +118,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 
 	log.Info("Runtime Pods", "size", len(runtimePods.Items), "runtime pods namelist", runtimePodNameList)
 
-	// Record that the pod needs to be deleted.
+	// Record that the pods that need to be deleted.
 	difference := runtimePodNameList.Difference(expectedPodNameList)
 
 	// fill requiredPods with runtime if exists or expectedPod if not exists
@@ -143,13 +133,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 
 	// Create the head node service.
 	if needServicePodMap.Cardinality() > 0 {
-		//podName := elem.(string)
-		//svcConf := common.DefaultServiceConfig(*instance, podName)
-		rayPodSvc := &instance.Spec.HeadService
-		// Use a headless service, meaning that the DNS record for the service will
-		// point directly to the head node pod's IP address.
-		rayPodSvc.Spec.ClusterIP = corev1.ClusterIPNone
-
+		rayPodSvc := common.BuildServiceForHeadPod(*instance)
 		blockOwnerDeletion := true
 		ownerReference := metav1.OwnerReference{
 			APIVersion:         instance.APIVersion,
@@ -169,83 +153,31 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 		} else {
 			log.Info("Pod Service created successfully", "service name", rayPodSvc.Name)
 		}
-		count := 0
-		endPoint := &corev1.Endpoints{}
-		for {
-			if errEp := r.Get(context.TODO(), svcName, endPoint); errEp != nil {
-				if !errors.IsNotFound(errEp) {
-					log.Error(errEp, "getting endpoint error!", "Endpoint Error", errEp)
-					break
-				} else {
-					if count < 2 {
-						log.Info("waiting for endpoint ...")
-						time.Sleep(2)
-						count++
-					} else {
-						break
-					}
-				}
-			}
-			if len(endPoint.Subsets) != 0 {
-				break
-			} else {
-				if count < 2 {
-					log.Info("waiting for endpoint ...")
-					time.Sleep(2)
-					count++
-				} else {
-					break
-				}
-			}
-		}
-	}
 
-	// Check if each pod exists and if not, create it.
-	for i, replica := range requiredPods {
-		if !utils.IsCreated(&replica) {
-			log.Info("Creating pod", "index", i, "create pod", replica.Name)
-			if err := r.Create(context.TODO(), &replica); err != nil {
-				if errors.IsAlreadyExists(err) {
-					log.Info("Creating pod", "Pod already exists", replica.Name)
-				} else {
-					return reconcile.Result{}, err
-				}
+		// Check if each pod exists and if not, create it.
+		for i, replica := range requiredPods {
+			podIdentifier := types.NamespacedName{
+				Name:      replica.Name,
+				Namespace: replica.Namespace,
 			}
-			//if this is a head, we want to wait until it is ready before creating the workers.
-			if value, ok := replica.Labels["rayNodeType"]; ok && value == string(rayiov1alpha1.HeadNode) {
-				podIdentifier := types.NamespacedName{
-					Name:      replica.Name,
-					Namespace: replica.Namespace,
-				}
-				count := 2
-				for {
-					if errPod := r.Get(context.TODO(), podIdentifier, &replica); errPod != nil {
-						if !errors.IsNotFound(errPod) {
-							log.Error(errPod, "getting pod error!", "podIdentifier", podIdentifier)
-							break
-						} else {
-							if count < 2 {
-								log.Info("waiting for pod ...")
-								time.Sleep(2)
-								count++
-							} else {
-								break
+			if !utils.IsCreated(&replica) {
+				log.Info("Creating pod", "index", i, "create pod", replica.Name)
+				if err := r.Create(context.TODO(), &replica); err != nil {
+					if errors.IsAlreadyExists(err) {
+						fetchedPod := corev1.Pod{}
+						// the pod might be in terminating state, we need to check
+						if errPod := r.Get(context.TODO(), podIdentifier, &fetchedPod); errPod == nil {
+							if fetchedPod.DeletionTimestamp != nil {
+								log.Error(errPod, "create pod error!", "pod is in a terminating state, we will wait until it is cleaned up", podIdentifier)
+								return reconcile.Result{}, err
 							}
 						}
-					}
-					if replica.Status.Phase != corev1.PodRunning {
-						if count < 2 {
-							log.Info("waiting for head pod to be ready", "pod:", replica.Name)
-							time.Sleep(2)
-							count++
-						} else {
-							break
-						}
+						log.Info("Creating pod", "Pod already exists", replica.Name)
+					} else {
+						return reconcile.Result{}, err
 					}
 				}
-				//end of wait logic
 			}
-
 		}
 	}
 
@@ -258,10 +190,9 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 				if err := r.Delete(context.TODO(), &runtimePod); err != nil {
 					return reconcile.Result{}, err
 				}
-				if strings.EqualFold(runtimePod.Labels[common.ClusterPodType], common.Head) {
-					//svcConf := common.DefaultServiceConfig(*instance, runtimePod.Name)
+				if strings.EqualFold(runtimePod.Labels["rayNodeType"], string(rayiov1alpha1.HeadNode)) {
 					raySvcHead := &instance.Spec.HeadService
-					log.Info("delete head service", "headName", runtimePod.Name)
+					log.Info("delete head service", "head service name", instance.Spec.HeadService.Name)
 					if err := r.Delete(context.TODO(), raySvcHead); err != nil {
 						return reconcile.Result{}, err
 					}

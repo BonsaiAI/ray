@@ -120,11 +120,6 @@ var instance = &rayiov1alpha1.RayCluster{
 	},
 }
 
-/*
-podConf := common.DefaultHeadPodConfig(instance, podType, podName)
-pod := common.BuildPod(podConf, rayiov1alpha1.HeadNode, instance.Spec.HeadGroupSpec.RayStartParams, svcName)
-*/
-
 func TestBuildPod(t *testing.T) {
 	podType := rayiov1alpha1.HeadNode
 	podName := strings.ToLower(instance.Name + DashSymbol + string(rayiov1alpha1.HeadNode) + DashSymbol + utils.FormatInt32(0))
@@ -148,11 +143,10 @@ func TestBuildPod(t *testing.T) {
 	podConf = DefaultWorkerPodConfig(instance, &worker, podType, podName)
 	pod = BuildPod(podConf, rayiov1alpha1.WorkerNode, worker.RayStartParams, svcName)
 
-	expectedResult = fmt.Sprintf("%s.%s:6379", instance.Spec.HeadService.Name, instance.Spec.HeadService.Namespace)
+	expectedResult = fmt.Sprintf("%s:6379", instance.Spec.HeadService.Name)
 	actualResult = instance.Spec.WorkerGroupsSpec[0].RayStartParams["address"]
 
 	if !reflect.DeepEqual(expectedResult, actualResult) {
 		t.Fatalf("Expected `%v` but got `%v`", expectedResult, actualResult)
 	}
-
 }

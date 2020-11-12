@@ -11,7 +11,7 @@ spec:
   # head service, follows Kubernetes standard
   headService: 
     metadata:
-      name: "my-svc"
+      name: "my-svc" # will auto-complete to: raycluster-complete-my-svc (<clusterName>-<serviceName>)
     spec:
       selector:
         identifier: raycluster-complete-head # <clusterName>-<rayNodeType>
@@ -50,10 +50,6 @@ spec:
         annotations:
           key: value
       spec:
-      #  initContainers: # to avoid starting ahead of the workers
-      #  - name: init-myservice
-      #    image: busybox:1.28
-      #    command: ['sh', '-c', "until nslookup raycluster-complete-my-svc.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for myservice; sleep 2; done"]   
         containers:
         - name: ray-head
           image: rayproject/autoscaler
@@ -163,30 +159,3 @@ spec:
           - name: log-volume
             emptyDir: {}
 ######################status#################################
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: ray-code
-data: 
-  code.py: |
-    import ray
-    from ray import services
-    from os import environ
-    redis_pass = environ.get("REDIS_PASSWORD") 
-    print("trying to connect to Ray!")
-    ray.init(address="auto", _redis_password=redis_pass)
-    print("now executing some code with Ray!")
-    import time
-    start = time.time()
-    @ray.remote
-    def f():
-      time.sleep(0.01)
-      return ray.services.get_node_ip_address()
-    values=set(ray.get([f.remote() for _ in range(1000)]))
-    print("Ray Nodes: ",str(values))
-    file = open("/var/ray_nodes.txt","a")
-    file.write("available nodes: %s\n" % str(values))
-    file.close()
-    end = time.time()
-    print("Execution time = ",end - start)

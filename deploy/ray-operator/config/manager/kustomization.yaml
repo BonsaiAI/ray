@@ -1,6 +1,6 @@
 images:
  - name: controller
    newTag: v0.1
-   newName: bonsaidev.azurecr.io/bonsai/ray-controller
+   newName: ray-controller
 resources:
 - manager.yaml

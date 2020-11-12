@@ -27,7 +27,7 @@ spec:
         - /manager
         args:
         - --enable-leader-election
-        image: bonsaidev.azurecr.io/bonsai/ray-controller:v0.1
+        image: ray-controller:v0.1
         name: ray-manager
         resources:
           limits:

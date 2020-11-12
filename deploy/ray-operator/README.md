@@ -92,20 +92,19 @@ This section walks through how to build and deploy the operator in a running Kub
 ### Requirements
 software  | version | link
 :-------------  | :---------------:| -------------:
-kubectl |  v1.11.3+    | [download](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
+kubectl |  v1.18.3+    | [download](https://kubernetes.io/docs/tasks/tools/install-kubectl/)
 go  | v1.13+|[download](https://golang.org/dl/)
-docker   | 17.03+|[download](https://docs.docker.com/install/)
+docker   | 19.03+|[download](https://docs.docker.com/install/)
 
 The instructions assume you have access to a running Kubernetes cluster via ``kubectl``. If you want to test locally, consider using [Minikube](https://kubernetes.io/docs/tasks/tools/install-minikube/).
 
 ### Running the unit tests
 
-sudo apt install golang-ginkgo-dev
-ginkgo .
+
 
 ```
 go build
-go test ./...
+go test ./... -cover
 ```
 
 You can also build the operator using Bazel:
@@ -116,6 +115,29 @@ bazel run //:gazelle
 
 ```build script
 bazel build //:ray-operator
+```
+
+#### Using Ginko
+```
+sudo apt install golang-ginkgo-dev
+ginkgo ./controllers/
+```
+
+expected results:
+```
+Running Suite: Controller Suite
+===============================
+Random Seed: 1605120291
+Will run 6 of 6 specs
+
+••••••
+
+Ran 6 of 6 Specs in 5.068 seconds
+SUCCESS! -- 6 Passed | 0 Failed | 0 Pending | 0 Skipped
+PASS
+
+Ginkgo ran 1 suite in 6.968063881s
+Test Suite Passed
 ```
 
 ### Building the controller
@@ -171,7 +193,7 @@ There are three example config files to deploy RayClusters included here:
 
 Sample  | Description
 ------------- | -------------
-[RayCluster.mini.yaml](config/samples/ray_v1_raycluster.mini.yaml)   | Small example consisting of 1 head pod and 1 worker pod.
+[RayCluster.mini.yaml](config/samples/ray_v1_raycluster.mini.yaml)   | Small example consisting of 1 head pod.
 [RayCluster.heterogeneous.yaml](config/samples/ray_v1_raycluster.heterogeneous.yaml)  | Example with heterogenous worker types. 1 head pod and 2 worker pods, each of which has a different resource quota.
 [RayCluster.complete.yaml](config/samples/ray_v1_raycluster.complete.yaml)  | Shows all available custom resouce properties.
 

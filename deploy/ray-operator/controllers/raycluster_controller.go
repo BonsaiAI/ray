@@ -8,6 +8,7 @@ import (
 	_ "ray-operator/controllers/common"
 	"ray-operator/controllers/utils"
 	"strings"
+	"time"
 
 	mapset "github.com/deckarep/golang-set"
 	"github.com/go-logr/logr"
@@ -169,7 +170,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 						if errPod := r.Get(context.TODO(), podIdentifier, &fetchedPod); errPod == nil {
 							if fetchedPod.DeletionTimestamp != nil {
 								log.Error(errPod, "create pod error!", "pod is in a terminating state, we will wait until it is cleaned up", podIdentifier)
-								return reconcile.Result{}, err
+								return reconcile.Result{RequeueAfter: 2 * time.Second}, err
 							}
 						}
 						log.Info("Creating pod", "Pod already exists", replica.Name)
@@ -200,7 +201,6 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 			}
 		}
 	}
-
 	return reconcile.Result{}, nil
 }
 

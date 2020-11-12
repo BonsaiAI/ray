@@ -4,17 +4,17 @@ metadata:
   labels:
     controller-tools.k8s.io: "1.0"
     # An unique identifier for the head node and workers of this cluster.
-  name: raycluster-single-test
+  name: raycluster-mini
 spec:
   rayVersion: '0.8.6' # should match the Ray version in the image of the containers
   ######################headService#################################
-  # head service {namespace}.svc , follows Kubernetes standard
+  # head service, follows Kubernetes standard
   headService: 
     metadata:
-      name: "ray-operator-single-svc"
+      name: "my-svc"
     spec:
       selector:
-        identifier: raycluster-single-test-head # <clusterName>-<rayNodeType>
+        identifier: raycluster-mini-head # <clusterName>-<rayNodeType>
       ports:
         - protocol: TCP
           port: 80
@@ -34,6 +34,7 @@ spec:
       node-manager-port: '12346'
       object-store-memory: '100000000'
       redis-password: 'LetMeInRay'
+      dashboard-host: '0.0.0.0'
       num-cpus: '1' # can be auto-completed from the limits
       node-ip-address: $MY_POD_IP # auto-completed as the head pod IP
     #pod template
@@ -49,6 +50,10 @@ spec:
         annotations:
           key: value
       spec:
+        initContainers: # to avoid worker crashing before head service is created
+        - name: init-myservice
+          image: busybox:1.28
+          command: ['sh', '-c', "until nslookup raycluster-mini-my-svc.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for myservice; sleep 2; done"]   
         containers:
         - name: ray-head
           image: rayproject/autoscaler
@@ -78,6 +83,7 @@ spec:
             - key: code.py
               path: code.py
 ######################Ray code sample#################################
+# this is only an example code that is mounted into the container and executed to show the Ray cluster at work
 ---
 apiVersion: v1
 kind: ConfigMap
@@ -101,7 +107,7 @@ data:
     values=set(ray.get([f.remote() for _ in range(1000)]))
     print("Ray Nodes: ",str(values))
     f = open("/var/ray_nodes.txt","a")
-    f.write("str(values)")
+    f.write("available nodes: %s\n" % str(values))
     f.close()
     end = time.time()
     print("Execution time = ",end - start)

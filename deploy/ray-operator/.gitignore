@@ -43,4 +43,5 @@ vendor/
 # Project related ignores
 /ray-operator
 
-config/manager
+config/manager/my-kustomization.yaml
+config/manager/my-manager.yaml

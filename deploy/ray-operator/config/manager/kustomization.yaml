@@ -1,6 +1,6 @@
 images:
  - name: controller
-   newTag: v0.1
+   newTag: latest
    newName: ray-controller
 resources:
 - manager.yaml

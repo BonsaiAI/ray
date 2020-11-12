@@ -27,7 +27,7 @@ spec:
         - /manager
         args:
         - --enable-leader-election
-        image: ray-controller:v0.1
+        image: ray-controller:latest
         name: ray-manager
         resources:
           limits:

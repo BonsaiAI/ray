@@ -183,7 +183,7 @@ var _ = Context("Inside the default namespace", func() {
 		It("should create more than 1 worker", func() {
 			var podList corev1.PodList
 			K8sClient.List(context.Background(), &podList, &client.ListOptions{Namespace: "default"})
-			Expect(len(podList.Items)).Should(BeNumerically(">=", 3))
+			Expect(len(podList.Items)).Should(BeNumerically(">=", 3), "My pod list= %v", podList.Items)
 		})
 
 		It("should re-create a deleted worker", func() {

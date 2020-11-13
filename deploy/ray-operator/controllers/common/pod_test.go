@@ -21,7 +21,7 @@ var instance = &rayiov1alpha1.RayCluster{
 		Namespace: "default",
 	},
 	Spec: rayiov1alpha1.RayClusterSpec{
-		RayVersion: "1.0",
+		RayVersion: "1.0.0",
 		HeadService: v1.Service{
 			ObjectMeta: metav1.ObjectMeta{
 				Name:      "head-svc",

@@ -39,6 +39,8 @@ func main() {
 		o.Development = true
 	}))
 
+	setupLog.Info("the operator", "version:", os.Getenv("OPERATOR_VERSION"))
+
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:             scheme,
 		MetricsBindAddress: metricsAddr,

@@ -124,7 +124,7 @@ spec:
           env:
           - name: TYPE
             value: "worker"
-          - name: MY_CPU_REQUEST
+          - name: CPU_REQUEST
             valueFrom:
               resourceFieldRef:
                 containerName: machine-learning
@@ -146,9 +146,9 @@ spec:
               name: log-volume
           resources:
             limits:
-              cpu: "2"
-            requests:
               cpu: "1"
+            requests:
+              cpu: "200m"
         # use volumes
         # Refer to https://kubernetes.io/docs/concepts/storage/volumes/
         volumes:
@@ -194,11 +194,26 @@ spec:
           env:
           - name: TYPE
             value: "worker"
-          - name: MY_CPU_REQUEST
+          - name: CPU_REQUEST
             valueFrom:
               resourceFieldRef:
                 containerName: machine-learning
                 resource: requests.cpu
+          - name: CPU_LIMITS
+            valueFrom:
+              resourceFieldRef:
+                containerName: machine-learning
+                resource: limits.cpu
+          - name: MEMORY_LIMITS
+            valueFrom:
+              resourceFieldRef:
+                containerName: machine-learning
+                resource: limits.memory
+          - name: MEMORY_REQUESTS
+            valueFrom:
+              resourceFieldRef:
+                containerName: machine-learning
+                resource: requests.memory
           - name: MY_POD_NAME
             valueFrom:
               fieldRef:
@@ -218,7 +233,7 @@ spec:
             limits:
               cpu: "2"
             requests:
-              cpu: "2"
+              cpu: "1000m"
         # use volumes
         # Refer to https://kubernetes.io/docs/concepts/storage/volumes/
         volumes:

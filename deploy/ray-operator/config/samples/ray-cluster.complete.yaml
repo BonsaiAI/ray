@@ -59,6 +59,26 @@ spec:
           args:
           - '/opt/code.py'
           env:
+          - name: CPU_REQUEST
+            valueFrom:
+              resourceFieldRef:
+                containerName: ray-head
+                resource: requests.cpu
+          - name: CPU_LIMITS
+            valueFrom:
+              resourceFieldRef:
+                containerName: ray-head
+                resource: limits.cpu
+          - name: MEMORY_LIMITS
+            valueFrom:
+              resourceFieldRef:
+                containerName: ray-head
+                resource: limits.memory
+          - name: MEMORY_REQUESTS
+            valueFrom:
+              resourceFieldRef:
+                containerName: ray-head
+                resource: requests.memory
           - name: MY_POD_IP
             valueFrom:
               fieldRef:
@@ -69,6 +89,13 @@ spec:
             preStop:
               exec:
                 command: ["/bin/sh","-c","ray stop"]
+          resources:
+            limits:
+              cpu: "2"
+              memory: "2G"
+            requests:
+              cpu: "1.5"
+              memory: "1G"
           volumeMounts:
           - mountPath: /opt
             name: config
@@ -84,7 +111,7 @@ spec:
               path: code.py
   workerGroupsSpec:
   # the pod replicas in this group typed worker
-  - replicas: 1
+  - replicas: 2
     minReplicas: 1
     maxReplicas: 10
     # logical group name, for this called small-group, also can be functional
@@ -122,13 +149,30 @@ spec:
           # environment variables to set in the container.Optional.
           # Refer to https://kubernetes.io/docs/tasks/inject-data-application/define-environment-variable-container/
           env:
+          - name:  RAY_DISABLE_DOCKER_CPU_WARNING
+            value: "1"
           - name: TYPE
             value: "worker"
-          - name: MY_CPU_REQUEST
+          - name: CPU_REQUEST
             valueFrom:
               resourceFieldRef:
                 containerName: machine-learning
                 resource: requests.cpu
+          - name: CPU_LIMITS
+            valueFrom:
+              resourceFieldRef:
+                containerName: machine-learning
+                resource: limits.cpu
+          - name: MEMORY_LIMITS
+            valueFrom:
+              resourceFieldRef:
+                containerName: machine-learning
+                resource: limits.memory
+          - name: MEMORY_REQUESTS
+            valueFrom:
+              resourceFieldRef:
+                containerName: machine-learning
+                resource: requests.memory
           - name: MY_POD_NAME
             valueFrom:
               fieldRef:
@@ -150,9 +194,11 @@ spec:
               name: log-volume
           resources:
             limits:
-              cpu: "1"
+              cpu: "2"
+              memory: "512Mi"
             requests:
-              cpu: "1"
+              cpu: "500m"
+              memory: "256Mi"
         # use volumes
         # Refer to https://kubernetes.io/docs/concepts/storage/volumes/
         volumes:

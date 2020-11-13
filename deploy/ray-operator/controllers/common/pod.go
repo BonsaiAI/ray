@@ -6,6 +6,7 @@ import (
 	rayiov1alpha1 "ray-operator/api/v1alpha1"
 	"strings"
 
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
 
 	logf "sigs.k8s.io/controller-runtime/pkg/runtime/log"
@@ -95,7 +96,7 @@ func DefaultWorkerPodConfig(instance *rayiov1alpha1.RayCluster, workerSpec *rayi
 }
 
 // BuildPod a pod config
-func BuildPod(conf *PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartParams map[string]string, svcName types.NamespacedName) *v1.Pod {
+func BuildPod(conf *PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartParams map[string]string, svcName types.NamespacedName) (aPod *v1.Pod) {
 
 	pod := &v1.Pod{
 		TypeMeta: metav1.TypeMeta{
@@ -107,6 +108,8 @@ func BuildPod(conf *PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartPa
 	}
 	index := getRayContainerIndex(pod)
 	cont := concatinateContainerCommand(rayNodeType, rayStartParams)
+
+	addEmptyDir(&pod.Spec.Containers[index], pod)
 
 	//saving temporarly the old command and args
 	var cmd, args string
@@ -225,11 +228,14 @@ func setContainerEnvVars(container *v1.Container, rayNodeType rayiov1alpha1.RayN
 }
 
 func envVarExists(envName string, envVars []v1.EnvVar) bool {
+	if envVars == nil || len(envVars) == 0 {
+		return false
+	}
+
 	for _, env := range envVars {
 		if env.Name == envName {
 			return true
 		}
-
 	}
 	return false
 
@@ -251,7 +257,7 @@ func setMissingRayStartParams(rayStartParams map[string]string, nodeType rayiov1
 	return rayStartParams
 }
 
-//TODO concatinateContainerCommand with ray start
+// concatinateContainerCommand with ray start
 func concatinateContainerCommand(nodeType rayiov1alpha1.RayNodeType, rayStartParams map[string]string) (fullCmd string) {
 	switch nodeType {
 	case rayiov1alpha1.HeadNode:
@@ -271,3 +277,68 @@ func convertParamMap(rayStartParams map[string]string) (s string) {
 	}
 	return flags.String()
 }
+
+// addEmptyDir add an emptyDir to the shared memory mount point /dev/shm
+// this is to avoid: "The object store is using /tmp instead of /dev/shm because /dev/shm has only 67108864 bytes available. This may slow down performance!...""
+func addEmptyDir(container *v1.Container, pod *v1.Pod) {
+	if checkIfVolumeMounted(container, pod) {
+		return
+	}
+	//1) create a Volume of type emptyDir and add it to Volumes
+	emptyDirVolume := v1.Volume{
+		Name: "shared-mem",
+		VolumeSource: v1.VolumeSource{
+			EmptyDir: &v1.EmptyDirVolumeSource{
+				Medium:    v1.StorageMediumMemory,
+				SizeLimit: findMemoryReqOrLimit(*container),
+			},
+		},
+	}
+	if !checkIfVolumeMounted(container, pod) {
+		pod.Spec.Volumes = append(pod.Spec.Volumes, emptyDirVolume)
+	}
+
+	//2) create a VolumeMount that uses the emptyDir
+	mountedVolume := v1.VolumeMount{
+		MountPath: "/dev/shm",
+		Name:      "shared-mem",
+		ReadOnly:  false,
+	}
+	if !checkIfVolumeMounted(container, pod) {
+		container.VolumeMounts = append(container.VolumeMounts, mountedVolume)
+	}
+}
+
+func checkIfVolumeMounted(container *v1.Container, pod *v1.Pod) bool {
+	for _, mountedVol := range container.VolumeMounts {
+		if mountedVol.MountPath == "/dev/shm" {
+			for _, podVolume := range pod.Spec.Volumes {
+				if mountedVol.Name == podVolume.Name {
+					// already mounted, nothing to do
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func findMemoryReqOrLimit(container v1.Container) (res *resource.Quantity) {
+	mem := &resource.Quantity{}
+	//check the requests, if they are not set, check the limits.
+	if q, ok := container.Resources.Requests[v1.ResourceMemory]; ok {
+		mem = &q
+		return mem
+	}
+	if q, ok := container.Resources.Limits[v1.ResourceMemory]; ok {
+		mem = &q
+		return mem
+	}
+	return nil
+}
+
+/*
+	if !envVarExists("CPU_REQUEST", container.Env) {
+		container.Resources.Requests.Memory
+	}
+*/

@@ -2,7 +2,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	rayiov1alpha1 "ray-operator/api/v1alpha1"
 	"ray-operator/controllers/common"
 	_ "ray-operator/controllers/common"
@@ -10,11 +9,14 @@ import (
 	"strings"
 	"time"
 
+	"k8s.io/client-go/tools/record"
+
 	mapset "github.com/deckarep/golang-set"
 	"github.com/go-logr/logr"
 	_ "k8s.io/api/apps/v1beta1"
 
 	corev1 "k8s.io/api/core/v1"
+	v1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	apierrs "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,11 +34,11 @@ import (
 
 // K8sClient client used query K8s outside the RayClusterReconciler
 var K8sClient client.Client
-var log = logf.Log.WithName("RayCluster-Controller")
+var log = logf.Log.WithName("raycluster-controller")
 
 // newReconciler returns a new reconcile.Reconciler
 func newReconciler(mgr manager.Manager) reconcile.Reconciler {
-	return &RayClusterReconciler{Client: mgr.GetClient(), Scheme: mgr.GetScheme()}
+	return &RayClusterReconciler{Client: mgr.GetClient(), Scheme: mgr.GetScheme(), Recorder: mgr.GetEventRecorderFor("raycluster-controller")}
 }
 
 var _ reconcile.Reconciler = &RayClusterReconciler{}
@@ -44,8 +46,9 @@ var _ reconcile.Reconciler = &RayClusterReconciler{}
 // RayClusterReconciler reconciles a RayCluster object
 type RayClusterReconciler struct {
 	client.Client
-	Log    logr.Logger
-	Scheme *runtime.Scheme
+	Log      logr.Logger
+	Scheme   *runtime.Scheme
+	Recorder record.EventRecorder
 }
 
 // Reconcile reads that state of the cluster for a RayCluster object and makes changes based on it
@@ -81,8 +84,6 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, nil
 	}
 
-	//TODO check the name format before changing it
-	instance.Spec.HeadService.Name = fmt.Sprintf("%s-%s", instance.Name, instance.Spec.HeadService.Name)
 	svcName := types.NamespacedName{
 		Name:      instance.Spec.HeadService.Name,
 		Namespace: instance.Spec.HeadService.Namespace,
@@ -153,6 +154,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 			}
 		} else {
 			log.Info("Pod Service created successfully", "service name", rayPodSvc.Name)
+			r.Recorder.Eventf(instance, v1.EventTypeNormal, "Created", "Created service %s", rayPodSvc.Name)
 		}
 
 		// Check if each pod exists and if not, create it.
@@ -178,6 +180,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 						return reconcile.Result{}, err
 					}
 				}
+				r.Recorder.Eventf(instance, v1.EventTypeNormal, "Created", "Created pod %s", replica.Name)
 			}
 		}
 	}
@@ -191,16 +194,20 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 				if err := r.Delete(context.TODO(), &runtimePod); err != nil {
 					return reconcile.Result{}, err
 				}
+				r.Recorder.Eventf(instance, v1.EventTypeNormal, "Deleted", "Deleted pod %s", runtimePod.Name)
 				if strings.EqualFold(runtimePod.Labels["rayNodeType"], string(rayiov1alpha1.HeadNode)) {
 					raySvcHead := &instance.Spec.HeadService
 					log.Info("delete head service", "head service name", instance.Spec.HeadService.Name)
 					if err := r.Delete(context.TODO(), raySvcHead); err != nil {
 						return reconcile.Result{}, err
 					}
+					r.Recorder.Eventf(instance, v1.EventTypeNormal, "Deleted", "Deleted service %s", instance.Spec.HeadService.Name)
 				}
 			}
 		}
 	}
+	//update the status if needed
+	r.updateStatus(instance)
 	return reconcile.Result{}, nil
 }
 
@@ -219,7 +226,6 @@ func (r *RayClusterReconciler) buildHeadPods(instance *rayiov1alpha1.RayCluster,
 		}
 		pods = append(pods, *pod)
 	}
-
 	return pods
 }
 
@@ -239,17 +245,37 @@ func (r *RayClusterReconciler) buildWorkerPods(instance *rayiov1alpha1.RayCluste
 			pods = append(pods, *pod)
 		}
 	}
-
 	return pods
 }
 
 // SetupWithManager builds the reconciler.
 func (r *RayClusterReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&rayiov1alpha1.RayCluster{}).Named("ray-operator").
+		For(&rayiov1alpha1.RayCluster{}).Named("raycluster-controller").
 		Watches(&source.Kind{Type: &corev1.Pod{}}, &handler.EnqueueRequestForOwner{
 			IsController: true,
 			OwnerType:    &rayiov1alpha1.RayCluster{},
 		}).
 		Complete(r)
+}
+
+func (r *RayClusterReconciler) updateStatus(instance *rayiov1alpha1.RayCluster) error {
+	runtimePods := corev1.PodList{}
+	if err := r.List(context.TODO(), &runtimePods, client.InNamespace(instance.Namespace), client.MatchingLabels{"rayClusterName": instance.Name}); err != nil {
+
+	}
+	count := int32(0)
+	for _, pod := range runtimePods.Items {
+		if pod.Status.Phase == v1.PodPending || pod.Status.Phase == v1.PodRunning {
+			count++
+		}
+	}
+	if instance.Status.AvailableReplicas != count {
+		instance.Status.AvailableReplicas = count
+		instance.Status.LastUpdateTime.Time = time.Now()
+		if err := r.Update(context.TODO(), instance); err != nil {
+			return err
+		}
+	}
+	return nil
 }

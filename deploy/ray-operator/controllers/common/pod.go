@@ -336,9 +336,3 @@ func findMemoryReqOrLimit(container v1.Container) (res *resource.Quantity) {
 	}
 	return nil
 }
-
-/*
-	if !envVarExists("CPU_REQUEST", container.Env) {
-		container.Resources.Requests.Memory
-	}
-*/

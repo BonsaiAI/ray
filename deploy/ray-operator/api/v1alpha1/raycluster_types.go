@@ -3,11 +3,12 @@ package v1alpha1
 import (
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	//	appsv1 "k8s.io/api/apps/v1"
 )
 
 // EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
+//var app appsv1.Deployment{}
 // RayClusterSpec defines the desired state of RayCluster
 type RayClusterSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
@@ -52,8 +53,13 @@ type WorkerGroupSpec struct {
 
 // RayClusterStatus defines the observed state of RayCluster
 type RayClusterStatus struct {
+
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	// Status reflects the status of the cluster
+	AvailableReplicas int32 `json:"availableReplicas,omitempty"`
+	// +nullable
+	LastUpdateTime metav1.Time `json:"lastUpdateTime,omitempty"`
 }
 
 // RayNodeType  the type of a ray node: head/worker

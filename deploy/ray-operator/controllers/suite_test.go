@@ -89,9 +89,10 @@ func SetupTest(ctx context.Context) {
 		Expect(err).NotTo(HaveOccurred(), "failed to create manager")
 
 		controller := &RayClusterReconciler{
-			Client: mgr.GetClient(),
-			Log:    logf.Log,
-			Scheme: mgr.GetScheme(),
+			Client:   mgr.GetClient(),
+			Log:      logf.Log,
+			Scheme:   mgr.GetScheme(),
+			Recorder: mgr.GetEventRecorderFor("raycluster-controller"),
 		}
 		err = controller.SetupWithManager(mgr)
 		Expect(err).NotTo(HaveOccurred(), "failed to setup controller")

@@ -4684,9 +4684,17 @@ spec:
                       specified. Defaults to 1.
                     format: int32
                     type: integer
+                  scaleStrategy:
+                    description: ScaleStrategy defines which pods to remove
+                    properties:
+                      workersToDelete:
+                        description: WorkersToDelete workers to be deleted
+                        items:
+                          type: string
+                        type: array
+                    type: object
                   template:
-                    description: PodTemplateSpec describes the data a pod should have
-                      when created from a template
+                    description: Template a pod template for the worker
                     properties:
                       metadata:
                         description: 'Standard object''s metadata. More info: https://git.k8s.io/community/contributors/devel/api-conventions.md#metadata'

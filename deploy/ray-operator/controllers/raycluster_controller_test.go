@@ -148,20 +148,16 @@ var _ = Context("Inside the default namespace", func() {
 	}
 
 	Describe("When creating a raycluster", func() {
-
+		var workerPods corev1.PodList
 		It("should create a raycluster object", func() {
-
 			err := K8sClient.Create(ctx, myRayCluster)
 			Expect(err).NotTo(HaveOccurred(), "failed to create test RayCluster resource")
-
 		})
 
-		It("should create a new head pod resource", func() {
-			pod := &corev1.Pod{}
+		It("should see the a raycluster object", func() {
 			Eventually(
-				getResourceFunc(ctx, client.ObjectKey{Name: "raycluster-sample-head-0", Namespace: "default"}, pod),
-				time.Second*30, time.Millisecond*500).Should(BeNil(), "My head pod = %v", pod)
-			Expect(pod.Status.Phase).Should(Or(Equal(v1.PodPending), Equal(v1.PodRunning)))
+				getResourceFunc(ctx, client.ObjectKey{Name: myRayCluster.Name, Namespace: "default"}, myRayCluster),
+				time.Second*3, time.Millisecond*500).Should(BeNil(), "My myRayCluster  = %v", myRayCluster.Name)
 		})
 
 		It("should create a new head service resource", func() {
@@ -172,29 +168,40 @@ var _ = Context("Inside the default namespace", func() {
 			Expect(svc.Spec.Selector["identifier"]).Should(Equal(fmt.Sprintf("%s-%s", myRayCluster.Name, rayiov1alpha1.HeadNode)))
 		})
 
-		It("should create a new worker pod resource", func() {
-			pod := &corev1.Pod{}
-			Eventually(
-				getResourceFunc(ctx, client.ObjectKey{Name: "raycluster-sample-worker-small-group-0", Namespace: "default"}, pod),
-				time.Second*15, time.Millisecond*500).Should(BeNil(), "My pod = %v", pod)
-			Expect(pod.Status.Phase).Should((Or(Equal(v1.PodRunning), Equal(v1.PodPending))))
+		It("should create more than 1 worker", func() {
+
+			K8sClient.List(context.TODO(), &workerPods,
+				client.InNamespace(myRayCluster.Namespace), client.MatchingLabels{"rayClusterName": myRayCluster.Name, "groupName": "small-group"}, &client.ListOptions{Namespace: "default"})
+			Expect(len(workerPods.Items)).Should(BeNumerically(">=", 2), "My pod list= %v", workerPods.Items)
+			if len(workerPods.Items) > 0 {
+				Expect(workerPods.Items[0].Status.Phase).Should((Or(Equal(v1.PodRunning), Equal(v1.PodPending))))
+			}
 		})
 
-		It("should create more than 1 worker", func() {
-			var podList corev1.PodList
-			K8sClient.List(context.Background(), &podList, &client.ListOptions{Namespace: "default"})
-			Expect(len(podList.Items)).Should(BeNumerically(">=", 3), "My pod list= %v", podList.Items)
+		It("should create a new head pod resource", func() {
+			var headPods corev1.PodList
+
+			K8sClient.List(context.TODO(), &headPods,
+				client.InNamespace(myRayCluster.Namespace),
+				client.MatchingLabels{"rayClusterName": myRayCluster.Name, "groupName": "headgroup"}, &client.ListOptions{Namespace: "default"})
+
+			Expect(len(headPods.Items)).Should(BeNumerically("==", 1), "My head pod list= %v", headPods.Items)
+
+			pod := &corev1.Pod{}
+			if len(headPods.Items) > 0 {
+				pod = &headPods.Items[0]
+			}
+			Eventually(
+				getResourceFunc(ctx, client.ObjectKey{Name: pod.Name, Namespace: "default"}, pod),
+				time.Second*3, time.Millisecond*500).Should(BeNil(), "My head pod = %v", pod)
+			Expect(pod.Status.Phase).Should(Or(Equal(v1.PodPending), Equal(v1.PodRunning)))
+
 		})
 
 		It("should re-create a deleted worker", func() {
 			var podList corev1.PodList
-			pod := &corev1.Pod{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      "raycluster-sample-worker-small-group-0",
-					Namespace: "default",
-				},
-			}
-			err := K8sClient.Delete(context.Background(), pod,
+			pod := workerPods.Items[0]
+			err := K8sClient.Delete(context.Background(), &pod,
 				&client.DeleteOptions{GracePeriodSeconds: pointer.Int64Ptr(0)})
 
 			Expect(err).NotTo(HaveOccurred(), "failed delete a pod")
@@ -216,6 +223,173 @@ var _ = Context("Inside the default namespace", func() {
 	})
 })
 
+/*
+var _ = Context("auto-scaling feature testing", func() {
+	ctx := context.TODO()
+	SetupTest(ctx)
+
+	var myRayCluster = &rayiov1alpha1.RayCluster{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "raycluster-autoscale",
+			Namespace: "default",
+		},
+		Spec: rayiov1alpha1.RayClusterSpec{
+			RayVersion: "1.0",
+			HeadService: v1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "head-svc",
+					Namespace: "default",
+				},
+				Spec: corev1.ServiceSpec{
+					Ports: []corev1.ServicePort{{Name: "redis", Port: int32(6379)}},
+					// Use a headless service, meaning that the DNS record for the service will
+					// point directly to the head node pod's IP address.
+					ClusterIP: corev1.ClusterIPNone,
+					// This selector must match the label of the head node.
+					Selector: map[string]string{
+						"identifier": "raycluster-autoscale-head",
+					},
+				},
+			},
+			HeadGroupSpec: rayiov1alpha1.HeadGroupSpec{
+				Replicas: pointer.Int32Ptr(1),
+				RayStartParams: map[string]string{
+					"port":                "6379",
+					"object-manager-port": "12345",
+					"node-manager-port":   "12346",
+					"object-store-memory": "100000000",
+					"redis-password":      "LetMeInRay",
+					"num-cpus":            "1",
+				},
+				Template: corev1.PodTemplateSpec{
+					ObjectMeta: metav1.ObjectMeta{
+						Namespace: "default",
+						Labels: map[string]string{
+							"rayCluster": "raycluster-autoscale",
+							"groupName":  "headgroup",
+						},
+					},
+					Spec: corev1.PodSpec{
+						Containers: []corev1.Container{
+							corev1.Container{
+								Name:    "ray-head",
+								Image:   "rayproject/autoscaler",
+								Command: []string{"python"},
+								Args:    []string{"/opt/code.py"},
+								Env: []corev1.EnvVar{
+									corev1.EnvVar{
+										Name: "MY_POD_IP",
+										ValueFrom: &corev1.EnvVarSource{
+											FieldRef: &corev1.ObjectFieldSelector{
+												FieldPath: "status.podIP",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+			WorkerGroupsSpec: []rayiov1alpha1.WorkerGroupSpec{
+				rayiov1alpha1.WorkerGroupSpec{
+					Replicas:    pointer.Int32Ptr(2),
+					MinReplicas: pointer.Int32Ptr(0),
+					MaxReplicas: pointer.Int32Ptr(10000),
+					GroupName:   "small-group",
+					RayStartParams: map[string]string{
+						"port":           "6379",
+						"redis-password": "LetMeInRay",
+						"num-cpus":       "1",
+					},
+					Template: corev1.PodTemplateSpec{
+						ObjectMeta: metav1.ObjectMeta{
+							Namespace: "default",
+							Labels: map[string]string{
+								"rayCluster": "raycluster-autoscale",
+								"groupName":  "small-group",
+							},
+						},
+						Spec: corev1.PodSpec{
+							Containers: []corev1.Container{
+								corev1.Container{
+									Name:    "ray-worker",
+									Image:   "rayproject/autoscaler",
+									Command: []string{"echo"},
+									Args:    []string{"Hello Ray"},
+									Env: []corev1.EnvVar{
+										corev1.EnvVar{
+											Name: "MY_POD_IP",
+											ValueFrom: &corev1.EnvVarSource{
+												FieldRef: &corev1.ObjectFieldSelector{
+													FieldPath: "status.podIP",
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	Describe("When creating another raycluster", func() {
+
+		It("should create another raycluster object ", func() {
+
+			err := K8sClient.Create(ctx, myRayCluster)
+			Expect(err).NotTo(HaveOccurred(), "failed to create test RayCluster resource")
+
+		})
+
+		It("should create 2 workers of small-group and a head pod", func() {
+			var workerPods corev1.PodList
+			K8sClient.List(context.TODO(), &workerPods,
+				client.InNamespace(myRayCluster.Namespace), client.MatchingLabels{"rayClusterName": myRayCluster.Name, "groupName": "small-group"}, &client.ListOptions{Namespace: "default"})
+			Expect(len(workerPods.Items)).Should(BeNumerically(">=", 2), "My pod list= %v", workerPods.Items)
+			if len(workerPods.Items) > 0 {
+				Expect(workerPods.Items[0].Status.Phase).Should((Or(Equal(v1.PodRunning), Equal(v1.PodPending))))
+			}
+		})
+
+		It("should create a another new head pod resource", func() {
+			var headPods corev1.PodList
+			K8sClient.List(context.TODO(), &headPods,
+				client.InNamespace(myRayCluster.Namespace), client.MatchingLabels{"rayClusterName": myRayCluster.Name, "groupName": "head"}, &client.ListOptions{Namespace: "default"})
+			Expect(len(headPods.Items)).Should(BeNumerically("=", 1), "My head pod list= %v", headPods.Items)
+
+			pod := &corev1.Pod{}
+			if len(headPods.Items) > 0 {
+				pod = &headPods.Items[0]
+			}
+			Eventually(
+				getResourceFunc(ctx, client.ObjectKey{Name: pod.Name, Namespace: "default"}, pod),
+				time.Second*3, time.Millisecond*500).Should(BeNil(), "My head pod = %v", pod)
+			Expect(pod.Status.Phase).Should(Or(Equal(v1.PodPending), Equal(v1.PodRunning)))
+		})
+
+		It("should create a another new head service resource", func() {
+			svc := &corev1.Service{}
+			Eventually(
+				getResourceFunc(ctx, client.ObjectKey{Name: "raycluster-autoscale-head-svc", Namespace: "default"}, svc),
+				time.Second*3, time.Millisecond*500).Should(BeNil(), "My head service = %v", svc)
+			Expect(svc.Spec.Selector["identifier"]).Should(Equal(fmt.Sprintf("%s-%s", myRayCluster.Name, rayiov1alpha1.HeadNode)))
+		})
+
+		It("should create a another new worker pod resource", func() {
+			pod := &corev1.Pod{}
+			Eventually(
+				getResourceFunc(ctx, client.ObjectKey{Name: "raycluster-autoscale-worker-small-group-0", Namespace: "default"}, pod),
+				time.Second*3, time.Millisecond*500).Should(BeNil(), "My pod = %v", pod)
+
+		})
+
+	})
+})
+*/
 func getResourceFunc(ctx context.Context, key client.ObjectKey, obj runtime.Object) func() error {
 	return func() error {
 		return K8sClient.Get(ctx, key, obj)

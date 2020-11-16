@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"context"
+	"fmt"
 	rayiov1alpha1 "ray-operator/api/v1alpha1"
 	"ray-operator/controllers/common"
 	_ "ray-operator/controllers/common"
@@ -9,9 +10,10 @@ import (
 	"strings"
 	"time"
 
+	mapset "github.com/deckarep/golang-set"
+
 	"k8s.io/client-go/tools/record"
 
-	mapset "github.com/deckarep/golang-set"
 	"github.com/go-logr/logr"
 	_ "k8s.io/api/apps/v1beta1"
 
@@ -84,168 +86,244 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, nil
 	}
 
-	svcName := types.NamespacedName{
-		Name:      instance.Spec.HeadService.Name,
-		Namespace: instance.Spec.HeadService.Namespace,
-	}
-
-	// Build pods for instance
-	expectedPods := r.buildHeadPods(instance, svcName)
-	expectedPods = append(expectedPods, r.buildWorkerPods(instance, svcName)...)
-
-	expectedPodNameList := mapset.NewSet()
-	expectedPodMap := make(map[string]corev1.Pod)
-	needServicePodMap := mapset.NewSet()
-	for _, pod := range expectedPods {
-		expectedPodNameList.Add(pod.Name)
-		expectedPodMap[pod.Name] = pod
-		if strings.EqualFold(pod.Labels["rayNodeType"], string(rayiov1alpha1.HeadNode)) {
-			needServicePodMap.Add(pod.Name)
-		}
-	}
-
-	log.Info("Build pods according to the ray cluster instance", "size", len(expectedPods), "podNames", expectedPodNameList)
-
-	runtimePods := corev1.PodList{}
-	if err = r.List(context.TODO(), &runtimePods, client.InNamespace(instance.Namespace), client.MatchingLabels{"rayClusterName": request.Name}); err != nil {
+	rayPodSvc := common.BuildServiceForHeadPod(*instance)
+	err = r.createHeadService(rayPodSvc, instance)
+	// if the service cannot be created we return the error and requeue
+	if err != nil {
 		return reconcile.Result{}, err
 	}
 
-	runtimePodNameList := mapset.NewSet()
-	runtimePodMap := make(map[string]corev1.Pod)
-	for _, runtimePod := range runtimePods.Items {
-		runtimePodNameList.Add(runtimePod.Name)
-		runtimePodMap[runtimePod.Name] = runtimePod
+	if err = r.checkPods(instance, rayPodSvc.Name); err != nil {
+		return reconcile.Result{RequeueAfter: 2 * time.Second}, err
+		//return reconcile.Result{}, err
 	}
 
-	log.Info("Runtime Pods", "size", len(runtimePods.Items), "runtime pods namelist", runtimePodNameList)
-
-	// Record that the pods that need to be deleted.
-	difference := runtimePodNameList.Difference(expectedPodNameList)
-
-	// fill requiredPods with runtime if exists or expectedPod if not exists
-	var requiredPods []corev1.Pod
-	for _, pod := range expectedPods {
-		if runtimePodNameList.Contains(pod.Name) {
-			requiredPods = append(requiredPods, runtimePodMap[pod.Name])
-		} else {
-			requiredPods = append(requiredPods, pod)
-		}
-	}
-
-	// Create the head node service.
-	if needServicePodMap.Cardinality() > 0 {
-		rayPodSvc := common.BuildServiceForHeadPod(*instance)
-		blockOwnerDeletion := true
-		ownerReference := metav1.OwnerReference{
-			APIVersion:         instance.APIVersion,
-			Kind:               instance.Kind,
-			Name:               instance.Name,
-			UID:                instance.UID,
-			BlockOwnerDeletion: &blockOwnerDeletion,
-		}
-		rayPodSvc.OwnerReferences = append(rayPodSvc.OwnerReferences, ownerReference)
-		if errSvc := r.Create(context.TODO(), rayPodSvc); errSvc != nil {
-			if errors.IsAlreadyExists(errSvc) {
-				log.Info("Pod service already exist,no need to create")
-			} else {
-				log.Error(errSvc, "Pod Service create error!", "Pod.Service.Error", errSvc)
-				return reconcile.Result{}, errSvc
-			}
-		} else {
-			log.Info("Pod Service created successfully", "service name", rayPodSvc.Name)
-			r.Recorder.Eventf(instance, v1.EventTypeNormal, "Created", "Created service %s", rayPodSvc.Name)
-		}
-
-		// Check if each pod exists and if not, create it.
-		for i, replica := range requiredPods {
-			podIdentifier := types.NamespacedName{
-				Name:      replica.Name,
-				Namespace: replica.Namespace,
-			}
-			if !utils.IsCreated(&replica) {
-				log.Info("Creating pod", "index", i, "create pod", replica.Name)
-				if err := r.Create(context.TODO(), &replica); err != nil {
-					if errors.IsAlreadyExists(err) {
-						fetchedPod := corev1.Pod{}
-						// the pod might be in terminating state, we need to check
-						if errPod := r.Get(context.TODO(), podIdentifier, &fetchedPod); errPod == nil {
-							if fetchedPod.DeletionTimestamp != nil {
-								log.Error(errPod, "create pod error!", "pod is in a terminating state, we will wait until it is cleaned up", podIdentifier)
-								return reconcile.Result{RequeueAfter: 2 * time.Second}, err
-							}
-						}
-						log.Info("Creating pod", "Pod already exists", replica.Name)
-					} else {
-						return reconcile.Result{}, err
-					}
-				}
-				r.Recorder.Eventf(instance, v1.EventTypeNormal, "Created", "Created pod %s", replica.Name)
-			}
-		}
-	}
-
-	// Delete pods if needed.
-	if difference.Cardinality() > 0 {
-		log.Info("difference", "pods", difference)
-		for _, runtimePod := range runtimePods.Items {
-			if difference.Contains(runtimePod.Name) {
-				log.Info("Deleting pod", "namespace", runtimePod.Namespace, "name", runtimePod.Name)
-				if err := r.Delete(context.TODO(), &runtimePod); err != nil {
-					return reconcile.Result{}, err
-				}
-				r.Recorder.Eventf(instance, v1.EventTypeNormal, "Deleted", "Deleted pod %s", runtimePod.Name)
-				if strings.EqualFold(runtimePod.Labels["rayNodeType"], string(rayiov1alpha1.HeadNode)) {
-					raySvcHead := &instance.Spec.HeadService
-					log.Info("delete head service", "head service name", instance.Spec.HeadService.Name)
-					if err := r.Delete(context.TODO(), raySvcHead); err != nil {
-						return reconcile.Result{}, err
-					}
-					r.Recorder.Eventf(instance, v1.EventTypeNormal, "Deleted", "Deleted service %s", instance.Spec.HeadService.Name)
-				}
-			}
-		}
-	}
 	//update the status if needed
 	r.updateStatus(instance)
 	return reconcile.Result{}, nil
 }
 
-// Build head instance pod(s).
-func (r *RayClusterReconciler) buildHeadPods(instance *rayiov1alpha1.RayCluster, svcName types.NamespacedName) []corev1.Pod {
-	var pods []corev1.Pod
-
-	for i := int32(0); i < *instance.Spec.HeadGroupSpec.Replicas; i++ {
-		podType := rayiov1alpha1.HeadNode
-		podName := strings.ToLower(instance.Name + common.DashSymbol + string(rayiov1alpha1.HeadNode) + common.DashSymbol + utils.FormatInt32(i))
-		podConf := common.DefaultHeadPodConfig(instance, podType, podName)
-		pod := common.BuildPod(podConf, rayiov1alpha1.HeadNode, instance.Spec.HeadGroupSpec.RayStartParams, svcName)
-		// Set raycluster instance as the owner and controller
-		if err := controllerutil.SetControllerReference(instance, pod, r.Scheme); err != nil {
-			log.Error(err, "Failed to set controller reference for raycluster pod")
-		}
-		pods = append(pods, *pod)
+func (r *RayClusterReconciler) checkPods(instance *rayiov1alpha1.RayCluster, headSvcName string) error {
+	//var updateNeeded bool
+	// check if all the pods exist
+	headPods := corev1.PodList{}
+	if err := r.List(context.TODO(), &headPods, client.InNamespace(instance.Namespace), client.MatchingLabels{"rayClusterName": instance.Name, "groupName": "headgroup"}); err != nil {
+		return err
 	}
-	return pods
+	if len(headPods.Items) == 1 {
+		log.Info("checkPods ", "head pod found", headPods.Items[0].Name)
+		if headPods.Items[0].Status.Phase == v1.PodRunning || headPods.Items[0].Status.Phase == v1.PodPending {
+			log.Info("checkPods", "head pod is up an running... checking workers", headPods.Items[0].Name)
+		} else {
+			return fmt.Errorf("head pod %s is not running nor pending", headPods.Items[0].Name)
+		}
+	}
+	if len(headPods.Items) == 0 || headPods.Items == nil {
+		// create head pod
+		log.Info("checkPods ", "creating head pod for cluster", instance.Name)
+		if err := r.createHeadPod(instance, headSvcName); err != nil {
+			return err
+		}
+	} else if len(headPods.Items) > 1 {
+		log.Info("checkPods ", "more than 1 head pod found for cluster", instance.Name)
+		for index := range headPods.Items {
+			if headPods.Items[index].Status.Phase == v1.PodRunning || headPods.Items[index].Status.Phase == v1.PodPending {
+				// Remove the healthy pod  at index i from the list of pods to delete
+				headPods.Items[index] = headPods.Items[len(headPods.Items)-1] // replace last element with the healthy head.
+				headPods.Items = headPods.Items[:len(headPods.Items)-1]       // Truncate slice.
+			}
+		}
+		// delete all the extra head pod pods
+		for _, deleteExtraHeadPod := range headPods.Items {
+			if err := r.Delete(context.TODO(), &deleteExtraHeadPod); err != nil {
+				return err
+			}
+		}
+	}
+	//handle the workers now
+	for _, worker := range instance.Spec.WorkerGroupsSpec {
+		workerPods := corev1.PodList{}
+		if err := r.List(context.TODO(), &workerPods, client.InNamespace(instance.Namespace), client.MatchingLabels{"rayClusterName": instance.Name, "groupName": worker.GroupName}); err != nil {
+			return err
+		}
+		if len(workerPods.Items) == 0 || workerPods.Items == nil {
+			log.Info("checkPods", "no workers exist for group", worker.GroupName)
+			//create all workers of this group
+			var i int32
+			for i = 0; i < *worker.Replicas; i++ {
+				log.Info("checkPods", "creating worker for group", worker.GroupName)
+				if err := r.createWorkerPod(instance, &worker, headSvcName); err != nil {
+					return err
+				}
+			}
+		} else if int32(len(workerPods.Items)) == *worker.Replicas {
+			log.Info("checkPods", "all workers already exist for group", worker.GroupName)
+			continue
+		} else if int32(len(workerPods.Items)) > *worker.Replicas {
+			log.Info("checkPods", "extra workers exist for group", worker.GroupName)
+			//we have more replicas than needed
+			//diff is the number of extra workers we have
+			diff := int32(len(workerPods.Items)) - *worker.Replicas
+			// we will add all the available workers to a set
+			runtimePodNameList := mapset.NewSet()
+			for _, runtimePod := range workerPods.Items {
+				runtimePodNameList.Add(runtimePod.Name)
+			}
+			for _, podsToDelete := range worker.ScaleStrategy.WorkersToDelete {
+				//TODO check if the worker to delete belongs to the same group
+				if diff == 0 {
+					break
+				}
+				if runtimePodNameList.Contains(podsToDelete) {
+					pod := corev1.Pod{}
+					pod.Name = podsToDelete
+					pod.Namespace = utils.GetNamespace(instance.ObjectMeta)
+					log.Info("Deleting pod", "namespace", pod.Namespace, "name", pod.Name)
+					if err := r.Delete(context.TODO(), &pod); err != nil {
+						if !errors.IsNotFound(err) {
+							return err
+						}
+						log.Info("checkPods", "workers specified to delete was already deleted ", pod.Name)
+					}
+					r.Recorder.Eventf(instance, v1.EventTypeNormal, "Deleted", "Deleted pod %s", pod.Name)
+					diff--
+					//TODO update the scaleStrategy
+					// no err => remove name from list
+					//worker.ScaleStrategy.WorkersToDelete[index] = worker.ScaleStrategy.WorkersToDelete[len(worker.ScaleStrategy.WorkersToDelete)-1]
+					//worker.ScaleStrategy.WorkersToDelete = worker.ScaleStrategy.WorkersToDelete[:len(worker.ScaleStrategy.WorkersToDelete)-1]
+
+				}
+			}
+			if diff > 0 {
+
+			}
+
+			/*
+				if delta == 0 {
+					continue // continue to the next worker group
+				}
+
+				if delta > 0 {
+					//here I can use a set, and then if an element is not there I can discard it
+					log.Info("checkPods", "workers specified to delete is less than the needed number to delete in group ", worker.GroupName)
+					//TODO delete extra pods randomly
+					continue
+				}
+				if delta < 0 {
+					//more specified pods than the extra pods => discrepency between #replicas and the deleted ones
+				}
+			*/
+			//instance.Spec.WorkerGroupsSpec[workerIndex] = worker
+		}
+	}
+
+	return nil
+}
+
+func (r *RayClusterReconciler) createHeadService(rayPodSvc *corev1.Service, instance *rayiov1alpha1.RayCluster) error {
+	blockOwnerDeletion := true
+	ownerReference := metav1.OwnerReference{
+		APIVersion:         instance.APIVersion,
+		Kind:               instance.Kind,
+		Name:               instance.Name,
+		UID:                instance.UID,
+		BlockOwnerDeletion: &blockOwnerDeletion,
+	}
+	rayPodSvc.OwnerReferences = append(rayPodSvc.OwnerReferences, ownerReference)
+	if errSvc := r.Create(context.TODO(), rayPodSvc); errSvc != nil {
+		if errors.IsAlreadyExists(errSvc) {
+			log.Info("Pod service already exist,no need to create")
+			return nil
+		}
+		log.Error(errSvc, "Pod Service create error!", "Pod.Service.Error", errSvc)
+		return errSvc
+	}
+	log.Info("Pod Service created successfully", "service name", rayPodSvc.Name)
+	r.Recorder.Eventf(instance, v1.EventTypeNormal, "Created", "Created service %s", rayPodSvc.Name)
+	return nil
+}
+
+func (r *RayClusterReconciler) createHeadPod(instance *rayiov1alpha1.RayCluster, headSvcName string) error {
+	// build the pod then create it
+	pod := r.buildHeadPod(instance, headSvcName)
+	podIdentifier := types.NamespacedName{
+		Name:      pod.Name,
+		Namespace: pod.Namespace,
+	}
+
+	log.Info("createHeadPod", "head pod with name", pod.GenerateName)
+	if err := r.Create(context.TODO(), &pod); err != nil {
+		if errors.IsAlreadyExists(err) {
+			fetchedPod := corev1.Pod{}
+			// the pod might be in terminating state, we need to check
+			if errPod := r.Get(context.TODO(), podIdentifier, &fetchedPod); errPod == nil {
+				if fetchedPod.DeletionTimestamp != nil {
+					log.Error(errPod, "create pod error!", "pod is in a terminating state, we will wait until it is cleaned up", podIdentifier)
+					return err
+				}
+			}
+			log.Info("Creating pod", "Pod already exists", pod.Name)
+		} else {
+			return err
+		}
+	}
+	r.Recorder.Eventf(instance, v1.EventTypeNormal, "Created", "Created head pod %s", pod.Name)
+	return nil
+}
+
+func (r *RayClusterReconciler) createWorkerPod(instance *rayiov1alpha1.RayCluster, worker *rayiov1alpha1.WorkerGroupSpec, headSvcName string) error {
+	// build the pod then create it
+	pod := r.buildWorkerPod(instance, worker, headSvcName)
+	podIdentifier := types.NamespacedName{
+		Name:      pod.Name,
+		Namespace: pod.Namespace,
+	}
+	log.Info("createWorkerPod", "worker pod with name", pod.GenerateName)
+	if err := r.Create(context.TODO(), &pod); err != nil {
+		if errors.IsAlreadyExists(err) {
+			fetchedPod := corev1.Pod{}
+			// the pod might be in terminating state, we need to check
+			if errPod := r.Get(context.TODO(), podIdentifier, &fetchedPod); errPod == nil {
+				if fetchedPod.DeletionTimestamp != nil {
+					log.Error(errPod, "create pod error!", "pod is in a terminating state, we will wait until it is cleaned up", podIdentifier)
+					return err
+				}
+			}
+			log.Info("Creating pod", "Pod already exists", pod.Name)
+		} else {
+			return err
+		}
+	}
+	r.Recorder.Eventf(instance, v1.EventTypeNormal, "Created", "Created worker pod %s", pod.Name)
+	return nil
+}
+
+// Build head instance pod(s).
+func (r *RayClusterReconciler) buildHeadPod(instance *rayiov1alpha1.RayCluster, svcName string) corev1.Pod {
+	podType := rayiov1alpha1.HeadNode
+	podName := strings.ToLower(instance.Name + common.DashSymbol + string(rayiov1alpha1.HeadNode) + common.DashSymbol)
+	podConf := common.DefaultHeadPodConfig(instance, podType, podName, svcName)
+	pod := common.BuildPod(podConf, rayiov1alpha1.HeadNode, instance.Spec.HeadGroupSpec.RayStartParams, svcName)
+	// Set raycluster instance as the owner and controller
+	if err := controllerutil.SetControllerReference(instance, pod, r.Scheme); err != nil {
+		log.Error(err, "Failed to set controller reference for raycluster pod")
+	}
+
+	return *pod
 }
 
 // Build worker instance pods.
-func (r *RayClusterReconciler) buildWorkerPods(instance *rayiov1alpha1.RayCluster, svcName types.NamespacedName) []corev1.Pod {
-	var pods []corev1.Pod
-	for _, worker := range instance.Spec.WorkerGroupsSpec {
-		for i := int32(0); i < *worker.Replicas; i++ {
-			podType := rayiov1alpha1.WorkerNode
-			podName := instance.Name + common.DashSymbol + string(podType) + common.DashSymbol + worker.GroupName + common.DashSymbol + utils.FormatInt32(i)
-			podConf := common.DefaultWorkerPodConfig(instance, &worker, podType, podName)
-			pod := common.BuildPod(podConf, rayiov1alpha1.WorkerNode, worker.RayStartParams, svcName)
-			// Set raycluster instance as the owner and controller
-			if err := controllerutil.SetControllerReference(instance, pod, r.Scheme); err != nil {
-				log.Error(err, "Failed to set controller reference for raycluster pod")
-			}
-			pods = append(pods, *pod)
-		}
+func (r *RayClusterReconciler) buildWorkerPod(instance *rayiov1alpha1.RayCluster, worker *rayiov1alpha1.WorkerGroupSpec, svcName string) corev1.Pod {
+	podType := rayiov1alpha1.WorkerNode
+	podName := strings.ToLower(instance.Name + common.DashSymbol + string(podType) + common.DashSymbol + worker.GroupName + common.DashSymbol)
+	podConf := common.DefaultWorkerPodConfig(instance, worker, podType, podName, svcName)
+	pod := common.BuildPod(podConf, rayiov1alpha1.WorkerNode, worker.RayStartParams, svcName)
+	// Set raycluster instance as the owner and controller
+	if err := controllerutil.SetControllerReference(instance, pod, r.Scheme); err != nil {
+		log.Error(err, "Failed to set controller reference for raycluster pod")
 	}
-	return pods
+
+	return *pod
 }
 
 // SetupWithManager builds the reconciler.

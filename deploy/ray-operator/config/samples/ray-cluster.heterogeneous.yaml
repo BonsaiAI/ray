@@ -124,6 +124,8 @@ spec:
           env:
           - name: TYPE
             value: "worker"
+          - name:  RAY_DISABLE_DOCKER_CPU_WARNING
+            value: "1"
           - name: CPU_REQUEST
             valueFrom:
               resourceFieldRef:
@@ -155,7 +157,7 @@ spec:
           - name: log-volume
             emptyDir: {}
   - replicas: 1
-    minReplicas: 1
+    minReplicas: 0
     maxReplicas: 10
     # logical group name, for this called small-group, also can be functional
     groupName: medium-group
@@ -163,9 +165,9 @@ spec:
     # if worker pods need to be removed, we decrement the replicas, and populate the podsToDelete list
     # the operator will remove pods from the list until the number of replicas is satisfied
     # when a pod is confirmed to be deleted, its name will be removed from the list below
-    #scaleStrategy:
-    #  workersToDelete:
-    #  - worker-9m1rp
+    scaleStrategy:
+      workersToDelete:
+      #- raycluster-heterogeneous-worker-medium-group-7bv5h
     #  - worker-4k2ih 
     # the following params are used to complete the ray start: ray start --block --node-ip-address= ...
     rayStartParams:
@@ -177,7 +179,6 @@ spec:
         labels:
           rayCluster: raycluster-heterogeneous # will be injected if missing
           rayNodeType: worker # will be injected if missing
-          groupName: small-group # will be injected if missing
         # annotations for pod
         annotations:
           key: value
@@ -194,6 +195,8 @@ spec:
           env:
           - name: TYPE
             value: "worker"
+          - name:  RAY_DISABLE_DOCKER_CPU_WARNING
+            value: "1"
           - name: CPU_REQUEST
             valueFrom:
               resourceFieldRef:

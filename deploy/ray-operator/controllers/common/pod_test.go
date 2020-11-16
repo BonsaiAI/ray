@@ -11,7 +11,6 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/pointer"
 )
 
@@ -123,11 +122,9 @@ var instance = &rayiov1alpha1.RayCluster{
 func TestBuildPod(t *testing.T) {
 	podType := rayiov1alpha1.HeadNode
 	podName := strings.ToLower(instance.Name + DashSymbol + string(rayiov1alpha1.HeadNode) + DashSymbol + utils.FormatInt32(0))
-	podConf := DefaultHeadPodConfig(instance, podType, podName)
-	svcName := types.NamespacedName{
-		Name:      instance.Spec.HeadService.Name,
-		Namespace: instance.Spec.HeadService.Namespace,
-	}
+	podConf := DefaultHeadPodConfig(instance, podType, podName, instance.Spec.HeadService.Name)
+	svcName := instance.Spec.HeadService.Name
+
 	pod := BuildPod(podConf, rayiov1alpha1.HeadNode, instance.Spec.HeadGroupSpec.RayStartParams, svcName)
 
 	actualResult := pod.Labels["identifier"]
@@ -140,7 +137,7 @@ func TestBuildPod(t *testing.T) {
 	worker := instance.Spec.WorkerGroupsSpec[0]
 	podType = rayiov1alpha1.WorkerNode
 	podName = instance.Name + DashSymbol + string(podType) + DashSymbol + worker.GroupName + DashSymbol + utils.FormatInt32(0)
-	podConf = DefaultWorkerPodConfig(instance, &worker, podType, podName)
+	podConf = DefaultWorkerPodConfig(instance, &worker, podType, podName, instance.Spec.HeadService.Name)
 	pod = BuildPod(podConf, rayiov1alpha1.WorkerNode, worker.RayStartParams, svcName)
 
 	expectedResult = fmt.Sprintf("%s:6379", instance.Spec.HeadService.Name)

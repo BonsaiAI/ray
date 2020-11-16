@@ -46,8 +46,9 @@ func BuildServiceForHeadPod(instance rayiov1alpha1.RayCluster) *corev1.Service {
 // this avoid having service conflicts in case two  Ray clusters define the same service name
 func checkSvcName(instance rayiov1alpha1.RayCluster) (name string) {
 	if !strings.HasPrefix(instance.Spec.HeadService.Name, instance.Name) {
-
-		return fmt.Sprintf("%s-%s", instance.Name, instance.Spec.HeadService.Name)
+		amendedName := fmt.Sprintf("%s-%s", instance.Name, instance.Spec.HeadService.Name)
+		log.Info("checkSvcName ", "svc name amended", amendedName)
+		return amendedName
 	}
 	return instance.Spec.HeadService.Name
 }

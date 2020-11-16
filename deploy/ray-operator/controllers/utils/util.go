@@ -1,9 +1,11 @@
 package utils
 
 import (
-	corev1 "k8s.io/api/core/v1"
 	"strconv"
 	"strings"
+
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 // IsCreated returns true if pod has been created and is maintained by the API server
@@ -25,4 +27,12 @@ func Before(value string, a string) string {
 // for digit values >= 10.
 func FormatInt32(n int32) string {
 	return strconv.FormatInt(int64(n), 10)
+}
+
+// GetNamespace return namespace
+func GetNamespace(metaData metav1.ObjectMeta) string {
+	if metaData.Namespace == "" {
+		return "default"
+	}
+	return metaData.Namespace
 }

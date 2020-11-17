@@ -22,18 +22,18 @@ const (
 
 // PodConfig contains pod config
 type PodConfig struct {
-	RayCluster  *rayiov1alpha1.RayCluster
+	RayCluster  rayiov1alpha1.RayCluster
 	PodType     rayiov1alpha1.RayNodeType
 	PodName     string
-	podTemplate *v1.PodTemplateSpec
+	podTemplate v1.PodTemplateSpec
 }
 
 // DefaultHeadPodConfig sets the config values
-func DefaultHeadPodConfig(instance *rayiov1alpha1.RayCluster, rayNodeType rayiov1alpha1.RayNodeType, podName string, svcName string) *PodConfig {
-	podTemplate := &instance.Spec.HeadGroupSpec.Template
+func DefaultHeadPodConfig(instance rayiov1alpha1.RayCluster, rayNodeType rayiov1alpha1.RayNodeType, podName string, svcName string) PodConfig {
+	podTemplate := instance.Spec.HeadGroupSpec.Template
 	podTemplate.ObjectMeta = instance.Spec.HeadGroupSpec.Template.ObjectMeta
 	podTemplate.Spec = instance.Spec.HeadGroupSpec.Template.Spec
-	pConfig := &PodConfig{
+	pConfig := PodConfig{
 		RayCluster:  instance,
 		PodType:     rayNodeType,
 		PodName:     podName,
@@ -59,11 +59,11 @@ func DefaultHeadPodConfig(instance *rayiov1alpha1.RayCluster, rayNodeType rayiov
 // todo verify the values here
 
 // DefaultWorkerPodConfig sets the config values
-func DefaultWorkerPodConfig(instance *rayiov1alpha1.RayCluster, workerSpec *rayiov1alpha1.WorkerGroupSpec, rayNodeType rayiov1alpha1.RayNodeType, podName string, svcName string) *PodConfig {
-	podTemplate := &workerSpec.Template
+func DefaultWorkerPodConfig(instance rayiov1alpha1.RayCluster, workerSpec rayiov1alpha1.WorkerGroupSpec, rayNodeType rayiov1alpha1.RayNodeType, podName string, svcName string) PodConfig {
+	podTemplate := workerSpec.Template
 	podTemplate.ObjectMeta = workerSpec.Template.ObjectMeta
 	podTemplate.Spec = workerSpec.Template.Spec
-	pConfig := &PodConfig{
+	pConfig := PodConfig{
 		RayCluster:  instance,
 		PodType:     rayNodeType,
 		PodName:     podName,
@@ -86,9 +86,9 @@ func DefaultWorkerPodConfig(instance *rayiov1alpha1.RayCluster, workerSpec *rayi
 }
 
 // BuildPod a pod config
-func BuildPod(conf *PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartParams map[string]string, svcName string) (aPod *v1.Pod) {
+func BuildPod(conf PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartParams map[string]string, svcName string) (aPod v1.Pod) {
 
-	pod := &v1.Pod{
+	pod := v1.Pod{
 		TypeMeta: metav1.TypeMeta{
 			APIVersion: "v1",
 			Kind:       "Pod",
@@ -99,7 +99,7 @@ func BuildPod(conf *PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartPa
 	index := getRayContainerIndex(pod)
 	cont := concatinateContainerCommand(rayNodeType, rayStartParams)
 
-	addEmptyDir(&pod.Spec.Containers[index], pod)
+	addEmptyDir(&pod.Spec.Containers[index], &pod)
 
 	//saving temporarly the old command and args
 	var cmd, args string
@@ -136,7 +136,7 @@ func convertCmdToString(cmdArr []string) (cmd string) {
 
 }
 
-func getRayContainerIndex(pod *v1.Pod) (index int) {
+func getRayContainerIndex(pod v1.Pod) (index int) {
 	// theoretically, a ray pod can have multiple containers.
 	// we identify the ray container based on env var: RAY=true
 	// if the env var is missing, we choose containers[0].

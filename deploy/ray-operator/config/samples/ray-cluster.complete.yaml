@@ -111,7 +111,7 @@ spec:
               path: code.py
   workerGroupsSpec:
   # the pod replicas in this group typed worker
-  - replicas: 2
+  - replicas: 3
     minReplicas: 1
     maxReplicas: 10
     # logical group name, for this called small-group, also can be functional

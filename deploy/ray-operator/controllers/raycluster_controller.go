@@ -143,7 +143,8 @@ func (r *RayClusterReconciler) checkPods(instance *rayiov1alpha1.RayCluster, hea
 	//handle the workers now
 	for _, worker := range instance.Spec.WorkerGroupsSpec {
 		workerPods := corev1.PodList{}
-		if err := r.List(context.TODO(), &workerPods, client.InNamespace(instance.Namespace), client.MatchingLabels{"rayClusterName": instance.Name, "groupName": worker.GroupName}); err != nil {
+		if err := r.List(context.TODO(), &workerPods, client.InNamespace(instance.Namespace),
+			client.MatchingLabels{"rayClusterName": instance.Name, "groupName": worker.GroupName}); err != nil {
 			return err
 		}
 		if len(workerPods.Items) == 0 || workerPods.Items == nil {
@@ -291,9 +292,11 @@ func (r *RayClusterReconciler) createWorkerPod(instance *rayiov1alpha1.RayCluste
 			}
 			log.Info("Creating pod", "Pod already exists", pod.Name)
 		} else {
+			log.Error(fmt.Errorf("createWorkerPod error"), "error creating pod", "pod", pod)
 			return err
 		}
 	}
+	log.Info("Created pod", "Pod ", pod)
 	r.Recorder.Eventf(instance, v1.EventTypeNormal, "Created", "Created worker pod %s", pod.Name)
 	return nil
 }

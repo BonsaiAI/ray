@@ -51,9 +51,6 @@ spec:
           key: value
       spec:
         initContainers: # to avoid worker crashing before head service is created
-        #- name: init-myservice
-        #  image: busybox:1.28
-        #  command: ['sh', '-c', "until nslookup raycluster-heterogeneous-my-svc.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for myservice; sleep 2; done"]   
         containers:
         - name: ray-head
           image: rayproject/autoscaler
@@ -84,7 +81,7 @@ spec:
               path: code.py
   workerGroupsSpec:
   # the pod replicas in this group typed worker
-  - replicas: 1
+  - replicas: 2
     minReplicas: 1
     maxReplicas: 10
     # logical group name, for this called small-group, also can be functional
@@ -93,10 +90,10 @@ spec:
     # if worker pods need to be removed, we decrement the replicas, and populate the podsToDelete list
     # the operator will remove pods from the list until the number of replicas is satisfied
     # when a pod is confirmed to be deleted, its name will be removed from the list below
-    #scaleStrategy:
-    #  workersToDelete:
-    #  - worker-9m1rp
-    #  - worker-4k2ih 
+    scaleStrategy:
+      workersToDelete:
+      #- raycluster-heterogeneous-worker-small-group-kxcs7
+      #- raycluster-heterogeneous-worker-small-group-kvz7p
     # the following params are used to complete the ray start: ray start --block --node-ip-address= ...
     rayStartParams:
       redis-password: 'LetMeInRay'
@@ -113,9 +110,10 @@ spec:
           key: value
       spec:
         initContainers: # to avoid worker crashing before head service is created
+        # the env var $RAY_IP is set by the operator if missing, with the value of the head service name
         - name: init-myservice
           image: busybox:1.28
-          command: ['sh', '-c', "until nslookup raycluster-heterogeneous-my-svc.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for myservice; sleep 2; done"]   
+          command: ['sh', '-c', "until nslookup $RAY_IP.$(cat /var/run/secrets/kubernetes.io/serviceaccount/namespace).svc.cluster.local; do echo waiting for myservice; sleep 2; done"]   
         containers:
         - name: machine-learning # must consist of lower case alphanumeric characters or '-', and must start and end with an alphanumeric character (e.g. 'my-name',  or '123-abc'
           image: rayproject/autoscaler

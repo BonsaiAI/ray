@@ -62,7 +62,6 @@ func DefaultHeadPodConfig(instance rayiov1alpha1.RayCluster, rayNodeType rayiov1
 func DefaultWorkerPodConfig(instance rayiov1alpha1.RayCluster, workerSpec rayiov1alpha1.WorkerGroupSpec, rayNodeType rayiov1alpha1.RayNodeType, podName string, svcName string) PodConfig {
 	podTemplate := workerSpec.Template
 	podTemplate.ObjectMeta = workerSpec.Template.ObjectMeta
-	podTemplate.Spec = workerSpec.Template.Spec
 	pConfig := PodConfig{
 		RayCluster:  instance,
 		PodType:     rayNodeType,
@@ -100,6 +99,7 @@ func BuildPod(conf PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartPar
 	cont := concatinateContainerCommand(rayNodeType, rayStartParams)
 
 	addEmptyDir(&pod.Spec.Containers[index], &pod)
+	cleanupInvalidVolumeMounts(&pod.Spec.Containers[index], &pod)
 
 	//saving temporarly the old command and args
 	var cmd, args string
@@ -120,6 +120,9 @@ func BuildPod(conf PodConfig, rayNodeType rayiov1alpha1.RayNodeType, rayStartPar
 		}
 
 		pod.Spec.Containers[index].Args = []string{args}
+	}
+	for index := range pod.Spec.InitContainers {
+		setInitContainerEnvVars(&pod.Spec.InitContainers[index], svcName)
 	}
 
 	setContainerEnvVars(&pod.Spec.Containers[index], rayNodeType, rayStartParams, svcName)
@@ -182,7 +185,18 @@ func labelPod(rayNodeType string, rayClusterName string, groupName string, label
 	return labels
 }
 
-//TODO set container extra env vars, such as head service IP and port
+func setInitContainerEnvVars(container *v1.Container, svcName string) {
+	//RAY_IP can be used in the DNS lookup
+	if container.Env == nil || len(container.Env) == 0 {
+		container.Env = []v1.EnvVar{}
+	}
+	if !envVarExists("RAY_IP", container.Env) {
+		ip := v1.EnvVar{Name: "RAY_IP"}
+		ip.Value = fmt.Sprintf("%s", svcName)
+		container.Env = append(container.Env, ip)
+	}
+}
+
 func setContainerEnvVars(container *v1.Container, rayNodeType rayiov1alpha1.RayNodeType, rayStartParams map[string]string, svcName string) {
 	// set IP to local host if head, or the the svc otherwise  RAY_IP
 	// set the port RAY_PORT
@@ -220,7 +234,6 @@ func setContainerEnvVars(container *v1.Container, rayNodeType rayiov1alpha1.RayN
 		}
 		container.Env = append(container.Env, port)
 	}
-
 }
 
 func envVarExists(envName string, envVars []v1.EnvVar) bool {
@@ -234,7 +247,6 @@ func envVarExists(envName string, envVars []v1.EnvVar) bool {
 		}
 	}
 	return false
-
 }
 
 //TODO auto complete params
@@ -317,6 +329,26 @@ func checkIfVolumeMounted(container *v1.Container, pod *v1.Pod) bool {
 		}
 	}
 	return false
+}
+
+func cleanupInvalidVolumeMounts(container *v1.Container, pod *v1.Pod) {
+	// if a volumeMount is specified in the container,
+	// but has no corresponding pod volume, it is removed
+	for index, mountedVol := range container.VolumeMounts {
+		valid := false
+		for _, podVolume := range pod.Spec.Volumes {
+			if mountedVol.Name == podVolume.Name {
+				// valid mount, moving on...
+				valid = true
+				break
+			}
+		}
+		if !valid {
+			//remove the VolumeMount
+			container.VolumeMounts[index] = container.VolumeMounts[len(container.VolumeMounts)-1]
+			container.VolumeMounts = container.VolumeMounts[:len(container.VolumeMounts)-1]
+		}
+	}
 }
 
 func findMemoryReqOrLimit(container v1.Container) (res *resource.Quantity) {

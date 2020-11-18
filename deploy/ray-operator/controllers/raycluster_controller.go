@@ -10,8 +10,6 @@ import (
 	"strings"
 	"time"
 
-	mapset "github.com/deckarep/golang-set"
-
 	"k8s.io/client-go/tools/record"
 
 	"github.com/go-logr/logr"
@@ -93,7 +91,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 		return reconcile.Result{}, err
 	}
 
-	if err = r.checkPods(*instance, rayPodSvc.Name); err != nil {
+	if err = r.checkPods(instance, rayPodSvc.Name); err != nil {
 		return reconcile.Result{RequeueAfter: 2 * time.Second}, err
 		//return reconcile.Result{}, err
 	}
@@ -103,7 +101,7 @@ func (r *RayClusterReconciler) Reconcile(request reconcile.Request) (reconcile.R
 	return reconcile.Result{}, nil
 }
 
-func (r *RayClusterReconciler) checkPods(instance rayiov1alpha1.RayCluster, headSvcName string) error {
+func (r *RayClusterReconciler) checkPods(instance *rayiov1alpha1.RayCluster, headSvcName string) error {
 	//var updateNeeded bool
 	// check if all the pods exist
 	headPods := corev1.PodList{}
@@ -121,7 +119,7 @@ func (r *RayClusterReconciler) checkPods(instance rayiov1alpha1.RayCluster, head
 	if len(headPods.Items) == 0 || headPods.Items == nil {
 		// create head pod
 		log.Info("checkPods ", "creating head pod for cluster", instance.Name)
-		if err := r.createHeadPod(instance, headSvcName); err != nil {
+		if err := r.createHeadPod(*instance, headSvcName); err != nil {
 			return err
 		}
 	} else if len(headPods.Items) > 1 {
@@ -141,86 +139,51 @@ func (r *RayClusterReconciler) checkPods(instance rayiov1alpha1.RayCluster, head
 		}
 	}
 	//handle the workers now
-	for _, worker := range instance.Spec.WorkerGroupsSpec {
+	for index, worker := range instance.Spec.WorkerGroupsSpec {
 		workerPods := corev1.PodList{}
 		if err := r.List(context.TODO(), &workerPods, client.InNamespace(instance.Namespace),
 			client.MatchingLabels{"rayClusterName": instance.Name, "groupName": worker.GroupName}); err != nil {
 			return err
 		}
-		if len(workerPods.Items) == 0 || workerPods.Items == nil {
-			log.Info("checkPods", "no workers exist for group", worker.GroupName)
+		runningPods := corev1.PodList{}
+		for _, aPod := range workerPods.Items {
+			if aPod.Status.Phase == v1.PodRunning || aPod.Status.Phase == v1.PodPending {
+				runningPods.Items = append(runningPods.Items, aPod)
+			}
+		}
+		diff := *worker.Replicas - int32(len(runningPods.Items))
+		if diff > 0 {
+			//pods need to be added
+			log.Info("checkPods", "workers needed for group", worker.GroupName)
 			//create all workers of this group
 			var i int32
-			for i = 0; i < *worker.Replicas; i++ {
-				log.Info("checkPods", "creating worker for group", worker.GroupName, fmt.Sprint(i), *worker.Replicas)
-
-				log.Info("checkPods", "------>>>>>>>", worker.Template)
-
-				if err := r.createWorkerPod(instance, worker, headSvcName); err != nil {
+			for i = 0; i < diff; i++ {
+				log.Info("checkPods", "creating worker for group", worker.GroupName, fmt.Sprint(i), fmt.Sprint(diff))
+				if err := r.createWorkerPod(*instance, worker, headSvcName); err != nil {
 					return err
 				}
 			}
-		} else if int32(len(workerPods.Items)) == *worker.Replicas {
+		} else if diff == 0 {
 			log.Info("checkPods", "all workers already exist for group", worker.GroupName)
 			continue
-		} else if int32(len(workerPods.Items)) > *worker.Replicas {
-			log.Info("checkPods", "extra workers exist for group", worker.GroupName)
-			//we have more replicas than needed
-			//diff is the number of extra workers we have
-			diff := int32(len(workerPods.Items)) - *worker.Replicas
-			// we will add all the available workers to a set
-			runtimePodNameList := mapset.NewSet()
-			for _, runtimePod := range workerPods.Items {
-				runtimePodNameList.Add(runtimePod.Name)
-			}
+		} else if int32(len(workerPods.Items)) == (*worker.Replicas + int32(len(worker.ScaleStrategy.WorkersToDelete))) {
+			log.Info("checkPods", "removing all the pods in the scaleStrategy of", worker.GroupName)
 			for _, podsToDelete := range worker.ScaleStrategy.WorkersToDelete {
-				//TODO check if the worker to delete belongs to the same group
-				if diff == 0 {
-					break
-				}
-				if runtimePodNameList.Contains(podsToDelete) {
-					pod := corev1.Pod{}
-					pod.Name = podsToDelete
-					pod.Namespace = utils.GetNamespace(instance.ObjectMeta)
-					log.Info("Deleting pod", "namespace", pod.Namespace, "name", pod.Name)
-					if err := r.Delete(context.TODO(), &pod); err != nil {
-						if !errors.IsNotFound(err) {
-							return err
-						}
-						log.Info("checkPods", "workers specified to delete was already deleted ", pod.Name)
+				pod := corev1.Pod{}
+				pod.Name = podsToDelete
+				pod.Namespace = utils.GetNamespace(instance.ObjectMeta)
+				log.Info("Deleting pod", "namespace", pod.Namespace, "name", pod.Name)
+				if err := r.Delete(context.TODO(), &pod); err != nil {
+					if !errors.IsNotFound(err) {
+						return err
 					}
-					r.Recorder.Eventf(&instance, v1.EventTypeNormal, "Deleted", "Deleted pod %s", pod.Name)
-					diff--
-					//TODO update the scaleStrategy
-					// no err => remove name from list
-					//worker.ScaleStrategy.WorkersToDelete[index] = worker.ScaleStrategy.WorkersToDelete[len(worker.ScaleStrategy.WorkersToDelete)-1]
-					//worker.ScaleStrategy.WorkersToDelete = worker.ScaleStrategy.WorkersToDelete[:len(worker.ScaleStrategy.WorkersToDelete)-1]
-
+					log.Info("checkPods", "workers specified to delete was already deleted ", pod.Name)
 				}
+				r.Recorder.Eventf(instance, v1.EventTypeNormal, "Deleted", "Deleted pod %s", pod.Name)
 			}
-			if diff > 0 {
-
-			}
-
-			/*
-				if delta == 0 {
-					continue // continue to the next worker group
-				}
-
-				if delta > 0 {
-					//here I can use a set, and then if an element is not there I can discard it
-					log.Info("checkPods", "workers specified to delete is less than the needed number to delete in group ", worker.GroupName)
-					//TODO delete extra pods randomly
-					continue
-				}
-				if delta < 0 {
-					//more specified pods than the extra pods => discrepency between #replicas and the deleted ones
-				}
-			*/
-			//instance.Spec.WorkerGroupsSpec[workerIndex] = worker
+			instance.Spec.WorkerGroupsSpec[index].ScaleStrategy.WorkersToDelete = []string{}
 		}
 	}
-
 	return nil
 }
 
@@ -300,9 +263,8 @@ func (r *RayClusterReconciler) createWorkerPod(instance rayiov1alpha1.RayCluster
 			return err
 		}
 	}
-	log.Info("Created pod", "Pod ", pod)
+	log.Info("Created pod", "Pod ", pod.Name)
 	r.Recorder.Eventf(&instance, v1.EventTypeNormal, "Created", "Created worker pod %s", pod.Name)
-
 	return nil
 }
 

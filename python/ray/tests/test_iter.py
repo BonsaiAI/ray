@@ -129,7 +129,10 @@ def test_metrics_union_recursive(ray_start_regular_shared):
     it12 = it1.union(it2, deterministic=True)
     it123 = it12.union(it3, deterministic=True)
     out = it123.for_each(verify_metrics)
-    assert out.take(20) == [1, 1, 1, 2, 2, 3, 2, 4, 3, 3, 4, 4]
+    taken = out.take(20)
+    expected = [1, 1, 1, 2, 2, 3, 2, 4, 3, 3, 4, 4]
+    assert len(taken) == len(expected)
+    assert taken == expected
 
 
 def test_from_items(ray_start_regular_shared):
@@ -393,6 +396,15 @@ def test_gather_async_optimized(ray_start_regular_shared):
     assert sorted(it) == list(range(100))
 
 
+def test_gather_async_empty(ray_start_regular_shared):
+    it = from_iterators([range(10), []])
+    it = it.gather_async(batch_ms=100, num_async=4)
+    assert sorted(it) == list(range(10))
+    it = from_iterators([[], []])
+    it = it.gather_async(batch_ms=100, num_async=4)
+    assert len(sorted(it)) == 0
+
+
 def test_get_shard_optimized(ray_start_regular_shared):
     it = from_range(6, num_shards=3)
     shard1 = it.get_shard(shard_index=0, batch_ms=25, num_async=2)
@@ -446,6 +458,15 @@ def test_batch_across_shards(ray_start_regular_shared):
         repr(it) == "LocalIterator[ParallelIterator[from_iterators[shards=2]]"
         ".batch_across_shards()]")
     assert sorted(it) == [[0, 2], [1, 3]]
+
+
+def test_batch_across_unbalanced_shards(ray_start_regular_shared):
+    it = from_iterators([[0, 1, 2], [3, 4, 5, 6]])
+    it = it.batch_across_shards()
+    assert (
+        repr(it) == "LocalIterator[ParallelIterator[from_iterators[shards=2]]"
+        ".batch_across_shards()]")
+    assert sorted(it) == [[0, 3], [1, 4], [2, 5], [6]]
 
 
 def test_remote(ray_start_regular_shared):
@@ -527,7 +548,80 @@ def test_union_local_async(ray_start_regular_shared):
             ".gather_async()], LocalIterator[ParallelIterator["
             "from_iterators[shards=1].for_each()].gather_async()]]]")
     results = list(it)
-    assert all(x[0] == "slow" for x in results[-3:]), results
+    slow_count = sum(1 for x in results if x[0] == "slow")
+    assert slow_count >= 1
+    assert (len(results) - slow_count) >= 8
+
+
+def test_union_local_async_empty_iter(ray_start_regular_shared):
+    def gen_fast():
+        for i in range(10):
+            time.sleep(0.05)
+            print("PRODUCE FAST", i)
+            yield i
+
+    def gen_nothing():
+        yield from ()
+
+    it1 = from_iterators([gen_fast]).for_each(lambda x: ("fast", x))
+    it2 = from_iterators([gen_nothing]).for_each(lambda x: ("nothing", x))
+    it = it1.gather_async().union(it2.gather_async())
+    assert (repr(it) == "LocalIterator[LocalUnion[LocalIterator["
+            "ParallelIterator[from_iterators[shards=1].for_each()]"
+            ".gather_async()], LocalIterator[ParallelIterator["
+            "from_iterators[shards=1].for_each()].gather_async()]]]")
+    results = list(it)
+    fast_count = sum(1 for x in results if x[0] == "fast")
+    assert fast_count >= 1
+    assert (len(results) - fast_count) == 0
+
+
+def test_union_local_async_strict(ray_start_regular_shared):
+    def gen_fast():
+        for i in range(10):
+            time.sleep(0.05)
+            print("PRODUCE FAST", i)
+            yield i
+
+    def gen_slow():
+        for i in range(10):
+            time.sleep(0.3)
+            print("PRODUCE SLOW", i)
+            yield i
+
+    it1 = from_iterators([gen_fast]).for_each(lambda x: ("fast", x))
+    it2 = from_iterators([gen_slow]).for_each(lambda x: ("slow", x))
+    it = it1.gather_async().union(it2.gather_async(), strict=True)
+    assert (repr(it) == "LocalIterator[LocalUnion[LocalIterator["
+            "ParallelIterator[from_iterators[shards=1].for_each()]"
+            ".gather_async()], LocalIterator[ParallelIterator["
+            "from_iterators[shards=1].for_each()].gather_async()]]]")
+    results = list(it)
+    slow_count = sum(1 for x in results if x[0] == "slow")
+    assert slow_count >= 1
+    assert (len(results) - slow_count) >= 8
+
+
+def test_union_local_async_strict_empty_iter(ray_start_regular_shared):
+    def gen_fast():
+        for i in range(10):
+            time.sleep(0.05)
+            print("PRODUCE FAST", i)
+            yield i
+
+    def gen_nothing():
+        yield from ()
+
+    it1 = from_iterators([gen_fast]).for_each(lambda x: ("fast", x))
+    it2 = from_iterators([gen_nothing]).for_each(lambda x: ("nothing", x))
+    it = it1.gather_async().union(it2.gather_async(), strict=True)
+    assert (repr(it) == "LocalIterator[LocalUnion[LocalIterator["
+            "ParallelIterator[from_iterators[shards=1].for_each()]"
+            ".gather_async()], LocalIterator[ParallelIterator["
+            "from_iterators[shards=1].for_each()].gather_async()]]]")
+    results = list(it)
+    slow_count = sum(1 for x in results if x[0] == "slow")
+    assert slow_count == 0
 
 
 def test_serialization(ray_start_regular_shared):

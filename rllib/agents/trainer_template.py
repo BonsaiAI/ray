@@ -4,6 +4,7 @@ from typing import Callable, Iterable, List, Optional, Type
 from ray.rllib.agents.trainer import Trainer, COMMON_CONFIG
 from ray.rllib.env.env_context import EnvContext
 from ray.rllib.evaluation.worker_set import WorkerSet
+from ray.rllib.execution.common import TIMESTEPS_TOTAL
 from ray.rllib.execution.rollout_ops import ParallelRollouts, ConcatBatches
 from ray.rllib.execution.train_ops import TrainOneStep
 from ray.rllib.execution.metric_ops import StandardMetricsReporting
@@ -104,6 +105,7 @@ def build_trainer(
 
         def __init__(self, config=None, env=None, logger_creator=None):
             Trainer.__init__(self, config, env, logger_creator)
+            self._prev_timesteps_total = 0
 
         def _init(self, config: TrainerConfigDict,
                   env_creator: Callable[[EnvConfigDict], EnvType]):
@@ -145,6 +147,9 @@ def build_trainer(
         @override(Trainer)
         def step(self):
             res = next(self.train_exec_impl)
+            timesteps_this_iter = res[TIMESTEPS_TOTAL] - self._prev_timesteps_total
+            self._prev_timesteps_total = res[TIMESTEPS_TOTAL]
+            res["timesteps_this_iter"] = timesteps_this_iter
             return res
 
         @override(Trainer)
@@ -189,4 +194,5 @@ def build_trainer(
 
     trainer_cls.__name__ = name
     trainer_cls.__qualname__ = name
+    trainer_cls.execution_plan = execution_plan
     return trainer_cls

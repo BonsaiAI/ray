@@ -1,5 +1,6 @@
 # The build output should clearly not be checked in
 /bazel-*
+/bazel-ray/
 /python/ray/core
 /python/ray/pickle5_files/
 /python/ray/thirdparty_files/
@@ -183,3 +184,6 @@ tools/prometheus*
 # ray project files
 project-id
 .mypy_cache/
+
+# PyCharm
+.ijwb/

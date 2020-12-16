@@ -78,7 +78,7 @@ void TestSetupUtil::ShutDownRedisServer(const int &port) {
   if (Process::Call(cmdargs) != std::error_code()) {
     RAY_LOG(WARNING) << "Failed to stop redis. The redis process may no longer exist.";
   }
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
 }
 
 void TestSetupUtil::FlushAllRedisServers() {

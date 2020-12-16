@@ -1,4 +1,4 @@
-from typing import Dict, TYPE_CHECKING
+from typing import Any, Dict, TYPE_CHECKING
 
 from ray.rllib.env import BaseEnv
 from ray.rllib.policy import Policy
@@ -32,7 +32,7 @@ class DefaultCallbacks:
 
     def on_episode_start(self, *, worker: "RolloutWorker", base_env: BaseEnv,
                          policies: Dict[PolicyID, Policy],
-                         episode: MultiAgentEpisode, env_index: int, **kwargs):
+                         episode: MultiAgentEpisode, env_index: int, env_infos: Dict[str, Any], **kwargs):
         """Callback run on the rollout worker before each episode starts.
 
         Args:
@@ -47,6 +47,10 @@ class DefaultCallbacks:
                 metrics for the episode.
             env_index (int): The index of the (vectorized) env, which the
                 episode belongs to.
+            env_infos (Dict): Dictionary with the info values comming from each
+                agent. These are the info values return by the poll method in
+                BaseEnv. They are being passed here by sampler in the _env_runner
+                method.
             kwargs: Forward compatibility placeholder.
         """
 
@@ -55,6 +59,7 @@ class DefaultCallbacks:
                 "env": base_env,
                 "policy": policies,
                 "episode": episode,
+                "env_infos": env_infos,
             })
 
     def on_episode_step(self, *, worker: "RolloutWorker", base_env: BaseEnv,

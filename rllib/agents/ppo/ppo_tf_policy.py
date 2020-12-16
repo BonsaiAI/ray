@@ -203,7 +203,8 @@ def postprocess_ppo_gae(
         last_r,
         policy.config["gamma"],
         policy.config["lambda"],
-        use_gae=policy.config["use_gae"])
+        use_gae=policy.config["use_gae"],
+        use_critic=policy.config.get("use_critic", True))
     return batch
 
 

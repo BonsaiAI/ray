@@ -11,7 +11,7 @@ echo 10
 EOF
 chmod +x /usr/bin/nproc
 
-NODE_VERSION="14"
+NODE_VERSION="15"
 PYTHONS=("cp36-cp36m"
          "cp37-cp37m"
          "cp38-cp38")
@@ -28,12 +28,28 @@ sudo apt-get install unzip
 # Put bazel into the PATH
 export PATH=$PATH:/root/bin
 
-# Install and use the latest version of Node.js in order to build the dashboard.
-set +x
-curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.34.0/install.sh | bash
-source "$HOME"/.nvm/nvm.sh
-nvm install $NODE_VERSION
-nvm use node
+# In azure pipelines or github acions, we don't need to install node
+if [ -x "$(command -v npm)" ]; then
+  echo "Node already installed"
+  npm -v
+else
+  # Install and use the latest version of Node.js in order to build the dashboard.
+  set +x
+  # Install nodejs
+  curl -sL https://deb.nodesource.com/setup_"$NODE_VERSION".x | sudo -E bash -
+  sudo DEBIAN_FRONTEND=noninteractive apt-get install -yq \
+      --force-yes \
+      nodejs
+
+  # Install NVM
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.37.0/install.sh | bash
+  NVM_HOME="${HOME}/.nvm"
+  if [ ! -f "${NVM_HOME}/nvm.sh" ]; then
+    echo "NVM is not installed"
+    exit 1
+  fi
+  npm -v
+fi
 
 # Build the dashboard so its static assets can be included in the wheel.
 pushd python/ray/dashboard/client

@@ -1,8 +1,9 @@
 """Tensorflow policy class used for DQN"""
-
+import logging
 from typing import Dict
 
 import gym
+from gym.spaces import Discrete, Box
 import numpy as np
 import ray
 from ray.rllib.agents.dqn.distributional_q_tf_model import \
@@ -23,6 +24,8 @@ from ray.rllib.utils.tf_ops import (huber_loss, make_tf_callable,
                                     minimize_and_clip, reduce_mean_ignore_inf)
 from ray.rllib.utils.typing import (ModelGradients, TensorType,
                                     TrainerConfigDict)
+
+logger = logging.getLogger(__name__)
 
 tf1, tf, tfv = try_import_tf()
 
@@ -418,8 +421,13 @@ def postprocess_nstep_and_prio(policy: Policy,
 
     # Prioritize on the worker side.
     if batch.count > 0 and policy.config["worker_side_prioritization"]:
+        actions = batch[SampleBatch.ACTIONS]
+        if isinstance(policy.action_space, Box) and actions.ndim == 1:
+            actions = np.reshape(actions, [-1, 1])
+        elif isinstance(policy.action_space, Discrete) and actions.shape[-1] == 1:
+            actions = np.reshape(actions, [-1])
         td_errors = policy.compute_td_error(
-            batch[SampleBatch.CUR_OBS], batch[SampleBatch.ACTIONS],
+            batch[SampleBatch.CUR_OBS], actions,
             batch[SampleBatch.REWARDS], batch[SampleBatch.NEXT_OBS],
             batch[SampleBatch.DONES], batch[PRIO_WEIGHTS])
         new_priorities = (np.abs(convert_to_numpy(td_errors)) +

@@ -23,11 +23,11 @@ pytorch-lightning-bolts
 scikit-learn
 scikit-optimize
 sigopt
-smart_open
+smart_open==4.0.1
 tensorflow-probability
 timm
 torch>=1.5.0
-torchvision>=0.6.0
+torchvision>=0.6
 # transformers
 git+git://github.com/huggingface/transformers.git@bdcc4b78a27775d1ec8f3fd297cb679c257289db#transformers
 git+git://github.com/ray-project/tune-sklearn@master#tune-sklearn

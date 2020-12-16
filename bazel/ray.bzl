@@ -3,7 +3,7 @@ load("@com_github_checkstyle_java//checkstyle:checkstyle.bzl", "checkstyle_test"
 load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
 load("@bazel_common//tools/maven:pom_file.bzl", "pom_file")
 
-COPTS = ["-DRAY_USE_GLOG"] + select({
+COPTS = ["-DRAY_USE_GLOG", "-Wno-range-loop-analysis"] + select({
     "//:opt": ["-DBAZEL_OPT"],
     "//conditions:default": [],
 }) + select({

@@ -3,52 +3,13 @@ import unittest
 
 import ray
 import ray.rllib.agents.dqn as dqn
-from ray.rllib.utils.test_utils import check, check_compute_single_action, \
-    framework_iterator
+from ray.rllib.utils.framework import try_import_tf
+from ray.rllib.utils.test_utils import check, framework_iterator
+
+tf = try_import_tf()
 
 
 class TestDQN(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls) -> None:
-        ray.init()
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        ray.shutdown()
-
-    def test_dqn_compilation(self):
-        """Test whether a DQNTrainer can be built on all frameworks."""
-        config = dqn.DEFAULT_CONFIG.copy()
-        config["num_workers"] = 2
-        num_iterations = 1
-
-        for _ in framework_iterator(config):
-            # Double-dueling DQN.
-            print("Double-dueling")
-            plain_config = config.copy()
-            trainer = dqn.DQNTrainer(config=plain_config, env="CartPole-v0")
-            for i in range(num_iterations):
-                results = trainer.train()
-                print(results)
-
-            check_compute_single_action(trainer)
-            trainer.stop()
-
-            # Rainbow.
-            print("Rainbow")
-            rainbow_config = config.copy()
-            rainbow_config["num_atoms"] = 10
-            rainbow_config["noisy"] = True
-            rainbow_config["double_q"] = True
-            rainbow_config["dueling"] = True
-            rainbow_config["n_step"] = 5
-            trainer = dqn.DQNTrainer(config=rainbow_config, env="CartPole-v0")
-            for i in range(num_iterations):
-                results = trainer.train()
-                print(results)
-
-            check_compute_single_action(trainer)
-            trainer.stop()
 
     def test_dqn_exploration_and_soft_q_config(self):
         """Tests, whether a DQN Agent outputs exploration/softmaxed actions."""

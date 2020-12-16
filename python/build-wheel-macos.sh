@@ -34,9 +34,15 @@ NUMPY_VERSIONS=("1.14.5"
 mkdir -p $DOWNLOAD_DIR
 mkdir -p .whl
 
-# Use the latest version of Node.js in order to build the dashboard.
-source "$HOME"/.nvm/nvm.sh
-nvm use node
+# In azure pipelines or github acions, we don't need to install node
+if [ -x "$(command -v npm)" ]; then
+  echo "Node already installed"
+  npm -v
+else
+  # Use the latest version of Node.js in order to build the dashboard.
+  source "$HOME"/.nvm/nvm.sh
+  nvm use node
+fi
 
 # Build the dashboard so its static assets can be included in the wheel.
 pushd python/ray/dashboard/client
@@ -88,7 +94,7 @@ for ((i=0; i<${#PY_VERSIONS[@]}; ++i)); do
     fi
     # Add the correct Python to the path and build the wheel. This is only
     # needed so that the installation finds the cython executable.
-    PATH=$MACPYTHON_PY_PREFIX/$PY_MM/bin:$PATH $PYTHON_EXE setup.py bdist_wheel
+    MACOSX_DEPLOYMENT_TARGET=10.15 PATH=$MACPYTHON_PY_PREFIX/$PY_MM/bin:$PATH $PYTHON_EXE setup.py bdist_wheel
     mv dist/*.whl ../.whl/
   popd
 done

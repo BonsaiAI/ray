@@ -69,6 +69,7 @@ class PettingZooEnv(MultiAgentEnv):
         self.aec_env = env
 
         # agent idx list
+        self.aec_env.reset()
         self.agents = self.aec_env.agents
 
         # Get dictionaries of obs_spaces and act_spaces

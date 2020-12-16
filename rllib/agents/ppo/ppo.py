@@ -10,7 +10,7 @@ Detailed documentation: https://docs.ray.io/en/master/rllib-algorithms.html#ppo
 """
 
 import logging
-from typing import Optional, Type
+from typing import Optional, Type, TypeVar
 
 from ray.rllib.agents import with_common_config
 from ray.rllib.agents.ppo.ppo_tf_policy import PPOTFPolicy
@@ -55,6 +55,9 @@ DEFAULT_CONFIG = with_common_config({
     # Number of SGD iterations in each outer loop (i.e., number of epochs to
     # execute per train batch).
     "num_sgd_iter": 30,
+    # Callable to be added in the store_ops part of the execution plan.
+    # The foreach transformation is used over the ParallelIterator.
+    "execution_plan_custom_store_ops": None,
     # Stepsize of SGD.
     "lr": 5e-5,
     # Learning rate schedule.
@@ -89,6 +92,12 @@ DEFAULT_CONFIG = with_common_config({
     # Whether to fake GPUs (using CPUs).
     # Set this to True for debugging on non-GPU machines (set `num_gpus` > 0).
     "_fake_gpus": False,
+    # Which mode to use in the ParallelRollouts operator used to collect
+    # samples. For more details check the operator in rollout_ops module.
+    "parallel_rollouts_mode": "bulk_sync",
+    # This only applies if async mode is used (above config setting).
+    # Controls the max number of async requests in flight per actor
+    "parallel_rollouts_num_async": None,
     # Switch on Trajectory View API for PPO by default.
     # NOTE: Only supported for PyTorch so far.
     "_use_trajectory_view_api": True,
@@ -240,8 +249,16 @@ def execution_plan(workers: WorkerSet,
         LocalIterator[dict]: The Policy class to use with PPOTrainer.
             If None, use `default_policy` provided in build_trainer().
     """
-    rollouts = ParallelRollouts(workers, mode="bulk_sync")
+    parallel_rollouts_mode = config.get("parallel_rollouts_mode", "bulk_sync")
+    num_async = config.get("parallel_rollouts_num_async")
+    # This could be set to None explicitly
+    if not num_async:
+        num_async = 1
+    rollouts = ParallelRollouts(workers, mode=parallel_rollouts_mode, num_async=num_async)
 
+    if config.get("execution_plan_custom_store_ops"):
+        custom_store_ops = config["execution_plan_custom_store_ops"]
+        rollouts = rollouts.for_each(custom_store_ops(workers, config))
     # Collect batches for the trainable policies.
     rollouts = rollouts.for_each(
         SelectExperiences(workers.trainable_policies()))

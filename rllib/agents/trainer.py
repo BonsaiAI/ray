@@ -79,6 +79,12 @@ COMMON_CONFIG: TrainerConfigDict = {
     # evenly sized batches, but increases variance as the reward-to-go will
     # need to be estimated at truncation boundaries.
     "batch_mode": "truncate_episodes",
+    # Allows to customize the metrics summarization
+    # The callable received the episodes, new_episodes and the result
+    # of the default summarize_episodes. Must return the new summary.
+    # The signatura of the callable is the following:
+    # Callable[[Sequence[Any], Sequence[Any], Dict[str, Any]], Dict[str, Any]]
+    "custom_summarize_episodes_callback": None,
 
     # === Settings for the Trainer process ===
     # Number of GPUs to allocate to the trainer process. Note that not all
@@ -115,6 +121,9 @@ COMMON_CONFIG: TrainerConfigDict = {
     "env": None,
     # Unsquash actions to the upper and lower bounds of env's action space
     "normalize_actions": False,
+    # If normalize_actions (above flag) is on, this flag allows you to
+    # control if the actions must be rescaled back to the env scale or not.
+    "disable_actions_rescaling": False,
     # Whether to clip rewards during Policy's postprocessing.
     # None (default): Clip for Atari only (r=sign(r)).
     # True: r=sign(r): Fixed rewards -1.0, 1.0, or 0.0.
@@ -280,6 +289,15 @@ COMMON_CONFIG: TrainerConfigDict = {
     "extra_python_environs_for_driver": {},
     # The extra python environments need to set for worker processes.
     "extra_python_environs_for_worker": {},
+    # If set, this will fix the ratio of sampled to replayed timesteps.
+    # Otherwise, replay will proceed as fast as possible.
+    "training_intensity": None,
+    # Which mode to use in the ParallelRollouts operator used to collect
+    # samples. For more details check the operator in rollout_ops module.
+    "parallel_rollouts_mode": None,
+    # This only applies if async mode is used (above config setting).
+    # Controls the max number of async requests in flight per actor
+    "parallel_rollouts_num_async": None,
 
     # === Advanced Resource Settings ===
     # Number of CPUs to allocate per worker.
@@ -592,7 +610,7 @@ class Trainer(Trainable):
             logger.info("Tip: set framework=tfe or the --eager flag to enable "
                         "TensorFlow eager execution")
 
-        if self.config["normalize_actions"]:
+        if self.config["normalize_actions"] and not self.config["disable_actions_rescaling"]:
             inner = self.env_creator
 
             def normalize(env):

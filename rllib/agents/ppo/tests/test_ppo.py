@@ -43,61 +43,6 @@ class TestPPO(unittest.TestCase):
     def tearDownClass(cls):
         ray.shutdown()
 
-    def test_ppo_compilation(self):
-        """Test whether a PPOTrainer can be built with all frameworks."""
-        config = copy.deepcopy(ppo.DEFAULT_CONFIG)
-        config["num_workers"] = 1
-        config["num_sgd_iter"] = 2
-        # Settings in case we use an LSTM.
-        config["model"]["lstm_cell_size"] = 10
-        config["model"]["max_seq_len"] = 20
-        config["train_batch_size"] = 128
-        num_iterations = 2
-
-        for _ in framework_iterator(config):
-            for env in ["CartPole-v0", "MsPacmanNoFrameskip-v4"]:
-                print("Env={}".format(env))
-                for lstm in [True, False]:
-                    print("LSTM={}".format(lstm))
-                    config["model"]["use_lstm"] = lstm
-                    config["model"]["lstm_use_prev_action_reward"] = lstm
-                    trainer = ppo.PPOTrainer(config=config, env=env)
-                    for i in range(num_iterations):
-                        trainer.train()
-                    check_compute_single_action(
-                        trainer,
-                        include_prev_action_reward=True,
-                        include_state=lstm)
-                    trainer.stop()
-
-    def test_ppo_fake_multi_gpu_learning(self):
-        """Test whether PPOTrainer can learn CartPole w/ faked multi-GPU."""
-        config = copy.deepcopy(ppo.DEFAULT_CONFIG)
-        # Fake GPU setup.
-        config["num_gpus"] = 2
-        config["_fake_gpus"] = True
-        config["framework"] = "tf"
-        # Mimick tuned_example for PPO CartPole.
-        config["num_workers"] = 1
-        config["lr"] = 0.0003
-        config["observation_filter"] = "MeanStdFilter"
-        config["num_sgd_iter"] = 6
-        config["vf_share_layers"] = True
-        config["vf_loss_coeff"] = 0.01
-        config["model"]["fcnet_hiddens"] = [32]
-        config["model"]["fcnet_activation"] = "linear"
-
-        trainer = ppo.PPOTrainer(config=config, env="CartPole-v0")
-        num_iterations = 200
-        learnt = False
-        for i in range(num_iterations):
-            results = trainer.train()
-            print(results)
-            if results["episode_reward_mean"] > 150:
-                learnt = True
-                break
-        assert learnt, "PPO multi-GPU (with fake-GPUs) did not learn CartPole!"
-        trainer.stop()
 
     def test_ppo_exploration_setup(self):
         """Tests, whether PPO runs with different exploration setups."""

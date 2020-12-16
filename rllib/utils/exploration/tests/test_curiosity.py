@@ -154,7 +154,7 @@ class TestCuriosity(unittest.TestCase):
         config["num_workers"] = 0
         config["lr"] = 0.001
 
-        num_iterations = 10
+        num_iterations = 30
         for _ in framework_iterator(config, frameworks="torch"):
             # W/ Curiosity. Expect to learn something.
             config["exploration_config"] = {
@@ -193,7 +193,7 @@ class TestCuriosity(unittest.TestCase):
                 rewards_wo += result["episode_reward_mean"]
                 print(result)
             trainer.stop()
-            self.assertTrue(rewards_wo == 0.0)
+            self.assertTrue(rewards_wo <= 0.5)
 
     def test_curiosity_on_partially_observable_domain(self):
         config = ppo.DEFAULT_CONFIG.copy()

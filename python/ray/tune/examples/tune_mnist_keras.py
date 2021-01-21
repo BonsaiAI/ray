@@ -39,7 +39,7 @@ def train_mnist(config):
         verbose=0,
         validation_data=(x_test, y_test),
         callbacks=[TuneReportCallback({
-            "mean_accuracy": "accuracy"
+            "mean_accuracy": "acc"
         })])
 
 

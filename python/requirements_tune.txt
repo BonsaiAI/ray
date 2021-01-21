@@ -24,7 +24,7 @@ pytorch-lightning-bolts
 scikit-learn
 scikit-optimize
 sigopt
-smart_open
+smart_open==4.0.1
 tensorflow-probability
 timm
 torch>=1.6.0

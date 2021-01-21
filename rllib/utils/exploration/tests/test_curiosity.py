@@ -152,7 +152,7 @@ class TestCuriosity(unittest.TestCase):
         config["num_workers"] = 0
         config["lr"] = 0.001
 
-        num_iterations = 10
+        num_iterations = 30
         for fw in framework_iterator(config):
             # W/ Curiosity. Expect to learn something.
             config["exploration_config"] = {
@@ -193,7 +193,7 @@ class TestCuriosity(unittest.TestCase):
                     rewards_wo += result["episode_reward_mean"]
                     print(result)
                 trainer.stop()
-                self.assertTrue(rewards_wo == 0.0)
+                self.assertTrue(rewards_wo <= 0.5)
                 print("Did not reach goal w/o curiosity!")
 
     def test_curiosity_on_partially_observable_domain(self):

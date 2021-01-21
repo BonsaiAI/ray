@@ -40,6 +40,7 @@ build --per_file_copt="-\\.(asm|S)$,external/.*@-w"
 # Ignore minor warnings for host tools, which we generally can't control
 build:clang-cl --host_copt="-Wno-inconsistent-missing-override"
 build:clang-cl --host_copt="-Wno-microsoft-unqualified-friend"
+build:clang-cl --host_copt="-Wno-range-loop-analysis"
 # This workaround is needed due to https://github.com/bazelbuild/bazel/issues/4341
 build --per_file_copt="-\\.(asm|S)$,external/com_github_grpc_grpc/.*@-DGRPC_BAZEL_BUILD"
 # Don't generate warnings about kernel features we don't need https://github.com/ray-project/ray/issues/6832
@@ -97,25 +98,25 @@ test:asan --test_env=LD_PRELOAD="/usr/lib/x86_64-linux-gnu/libasan.so.2 /usr/lib
 # test:asan --test_env=LD_PRELOAD="/usr/lib/gcc/x86_64-linux-gnu/7/libasan.so"
 
 # CI configuration:
-aquery:ci --color=no
-aquery:ci --noshow_progress
-build:ci --color=yes
-build:ci --curses=no
+aquery --color=no
+aquery --noshow_progress
+build --color=yes
+build --curses=no
 build:ci --disk_cache=~/ray-bazel-cache
-build:ci --keep_going
+build --keep_going
 build:ci --remote_cache="https://storage.googleapis.com/ray-bazel-cache"
-build:ci --progress_report_interval=100
-build:ci --show_progress_rate_limit=15
-build:ci --show_task_finish
-build:ci --ui_actions_shown=1024
+build --progress_report_interval=100
+build --show_progress_rate_limit=15
+build --show_task_finish
+build --ui_actions_shown=1024
 build:ci-travis --show_timestamps  # Travis doesn't have an option to show timestamps, but GitHub Actions does
 # GitHub Actions has low disk space, so prefer hardlinks there.
 build:ci-github --experimental_repository_cache_hardlinks
-test:ci --flaky_test_attempts=3
-test:ci --nocache_test_results
-test:ci --spawn_strategy=local
-test:ci --test_output=errors
-test:ci --test_verbose_timeout_warnings
+test --flaky_test_attempts=5
+test --nocache_test_results
+test --spawn_strategy=local
+test --test_output=errors
+test --test_verbose_timeout_warnings
 
 aquery:get-toolchain --include_commandline=false
 aquery:get-toolchain --noimplicit_deps

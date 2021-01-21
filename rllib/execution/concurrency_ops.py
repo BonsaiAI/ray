@@ -9,7 +9,8 @@ def Concurrently(ops: List[LocalIterator],
                  *,
                  mode="round_robin",
                  output_indexes=None,
-                 round_robin_weights=None):
+                 round_robin_weights=None,
+                 strict=False):
     """Operator that runs the given parent iterators concurrently.
 
     Args:
@@ -26,6 +27,7 @@ def Concurrently(ops: List[LocalIterator],
             will cause as many items to be pulled as possible from the third
             iterator without blocking. This is only allowed in round robin
             mode.
+        strict (bool): whether all ops are required in order to yield.
 
     Examples:
         >>> sim_op = ParallelRollouts(...).for_each(...)
@@ -59,7 +61,8 @@ def Concurrently(ops: List[LocalIterator],
     output = ops[0].union(
         *ops[1:],
         deterministic=deterministic,
-        round_robin_weights=round_robin_weights)
+        round_robin_weights=round_robin_weights,
+        strict=strict)
 
     if output_indexes:
         output = (output.filter(lambda tup: tup[0] in output_indexes)

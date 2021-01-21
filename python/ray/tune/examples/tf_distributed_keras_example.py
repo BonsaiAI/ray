@@ -61,7 +61,7 @@ def train_mnist(config, checkpoint_dir=None):
         steps_per_epoch=steps_per_epoch,
         callbacks=[
             TuneReportCheckpointCallback({
-                "mean_accuracy": "accuracy"
+                "mean_accuracy": "acc"
             })
         ])
 

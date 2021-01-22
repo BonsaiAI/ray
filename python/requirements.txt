@@ -23,13 +23,16 @@ py-spy >= 0.2.0
 pyyaml
 redis >= 3.5.0
 requests
+urllib3
+pickle5==0.0.11
+h5py==2.10.0
 
 ## setup.py extras
-atari_py
+atari_py==0.2.6
 dm_tree
 flask
-gym[atari]
-lz4
+gym[atari]==0.17.2
+lz4==3.1.1
 opencv-python-headless==4.3.0.36
 pandas==1.0.5
 scipy==1.4.1
@@ -47,7 +50,7 @@ cython==0.29.0
 dataclasses; python_version < '3.7'
 dask[complete]
 feather-format
-gym
+gym==0.17.2
 gym-minigrid
 kubernetes
 lxml

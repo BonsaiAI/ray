@@ -58,9 +58,9 @@ DEFAULT_CONFIG = with_common_config({
     "critic_hidden_activation": "relu",
     # N-step Q learning
     "n_step": 1,
-    # Algorithm for good policies
+    # Algorithm for good policies.
     "good_policy": "maddpg",
-    # Algorithm for adversary policies
+    # Algorithm for adversary policies.
     "adv_policy": "maddpg",
 
     # === Replay buffer ===
@@ -112,6 +112,12 @@ DEFAULT_CONFIG = with_common_config({
     "num_workers": 1,
     # Prevent iterations from going lower than this time span
     "min_iter_time_s": 0,
+    # Which mode to use in the ParallelRollouts operator used to collect
+    # samples. For more details check the operator in rollout_ops module.
+    "parallel_rollouts_mode": "bulk_sync",
+    # This only applies if async mode is used (above config setting).
+    # Controls the max number of async requests in flight per actor
+    "parallel_rollouts_num_async": None,
 })
 # __sphinx_doc_end__
 # yapf: enable
@@ -157,13 +163,18 @@ def add_maddpg_postprocessing(config):
     setups for DQN and APEX.
     """
 
-    def f(batch, workers, config):
-        policies = dict(workers.local_worker()
-                        .foreach_trainable_policy(lambda p, i: (i, p)))
-        return before_learn_on_batch(batch, policies,
-                                     config["train_batch_size"])
+    class _CustomBeforeLearnOnBatch:
+        def __init__(self, workers, config):
+            self.workers = workers
+            self.config = config
 
-    config["before_learn_on_batch"] = f
+        def __call__(self, batch):
+            policies = dict(self.workers.local_worker()
+                            .foreach_trainable_policy(lambda p, i: (i, p)))
+            return before_learn_on_batch(batch, policies,
+                                        self.config["train_batch_size"])
+
+    config["before_learn_on_batch"] = _CustomBeforeLearnOnBatch
     return config
 
 

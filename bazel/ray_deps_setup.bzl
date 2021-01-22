@@ -76,11 +76,12 @@ def auto_http_archive(*, name=None, url=None, urls=True,
                         strip_prefix=strip_prefix, **kwargs)
 
 def ray_deps_setup():
+
     auto_http_archive(
         name = "com_github_antirez_redis",
         build_file = "//bazel:BUILD.redis",
-        url = "https://github.com/antirez/redis/archive/5.0.9.tar.gz",
-        sha256 = "db9bf149e237126f9bb5f40fb72f33701819555d06f16e9a38b4949794214201",
+        url = "https://github.com/redis/redis/archive/6.0.9.tar.gz",
+        sha256 = "2819b6d9c56be1f25cd157b9cb6b7c2733edcb46f4f6bcb1b79cefe639a2853b",
         patches = [
             "//thirdparty/patches:redis-quiet.patch",
         ],
@@ -97,11 +98,18 @@ def ray_deps_setup():
     )
 
     auto_http_archive(
+        name = "com_github_spdlog",
+        build_file = "//bazel:BUILD.spdlog",
+        urls = ["https://github.com/gabime/spdlog/archive/v1.7.0.zip"],
+        sha256 = "c8f1e1103e0b148eb8832275d8e68036f2fdd3975a1199af0e844908c56f6ea5",
+    )
+    
+    auto_http_archive(
         name = "com_github_tporadowski_redis_bin",
         build_file = "//bazel:BUILD.redis",
         strip_prefix = None,
-        url = "https://github.com/tporadowski/redis/releases/download/v4.0.14.2/Redis-x64-4.0.14.2.zip",
-        sha256 = "6fac443543244c803311de5883b714a7ae3c4fa0594cad51d75b24c4ef45b353",
+        url = "https://github.com/tporadowski/redis/releases/download/v5.0.9/Redis-x64-5.0.9.zip",
+      sha256 = "b09565b22b50c505a5faa86a7e40b6683afb22f3c17c5e6a5e35fc9b7c03f4c2",
     )
 
     auto_http_archive(
@@ -124,12 +132,6 @@ def ray_deps_setup():
     )
 
     auto_http_archive(
-        name = "com_github_checkstyle_java",
-        url = "https://github.com/ray-project/checkstyle_java/archive/ef367030d1433877a3360bbfceca18a5d0791bdd.tar.gz",
-        sha256 = "847d391156d7dcc9424e6a8ba06ff23ea2914c725b18d92028074b2ed8de3da9",
-    )
-
-    auto_http_archive(
         # This rule is used by @com_github_nelhage_rules_boost and
         # declaring it here allows us to avoid patching the latter.
         name = "boost",
@@ -144,8 +146,8 @@ def ray_deps_setup():
     auto_http_archive(
         name = "com_github_nelhage_rules_boost",
         # If you update the Boost version, remember to update the 'boost' rule.
-        url = "https://github.com/nelhage/rules_boost/archive/5b53112431ef916381d6969f114727cc4f83960b.tar.gz",
-        sha256 = "32080749fdb8e4015815694a5c7d009f479e5f6a4da443d262bd7f28b8bd1b55",
+        url = "https://github.com/nelhage/rules_boost/archive/2613d04ab3d22dfc4543ea0a083d9adeaa0daf09.tar.gz",
+        sha256 = "512f913240e026099d4ca4a98b1ce8048c99de77fdc8e8584e9e2539ee119ca2",
         patches = [
             "//thirdparty/patches:rules_boost-undefine-boost_fallthrough.patch",
             "//thirdparty/patches:rules_boost-windows-linkopts.patch",
@@ -177,16 +179,8 @@ def ray_deps_setup():
         patches = [
             "//thirdparty/patches:glog-log-pid-tid.patch",
             "//thirdparty/patches:glog-stack-trace.patch",
-        ],
-    )
-
-    auto_http_archive(
-        name = "arrow",
-        build_file = True,
-        url = "https://github.com/apache/arrow/archive/af45b9212156980f55c399e2e88b4e19b4bb8ec1.tar.gz",
-        sha256 = "2f0aaa50053792aa274b402f2530e63c1542085021cfef83beee9281412c12f6",
-        patches = [
-            "//thirdparty/patches:arrow-windows-export.patch",
+            "//thirdparty/patches:glog-suffix-log.patch",
+            "//thirdparty/patches:glog-dump-stacktrack.patch",
         ],
     )
 
@@ -263,4 +257,11 @@ def ray_deps_setup():
         patches = [
             "//thirdparty/patches:msgpack-windows-iovec.patch",
         ],
+    )
+
+    http_archive(
+        name = "io_opencensus_proto",
+        strip_prefix = "opencensus-proto-0.3.0/src",
+        urls = ["https://github.com/census-instrumentation/opencensus-proto/archive/v0.3.0.tar.gz"],
+        sha256 = "b7e13f0b4259e80c3070b583c2f39e53153085a6918718b1c710caf7037572b0",
     )

@@ -35,14 +35,14 @@ namespace gcs {
 inline std::shared_ptr<ray::rpc::JobTableData> CreateJobTableData(
     const ray::JobID &job_id, bool is_dead, int64_t timestamp,
     const std::string &driver_ip_address, int64_t driver_pid,
-    const ray::rpc::JobConfigs &job_configs = {}) {
+    const ray::rpc::JobConfig &job_config = {}) {
   auto job_info_ptr = std::make_shared<ray::rpc::JobTableData>();
   job_info_ptr->set_job_id(job_id.Binary());
   job_info_ptr->set_is_dead(is_dead);
   job_info_ptr->set_timestamp(timestamp);
   job_info_ptr->set_driver_ip_address(driver_ip_address);
   job_info_ptr->set_driver_pid(driver_pid);
-  *job_info_ptr->mutable_configs() = job_configs;
+  *job_info_ptr->mutable_config() = job_config;
   return job_info_ptr;
 }
 
@@ -85,16 +85,16 @@ inline std::shared_ptr<ray::rpc::ActorTableData> CreateActorTableData(
 
 /// Helper function to produce worker failure data.
 inline std::shared_ptr<ray::rpc::WorkerTableData> CreateWorkerFailureData(
-    const ClientID &raylet_id, const WorkerID &worker_id, const std::string &address,
+    const NodeID &raylet_id, const WorkerID &worker_id, const std::string &address,
     int32_t port, int64_t timestamp = std::time(nullptr),
-    bool intentional_disconnect = false) {
+    rpc::WorkerExitType disconnect_type = rpc::WorkerExitType::SYSTEM_ERROR_EXIT) {
   auto worker_failure_info_ptr = std::make_shared<ray::rpc::WorkerTableData>();
   worker_failure_info_ptr->mutable_worker_address()->set_raylet_id(raylet_id.Binary());
   worker_failure_info_ptr->mutable_worker_address()->set_worker_id(worker_id.Binary());
   worker_failure_info_ptr->mutable_worker_address()->set_ip_address(address);
   worker_failure_info_ptr->mutable_worker_address()->set_port(port);
   worker_failure_info_ptr->set_timestamp(timestamp);
-  worker_failure_info_ptr->set_intentional_disconnect(intentional_disconnect);
+  worker_failure_info_ptr->set_exit_type(disconnect_type);
   return worker_failure_info_ptr;
 }
 
@@ -104,12 +104,10 @@ inline std::shared_ptr<ray::rpc::WorkerTableData> CreateWorkerFailureData(
 /// \param is_add Whether the object is appeared on the node.
 /// \return The object location change created by this method.
 inline std::shared_ptr<ray::rpc::ObjectLocationChange> CreateObjectLocationChange(
-    const ClientID &node_id, bool is_add) {
-  ray::rpc::ObjectTableData object_table_data;
-  object_table_data.set_manager(node_id.Binary());
+    const NodeID &node_id, bool is_add) {
   auto object_location_change = std::make_shared<ray::rpc::ObjectLocationChange>();
   object_location_change->set_is_add(is_add);
-  object_location_change->mutable_data()->CopyFrom(object_table_data);
+  object_location_change->set_node_id(node_id.Binary());
   return object_location_change;
 }
 

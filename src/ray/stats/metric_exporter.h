@@ -13,10 +13,11 @@
 // limitations under the License.
 
 #pragma once
+#include <boost/asio.hpp>
 #include "absl/memory/memory.h"
 #include "opencensus/stats/stats.h"
 #include "opencensus/tags/tag_key.h"
-
+#include "ray/rpc/client_call.h"
 #include "ray/stats/metric.h"
 #include "ray/stats/metric_exporter_client.h"
 #include "ray/util/logging.h"
@@ -29,19 +30,21 @@ namespace stats {
 /// opencensus data view, and sends it to the remote (for example
 /// sends metrics to dashboard agents through RPC). How to use it? Register metrics
 /// exporter after a main thread launched.
-class MetricExporter final : public opencensus::stats::StatsExporter::Handler {
+class MetricPointExporter final : public opencensus::stats::StatsExporter::Handler {
  public:
-  explicit MetricExporter(std::shared_ptr<MetricExporterClient> metric_exporter_client,
-                          size_t report_batch_size = kDefaultBatchSize)
+  explicit MetricPointExporter(
+      std::shared_ptr<MetricExporterClient> metric_exporter_client,
+      size_t report_batch_size = kDefaultBatchSize)
       : metric_exporter_client_(metric_exporter_client),
         report_batch_size_(report_batch_size) {}
 
-  ~MetricExporter() = default;
+  ~MetricPointExporter() = default;
 
   static void Register(std::shared_ptr<MetricExporterClient> metric_exporter_client,
                        size_t report_batch_size) {
     opencensus::stats::StatsExporter::RegisterPushHandler(
-        absl::make_unique<MetricExporter>(metric_exporter_client, report_batch_size));
+        absl::make_unique<MetricPointExporter>(metric_exporter_client,
+                                               report_batch_size));
   }
 
   void ExportViewData(
@@ -68,10 +71,8 @@ class MetricExporter final : public opencensus::stats::StatsExporter::Handler {
       // Current timestamp is used for point not view data time.
       MetricPoint point{metric_name, current_sys_time_ms(),
                         static_cast<double>(row.second), tags, measure_descriptor};
-      RAY_LOG(DEBUG) << "Metric name " << metric_name << ", value " << point.value;
       points.push_back(std::move(point));
       if (points.size() >= report_batch_size_) {
-        RAY_LOG(DEBUG) << "Point size : " << points.size();
         metric_exporter_client_->ReportMetrics(points);
         points.clear();
       }
@@ -83,6 +84,30 @@ class MetricExporter final : public opencensus::stats::StatsExporter::Handler {
   /// Auto max minbatch size for reporting metrics to external components.
   static constexpr size_t kDefaultBatchSize = 100;
   size_t report_batch_size_;
+};
+
+class OpenCensusProtoExporter final : public opencensus::stats::StatsExporter::Handler {
+ public:
+  OpenCensusProtoExporter(const int port, boost::asio::io_service &io_service,
+                          const std::string address);
+
+  ~OpenCensusProtoExporter() = default;
+
+  static void Register(const int port, boost::asio::io_service &io_service,
+                       const std::string address) {
+    opencensus::stats::StatsExporter::RegisterPushHandler(
+        absl::make_unique<OpenCensusProtoExporter>(port, io_service, address));
+  }
+
+  void ExportViewData(
+      const std::vector<std::pair<opencensus::stats::ViewDescriptor,
+                                  opencensus::stats::ViewData>> &data) override;
+
+ private:
+  /// Call Manager for gRPC client.
+  rpc::ClientCallManager client_call_manager_;
+  /// Client to call a metrics agent gRPC server.
+  std::unique_ptr<rpc::MetricsAgentClient> client_;
 };
 
 }  // namespace stats

@@ -14,22 +14,25 @@ steps:
     . ./ci/travis/ci.sh build
 
     # script part
-    bazel test --config=ci --build_tests_only --test_tag_filters=quick_train rllib/...
+    # Originally with ./ci/keep_alive
+    bazel test --config=ci $(./scripts/bazel_export_options) --build_tests_only --test_tag_filters=quick_train --test_env=RAY_USE_MULTIPROCESSING_CPU_COUNT=1 rllib/...
     # Test everything that does not have any of the "main" labels:
     # "learning_tests|quick_train|examples|tests_dir".
     # Originally with ./ci/keep_alive
-    bazel test --config=ci --build_tests_only --test_tag_filters=-learning_tests_tf,-learning_tests_torch,-quick_train,-examples,-tests_dir rllib/...
+    bazel test --config=ci $(./scripts/bazel_export_options) --build_tests_only --test_tag_filters=-learning_tests_tf,-learning_tests_torch,-quick_train,-examples,-tests_dir --test_env=RAY_USE_MULTIPROCESSING_CPU_COUNT=1 rllib/...
 
     # End Original script
 
     exit 0
   env:
-    PYTHONWARNINGS: 'ignore'
-    TRAVIS: 'true'
     RLLIB_TESTING: 1
     RLLIB_QUICK_TRAIN_AND_MISC_TESTS: 1
+    # TODO (sven): Remove this after fixing rllib tests num_cpus.
+    RAY_USE_MULTIPROCESSING_CPU_COUNT: 1
     TF_VERSION: 2.1.0
     TFP_VERSION: 0.8
-    TORCH_VERSION: 1.4
-  displayName: 'Run original rllib quick train (no learning) test job with TF 2'
+    TORCH_VERSION: 1.6
+    PYTHONWARNINGS: 'ignore'
+    TRAVIS: 'true'
+  displayName: 'Run original rllib regression test job with TF 2'
   timeoutInMinutes: 120

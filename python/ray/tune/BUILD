@@ -7,7 +7,7 @@ py_test(
     name = "test_actor_reuse",
     size = "medium",
     srcs = ["tests/test_actor_reuse.py"],
-    tags = ["jenkins_only"],
+    tags = ["exclusive"],
     deps = [":tune_lib"],
 )
 
@@ -80,17 +80,57 @@ py_test(
 
 py_test(
     name = "test_experiment_analysis_mem",
-    size = "small",
+    size = "medium",
     srcs = ["tests/test_experiment_analysis_mem.py"],
     deps = [":tune_lib"],
 )
 
 py_test(
     name = "test_function_api",
-    size = "medium",
+    size = "small",
     srcs = ["tests/test_function_api.py"],
     deps = [":tune_lib"],
     tags = ["exclusive"],
+)
+
+py_test(
+    name = "test_integration_docker",
+    size = "small",
+    srcs = ["tests/test_integration_docker.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive"],
+)
+
+py_test(
+    name = "test_integration_kubernetes",
+    size = "small",
+    srcs = ["tests/test_integration_kubernetes.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive"],
+)
+
+py_test(
+    name = "test_integration_pytorch_lightning",
+    size = "small",
+    srcs = ["tests/test_integration_pytorch_lightning.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive"],
+)
+
+py_test(
+    name = "test_integration_wandb",
+    size = "small",
+    srcs = ["tests/test_integration_wandb.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive"],
+)
+
+py_test(
+    name = "test_integration_mlflow",
+    size = "small",
+    srcs = ["tests/test_integration_mlflow.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive"]
 )
 
 py_test(
@@ -119,6 +159,22 @@ py_test(
     name = "test_run_experiment",
     size = "medium",
     srcs = ["tests/test_run_experiment.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive"],
+)
+
+py_test(
+    name = "test_sample",
+    size = "medium",
+    srcs = ["tests/test_sample.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive"],
+)
+
+py_test(
+    name = "test_searchers",
+    size = "medium",
+    srcs = ["tests/test_searchers.py"],
     deps = [":tune_lib"],
     tags = ["exclusive"],
 )
@@ -170,8 +226,16 @@ py_test(
 )
 
 py_test(
-    name = "test_var",
+    name = "test_trial_runner_callbacks",
     size = "small",
+    srcs = ["tests/test_trial_runner_callbacks.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive"],
+)
+
+py_test(
+    name = "test_var",
+    size = "medium",
     srcs = ["tests/test_var.py"],
     deps = [":tune_lib"],
     tags = ["exclusive"],
@@ -179,7 +243,7 @@ py_test(
 
 py_test(
     name = "test_trial_scheduler",
-    size = "medium",
+    size = "large",
     srcs = ["tests/test_trial_scheduler.py"],
     deps = [":tune_lib"],
     tags = ["exclusive"],
@@ -198,7 +262,7 @@ py_test(
     size = "large",
     srcs = ["tests/test_tune_restore.py"],
     deps = [":tune_lib"],
-    tags = ["jenkins_only", "exclusive"],
+    tags = ["exclusive"],
 )
 
 py_test(
@@ -226,6 +290,14 @@ py_test(
     name = "example",
     size = "small",
     srcs = ["tests/example.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example"],
+)
+
+py_test(
+    name = "ext_pytorch",
+    size = "medium",
+    srcs = ["tests/ext_pytorch.py"],
     deps = [":tune_lib"],
     tags = ["exclusive", "example"],
 )
@@ -288,6 +360,30 @@ py_test(
 )
 
 py_test(
+    name = "test_torch_trainable",
+    size = "medium",
+    srcs = ["tests/test_torch_trainable.py"],
+    tags = ["exclusive", "example", "pytorch"],
+    deps = [":tune_lib"],
+)
+
+py_test(
+    name = "test_tensorflow_trainable",
+    size = "medium",
+    srcs = ["tests/test_tensorflow_trainable.py"],
+    tags = ["exclusive", "example", "tensorflow"],
+    deps = [":tune_lib"],
+)
+
+py_test(
+    name = "test_horovod",
+    size = "medium",
+    srcs = ["tests/test_horovod.py"],
+    tags = ["exclusive", "example", "py37"],
+    deps = [":tune_lib"],
+)
+
+py_test(
     name = "ddp_mnist_torch",
     size = "small",
     srcs = ["examples/ddp_mnist_torch.py"],
@@ -295,6 +391,16 @@ py_test(
     tags = ["exclusive", "example", "pytorch"],
     args = ["--num-workers=2"]
 )
+
+# TODO(Edi): Failing in ADO with cycle reference
+# py_test(
+#     name = "tf_distributed_keras_example",
+#     size = "small",
+#     srcs = ["examples/tf_distributed_keras_example.py"],
+#     deps = [":tune_lib"],
+#     tags = ["exclusive", "example", "tensorflow"],
+#     args = ["--smoke-test"]
+# )
 
 py_test(
     name = "dragonfly_example",
@@ -324,6 +430,16 @@ py_test(
     args = ["--smoke-test"]
 )
 
+#TODO(Edi): Fix ImportError: horovod/torch/mpi_lib_v2.cpython-36m-x86_64-linux-gnu.so: undefined symbol: _ZN5torch3jit6tracer9addInputsEPNS0_4NodeEPKcRKN3c1013TensorOptionsE
+# py_test(
+#     name = "horovod_simple",
+#     size = "medium",
+#     srcs = ["examples/horovod_simple.py"],
+#     tags = ["exclusive", "example", "py37"],
+#     deps = [":tune_lib"],
+#     args = ["--smoke-test"]
+# )
+
 py_test(
     name = "hyperband_example",
     size = "medium",
@@ -334,7 +450,7 @@ py_test(
 
 py_test(
     name = "hyperband_function_example",
-    size = "medium",
+    size = "small",
     srcs = ["examples/hyperband_function_example.py"],
     deps = [":tune_lib"],
     tags = ["exclusive", "example"],
@@ -352,7 +468,7 @@ py_test(
 
 py_test(
     name = "lightgbm_example",
-    size = "medium",
+    size = "small",
     srcs = ["examples/lightgbm_example.py"],
     deps = [":tune_lib"],
     tags = ["exclusive", "example"]
@@ -360,21 +476,29 @@ py_test(
 
 py_test(
     name = "logging_example",
-    size = "medium",
+    size = "small",
     srcs = ["examples/logging_example.py"],
     deps = [":tune_lib"],
     tags = ["exclusive", "example"],
     args = ["--smoke-test"]
 )
 
-# Commenting out for now because it is not idempotent
-# py_test(
-#     name = "mlflow_example",
-#     size = "medium",
-#     srcs = ["examples/mlflow_example.py"],
-#     deps = [":tune_lib"],
-#     tags = ["exclusive", "example"]
-# )
+py_test(
+ name = "mlflow_example",
+ size = "medium",
+ srcs = ["examples/mlflow_example.py"],
+ deps = [":tune_lib"],
+ tags = ["exclusive", "example"]
+)
+
+py_test(
+    name = "mlflow_ptl",
+    size = "medium",
+    srcs = ["examples/mlflow_ptl.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example", "py37", "pytorch"],
+    args = ["--smoke-test"]
+)
 
 py_test(
     name = "mnist_pytorch",
@@ -395,6 +519,15 @@ py_test(
 )
 
 py_test(
+    name = "mnist_ptl_mini",
+    size = "medium",
+    srcs = ["examples/mnist_ptl_mini.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example", "pytorch"],
+    args = ["--smoke-test"]
+)
+
+py_test(
     name = "mnist_pytorch_trainable",
     size = "small",
     srcs = ["examples/mnist_pytorch_trainable.py"],
@@ -404,8 +537,17 @@ py_test(
 )
 
 py_test(
+    name = "mxnet_example",
+    size = "small",
+    srcs = ["examples/mxnet_example.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example"],
+    args = ["--smoke-test"]
+)
+
+py_test(
     name = "nevergrad_example",
-    size = "medium",
+    size = "small",
     srcs = ["examples/nevergrad_example.py"],
     deps = [":tune_lib"],
     tags = ["exclusive", "example"],
@@ -413,8 +555,26 @@ py_test(
 )
 
 py_test(
-    name = "pbt_convnet_example",
+    name = "optuna_example",
+    size = "small",
+    srcs = ["examples/optuna_example.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example"],
+    args = ["--smoke-test"]
+)
+
+py_test(
+    name = "pb2_example",
     size = "medium",
+    srcs = ["examples/pb2_example.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example"],
+    args = ["--smoke-test"]
+)
+
+py_test(
+    name = "pbt_convnet_example",
+    size = "small",
     srcs = ["examples/pbt_convnet_example.py"],
     deps = [":tune_lib"],
     tags = ["exclusive", "example"],
@@ -422,8 +582,35 @@ py_test(
 )
 
 py_test(
-    name = "pbt_example",
+    name = "pbt_convnet_function_example",
+    size = "small",
+    srcs = ["examples/pbt_convnet_function_example.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example"],
+    args = ["--smoke-test"]
+)
+
+py_test(
+    name = "pbt_dcgan_mnist_func",
     size = "medium",
+    srcs = ["examples/pbt_dcgan_mnist/pbt_dcgan_mnist_func.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example"],
+    args = ["--smoke-test"]
+)
+
+py_test(
+    name = "pbt_dcgan_mnist_trainable",
+    size = "medium",
+    srcs = ["examples/pbt_dcgan_mnist/pbt_dcgan_mnist_trainable.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example"],
+    args = ["--smoke-test"]
+)
+
+py_test(
+    name = "pbt_example",
+    size = "small",
     srcs = ["examples/pbt_example.py"],
     deps = [":tune_lib"],
     tags = ["exclusive", "example"],
@@ -458,6 +645,16 @@ py_test(
 #     args = ["--smoke-test"]
 # )
 
+py_test(
+    name = "pbt_transformers",
+    size = "large",
+    srcs = ["examples/pbt_transformers/pbt_transformers.py"],
+    deps = [":tune_lib"],
+    tags = ["flaky", "exclusive", "example"],
+    args = ["--smoke-test"]
+)
+
+
 # Requires GPUs. Add smoke test?
 # py_test(
 #     name = "pbt_tune_cifar10_with_keras",
@@ -469,14 +666,35 @@ py_test(
 # )
 
 # Needs SigOpt API key.
-# py_test(
-#     name = "sigopt_example",
-#     size = "medium",
-#     srcs = ["examples/sigopt_example.py"],
-#     deps = [":tune_lib"],
-#     tags = ["exclusive", "example"],
-#     args = ["--smoke-test"]
-# )
+py_test(
+    name = "sigopt_example",
+    size = "medium",
+    srcs = ["examples/sigopt_example.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example"],
+    args = ["--smoke-test"]
+)
+
+
+# Needs SigOpt API key.
+py_test(
+    name = "sigopt_multi_objective_example",
+    size = "medium",
+    srcs = ["examples/sigopt_multi_objective_example.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example"],
+    args = ["--smoke-test"]
+)
+
+# Needs SigOpt API key.
+py_test(
+    name = "sigopt_prior_beliefs_example",
+    size = "medium",
+    srcs = ["examples/sigopt_prior_beliefs_example.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example"],
+    args = ["--smoke-test"]
+)
 
 py_test(
     name = "skopt_example",
@@ -487,12 +705,22 @@ py_test(
     args = ["--smoke-test"]
 )
 
+# TODO(Edi): R-enable after moving the whole pupeline to TF 2.X
+# py_test(
+#     name = "tf_mnist_example",
+#     size = "medium",
+#     srcs = ["examples/tf_mnist_example.py"],
+#     deps = [":tune_lib"],
+#     tags = ["exclusive", "example", "tf"],
+#     args = ["--smoke-test"]
+# )
+
 py_test(
-    name = "tf_mnist_example",
-    size = "medium",
-    srcs = ["examples/tf_mnist_example.py"],
+    name = "tune_basic_example",
+    size = "small",
+    srcs = ["examples/tune_basic_example.py"],
     deps = [":tune_lib"],
-    tags = ["exclusive", "example", "tf"],
+    tags = ["exclusive", "example"],
     args = ["--smoke-test"]
 )
 
@@ -513,6 +741,15 @@ py_test(
     deps = [":tune_lib"],
     tags = ["exclusive", "example"],
     args = ["--smoke-test"]
+)
+
+py_test(
+    name = "wandb_example",
+    size = "small",
+    srcs = ["examples/wandb_example.py"],
+    deps = [":tune_lib"],
+    tags = ["exclusive", "example"],
+    args = ["--mock-api"]
 )
 
 py_test(

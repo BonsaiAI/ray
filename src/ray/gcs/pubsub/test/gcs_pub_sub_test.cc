@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+#include "ray/gcs/pubsub/gcs_pub_sub.h"
+
 #include <memory>
 
 #include "gtest/gtest.h"
 #include "ray/common/test_util.h"
-#include "ray/gcs/pubsub/gcs_pub_sub.h"
 
 namespace ray {
 
@@ -88,11 +89,6 @@ class GcsPubSubTest : public ::testing::Test {
     auto done = [&promise](const Status &status) { promise.set_value(status.ok()); };
     RAY_CHECK_OK((pub_sub_->Publish(channel, id, data, done)));
     return WaitReady(promise.get_future(), timeout_ms_);
-  }
-
-  bool WaitReady(std::future<bool> future, const std::chrono::milliseconds &timeout_ms) {
-    auto status = future.wait_for(timeout_ms);
-    return status == std::future_status::ready && future.get();
   }
 
   template <typename Data>

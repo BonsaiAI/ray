@@ -24,15 +24,14 @@
 #include <unordered_map>
 
 #include "ray/common/id.h"
+#include "ray/object_manager/format/object_manager_generated.h"
 #include "ray/object_manager/plasma/compat.h"
-
-#ifdef PLASMA_CUDA
-#include "arrow/gpu/cuda_api.h"
-#endif
 
 namespace plasma {
 
+using ray::NodeID;
 using ray::ObjectID;
+using ray::WorkerID;
 
 enum class ObjectLocation : int32_t { Local, Remote, Nonexistent };
 
@@ -47,12 +46,6 @@ enum class ObjectState : int {
   /// Object is evicted to external store.
   PLASMA_EVICTED = 3,
 };
-
-namespace internal {
-
-struct CudaIpcPlaceholder {};
-
-}  //  namespace internal
 
 /// This type is used by the Plasma store. It is here because it is exposed to
 /// the eviction policy.
@@ -70,27 +63,27 @@ struct ObjectTableEntry {
   /// Offset from the base of the mmap.
   ptrdiff_t offset;
   /// Pointer to the object data. Needed to free the object.
-  uint8_t* pointer;
+  uint8_t *pointer;
   /// Size of the object in bytes.
   int64_t data_size;
   /// Size of the object metadata in bytes.
   int64_t metadata_size;
   /// Number of clients currently using this object.
   int ref_count;
+  /// Owner's raylet ID.
+  NodeID owner_raylet_id;
+  /// Owner's IP address.
+  std::string owner_ip_address;
+  /// Owner's port.
+  int owner_port;
+  /// Owner's worker ID.
+  WorkerID owner_worker_id;
   /// Unix epoch of when this object was created.
   int64_t create_time;
   /// How long creation of this object took.
   int64_t construct_duration;
-
   /// The state of the object, e.g., whether it is open or sealed.
   ObjectState state;
-
-#ifdef PLASMA_CUDA
-  /// IPC GPU handle to share with clients.
-  std::shared_ptr<::arrow::cuda::CudaIpcMemHandle> ipc_handle;
-#else
-  std::shared_ptr<internal::CudaIpcPlaceholder> ipc_handle;
-#endif
 };
 
 /// Mapping from ObjectIDs to information about the object.

@@ -9,16 +9,21 @@ logger = logging.getLogger(__name__)
 # MUST add pickle5 to the import path because it will be imported by some
 # raylet modules.
 
-# This is consistently failing in CI.
-# Disabling temporarily.
-# if "pickle5" in sys.modules:
-#     import pkg_resources
-#     version_info = pkg_resources.require("pickle5")
-#     version = tuple(int(n) for n in version_info[0].version.split("."))
-#     if version < (0, 0, 10):
-#         raise ImportError("You are using an old version of pickle5 that "
-#                           "leaks memory, please run 'pip install pickle5 -U' "
-#                           "to upgrade")
+if "pickle5" in sys.modules:
+    import pkg_resources
+    try:
+        version_info = pkg_resources.require("pickle5")
+        version = tuple(int(n) for n in version_info[0].version.split("."))
+        if version < (0, 0, 10):
+            raise ImportError("You are using an old version of pickle5 "
+                              "that leaks memory, please run "
+                              "'pip install pickle5 -U' to upgrade")
+    except pkg_resources.DistributionNotFound:
+        logger.warning("You are using the 'pickle5' module, but "
+                       "the exact version is unknown (possibly carried as "
+                       "an internal component by another module). Please "
+                       "make sure you are using pickle5 >= 0.0.10 because "
+                       "previous versions may leak memory.")
 
 if "OMP_NUM_THREADS" not in os.environ:
     logger.debug("[ray] Forcing OMP_NUM_THREADS=1 to avoid performance "
@@ -57,115 +62,83 @@ if os.path.exists(so_path):
 
 import ray._raylet  # noqa: E402
 
-from ray._raylet import (
-    ActorCheckpointID,
-    ActorClassID,
-    ActorID,
-    ClientID,
-    Config as _Config,
-    JobID,
-    WorkerID,
-    FunctionID,
-    ObjectID,
-    ObjectRef,
-    TaskID,
-    UniqueID,
-    Language,
+from ray._raylet import (  # noqa: E402
+    ActorClassID, ActorID, NodeID, Config as _Config, JobID, WorkerID,
+    FunctionID, ObjectID, ObjectRef, TaskID, UniqueID, Language,
     PlacementGroupID,
-)  # noqa: E402
+)
 
 _config = _Config()
 
 from ray.profiling import profile  # noqa: E402
-from ray.state import (jobs, nodes, actors, objects, timeline,
-                       object_transfer_timeline, cluster_resources,
-                       available_resources, errors)  # noqa: E402
-from ray.worker import (
-    LOCAL_MODE,
-    SCRIPT_MODE,
-    WORKER_MODE,
-    cancel,
-    connect,
-    disconnect,
-    get,
-    get_actor,
-    get_gpu_ids,
-    get_resource_ids,
-    get_webui_url,
-    init,
-    is_initialized,
-    put,
-    kill,
-    register_custom_serializer,
-    remote,
-    shutdown,
-    show_in_webui,
-    wait,
-)  # noqa: E402
+from ray.state import (  # noqa: E402
+    jobs, nodes, actors, objects, timeline, object_transfer_timeline,
+    cluster_resources, available_resources,
+)
+from ray.worker import (  # noqa: E402,F401
+    LOCAL_MODE, SCRIPT_MODE, WORKER_MODE, RESTORE_WORKER_MODE,
+    SPILL_WORKER_MODE, cancel, get, get_actor, get_gpu_ids, get_resource_ids,
+    get_dashboard_url, init, is_initialized, put, kill, remote, shutdown,
+    show_in_dashboard, wait,
+)
 import ray.internal  # noqa: E402
-import ray.projects  # noqa: E402
 # We import ray.actor because some code is run in actor.py which initializes
 # some functions in the worker.
-import ray.actor  # noqa: F401
+import ray.actor  # noqa: E402,F401
 from ray.actor import method  # noqa: E402
 from ray.cross_language import java_function, java_actor_class  # noqa: E402
+from ray.runtime_context import get_runtime_context  # noqa: E402
 from ray import util  # noqa: E402
 
 # Replaced with the current commit when building the wheels.
 __commit__ = "{{RAY_COMMIT_SHA}}"
-__version__ = "0.9.0.dev0"
+__version__ = "2.0.0.dev0"
 
 __all__ = [
-    "jobs",
-    "nodes",
-    "actors",
-    "objects",
-    "timeline",
-    "object_transfer_timeline",
-    "cluster_resources",
-    "available_resources",
-    "errors",
-    "LOCAL_MODE",
-    "PYTHON_MODE",
-    "SCRIPT_MODE",
-    "WORKER_MODE",
     "__version__",
     "_config",
-    "_get_runtime_context",
+    "get_runtime_context",
     "actor",
+    "actors",
+    "workers",
+    "available_resources",
     "cancel",
-    "connect",
-    "disconnect",
+    "cluster_resources",
     "get",
     "get_actor",
     "get_gpu_ids",
     "get_resource_ids",
-    "get_webui_url",
+    "get_dashboard_url",
     "init",
     "internal",
     "is_initialized",
-    "method",
-    "profile",
-    "projects",
-    "put",
+    "java_actor_class",
+    "java_function",
+    "jobs",
     "kill",
-    "register_custom_serializer",
+    "Language",
+    "method",
+    "nodes",
+    "objects",
+    "object_transfer_timeline",
+    "profile",
+    "put",
     "remote",
     "shutdown",
-    "show_in_webui",
-    "wait",
-    "Language",
-    "java_function",
-    "java_actor_class",
+    "show_in_dashboard",
+    "timeline",
     "util",
+    "wait",
+    "LOCAL_MODE",
+    "SCRIPT_MODE",
+    "WORKER_MODE",
 ]
 
 # ID types
 __all__ += [
-    "ActorCheckpointID",
     "ActorClassID",
     "ActorID",
-    "ClientID",
+    "NodeID",
     "JobID",
     "WorkerID",
     "FunctionID",

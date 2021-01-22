@@ -23,7 +23,8 @@ steps:
 
     # Start Original script part
 
-    bazel test --config=ci --build_tests_only -- //:all
+    # Run all C++ unit tests with ASAN enabled. ASAN adds too much overhead to run Python tests.
+    bazel test --config=ci $(./scripts/bazel_export_options) --build_tests_only -- //:all
     # End Original script
 
     exit 0

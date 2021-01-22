@@ -10,19 +10,22 @@ steps:
 
     # Start Original script
 
-    . ./ci/travis/ci.sh init RAY_CI_LINUX_WHEELS_AFFECTED
+    . ./ci/travis/ci.sh init RAY_CI_LINUX_WHEELS_AFFECTED,RAY_CI_JAVA_AFFECTED,RAY_CI_STREAMING_JAVA_AFFECTED
     . ./ci/travis/ci.sh build
 
     # End Original script
 
     exit 0
   env:
+    CI: true
     PYTHONWARNINGS: 'ignore'
     TRAVIS: 'true'
     LINUX_WHEELS: 1
     RAY_INSTALL_JAVA: 1
+    RAY_GCS_ACTOR_SERVICE_ENABLED: 'true'
+    npm_config_user: root
   displayName: 'Run original travis install phase'
-  timeoutInMinutes: 120
+  timeoutInMinutes: 240
 # Script phase of the travis Ubuntu wheels build
 - bash: |
     echo "Allowing manylinux1 packages"
@@ -38,14 +41,21 @@ steps:
     # Start Original script
 
     . ./ci/travis/ci.sh test_wheels
+    export PATH="$HOME/miniconda3/bin:$PATH"
+    python -m pip install docker
+    if [[ "$TRAVIS_PULL_REQUEST" != "false" ]]; then python $TRAVIS_BUILD_DIR/ci/travis/build-docker-images.py; fi
+    bash ./java/build-jar-multiplatform.sh linux
 
     # End Original script
 
     exit 0
   env:
-    PYTHONWARNINGS: 'ignore'
-    TRAVIS: 'true'
+    CI: true
     LINUX_WHEELS: 1
+    LINUX_JARS: 1
+    PYTHONWARNINGS: 'ignore'
     RAY_INSTALL_JAVA: 1
+    TRAVIS: 'true'
+    npm_config_user: root
   displayName: 'Run original script phase'
-  timeoutInMinutes: 60
+  timeoutInMinutes: 120

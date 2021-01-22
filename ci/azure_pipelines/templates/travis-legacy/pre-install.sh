@@ -46,6 +46,9 @@ echo "Determined TRAVIS_OS_NAME variable: $TRAVIS_OS_NAME"
 export TRAVIS_BUILD_DIR=$BUILD_SOURCESDIRECTORY
 echo "Determined TRAVIS_BUILD_DIR variable: $TRAVIS_BUILD_DIR"
 
+export CI=true
+
+
 # TODO: [CI] remove this step after adding a condition in 
 # ci/travis/install-dependencies.sh that check first if 
 # node is already installed before install it

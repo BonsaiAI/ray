@@ -23,6 +23,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument("--run", type=str, default="DQN")
 parser.add_argument(
     "--framework", type=str, choices=["tf", "torch"], default="tf")
+parser.add_argument(
+    "--no-restore",
+    action="store_true",
+    help="Do not restore from a previously saved checkpoint (location of "
+    "which is saved in `last_checkpoint_[algo-name].out`).")
 
 if __name__ == "__main__":
     args = parser.parse_args()
@@ -46,15 +51,8 @@ if __name__ == "__main__":
             env=env,
             config=dict(
                 connector_config, **{
-                    "exploration_config": {
-                        "type": "EpsilonGreedy",
-                        "initial_epsilon": 1.0,
-                        "final_epsilon": 0.02,
-                        "epsilon_timesteps": 1000,
-                    },
                     "learning_starts": 100,
                     "timesteps_per_iteration": 200,
-                    "log_level": "INFO",
                     "framework": args.framework,
                 }))
     elif args.run == "PPO":
@@ -63,7 +61,7 @@ if __name__ == "__main__":
             env=env,
             config=dict(
                 connector_config, **{
-                    "sample_batch_size": 1000,
+                    "rollout_fragment_length": 1000,
                     "train_batch_size": 4000,
                     "framework": args.framework,
                 }))
@@ -72,13 +70,13 @@ if __name__ == "__main__":
 
     checkpoint_path = CHECKPOINT_FILE.format(args.run)
 
-    # Attempt to restore from checkpoint if possible.
-    if os.path.exists(checkpoint_path):
+    # Attempt to restore from checkpoint, if possible.
+    if not args.no_restore and os.path.exists(checkpoint_path):
         checkpoint_path = open(checkpoint_path).read()
         print("Restoring from checkpoint path", checkpoint_path)
         trainer.restore(checkpoint_path)
 
-    # Serving and training loop
+    # Serving and training loop.
     while True:
         print(pretty_print(trainer.train()))
         checkpoint = trainer.save()

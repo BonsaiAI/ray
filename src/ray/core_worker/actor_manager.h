@@ -18,7 +18,7 @@
 #include "ray/core_worker/actor_handle.h"
 #include "ray/core_worker/reference_count.h"
 #include "ray/core_worker/transport/direct_actor_transport.h"
-#include "ray/gcs/redis_gcs_client.h"
+#include "ray/gcs/gcs_client.h"
 
 namespace ray {
 
@@ -49,8 +49,13 @@ class DefaultActorCreator : public ActorCreatorInterface {
     auto promise = std::make_shared<std::promise<void>>();
     auto status = gcs_client_->Actors().AsyncRegisterActor(
         task_spec, [promise](const Status &status) { promise->set_value(); });
-    if (status.ok()) {
-      promise->get_future().wait();
+    if (status.ok() && promise->get_future().wait_for(std::chrono::seconds(
+                           RayConfig::instance().gcs_server_request_timeout_seconds())) !=
+                           std::future_status::ready) {
+      std::ostringstream stream;
+      stream << "There was timeout in registering an actor. It is probably "
+                "because GCS server is dead or there's a high load there.";
+      return Status::TimedOut(stream.str());
     }
     return status;
   }
@@ -104,7 +109,7 @@ class ActorManager {
   /// \param[in] actor_id The actor handle to get.
   /// \return reference to the actor_handle's pointer.
   /// NOTE: Returned actorHandle should not be stored anywhere.
-  const std::unique_ptr<ActorHandle> &GetActorHandle(const ActorID &actor_id);
+  std::shared_ptr<ActorHandle> GetActorHandle(const ActorID &actor_id);
 
   /// Check if an actor handle that corresponds to an actor_id exists.
   /// \param[in] actor_id The actor id of a handle.
@@ -172,7 +177,7 @@ class ActorManager {
   /// \param[in] actor_id The actor id of this notification.
   /// \param[in] actor_data The GCS actor data.
   void HandleActorStateNotification(const ActorID &actor_id,
-                                    const gcs::ActorTableData &actor_data);
+                                    const rpc::ActorTableData &actor_data);
 
   /// GCS client.
   std::shared_ptr<gcs::GcsClient> gcs_client_;
@@ -188,7 +193,7 @@ class ActorManager {
 
   /// Map from actor ID to a handle to that actor.
   /// Actor handle is a logical abstraction that holds actor handle's states.
-  absl::flat_hash_map<ActorID, std::unique_ptr<ActorHandle>> actor_handles_
+  absl::flat_hash_map<ActorID, std::shared_ptr<ActorHandle>> actor_handles_
       GUARDED_BY(mutex_);
 };
 

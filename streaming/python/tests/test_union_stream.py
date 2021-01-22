@@ -1,11 +1,12 @@
 import os
+import sys
 
 import ray
 from ray.streaming import StreamingContext
 
 
 def test_union_stream():
-    ray.init(load_code_from_local=True, include_java=True)
+    ray.init(job_config=ray.job_config.JobConfig(code_search_path=sys.path))
     ctx = StreamingContext.Builder() \
         .option("streaming.metrics.reporters", "") \
         .build()
@@ -31,11 +32,12 @@ def test_union_stream():
             with open(sink_file, "r") as f:
                 result = f.read()
                 print("sink result", result)
-                assert set(result) == {"1", "2", "3", "4", "5", "6"}
-            print("Execution succeed")
-            break
-        if slept_time >= 60:
-            raise Exception("Execution not finished")
+                if set(result) == {"1", "2", "3", "4", "5", "6"}:
+                    print("Execution succeed")
+                    break
+                elif slept_time >= 60:
+                    ray.shutdown()
+                    assert set(result) == {"1", "2", "3", "4", "5", "6"}
         slept_time = slept_time + 1
         print("Wait finish...")
         time.sleep(1)

@@ -1,17 +1,36 @@
+from contextlib import contextmanager
+import inspect
 import os
 import logging
+import traceback
+
+from ray.util.debug import log_once
 
 logger = logging.getLogger(__name__)
 
 _session = None
 
 
+def is_session_enabled() -> bool:
+    """Returns True if running within an Tune process."""
+    global _session
+    return _session is not None
+
+
 def get_session():
     global _session
     if not _session:
-        logger.warning(
-            "Session not detected. You should not be calling this function "
-            "outside `tune.run` or while using the class API. ")
+        function_name = inspect.stack()[1].function
+        # Log traceback so the user knows where the offending func is called.
+        # E.g. ... -> tune.report() -> get_session() -> logger.warning(...)
+        # So we shouldn't print the last 2 functions in the trace.
+        stack_trace_str = "".join(traceback.extract_stack().format()[:-2])
+        if log_once(stack_trace_str):
+            logger.warning(
+                "Session not detected. You should not be calling `{}` "
+                "outside `tune.run` or while using the class API. ".format(
+                    function_name))
+            logger.warning(stack_trace_str)
     return _session
 
 
@@ -48,7 +67,7 @@ def shutdown():
     _session = None
 
 
-def report(**kwargs):
+def report(_metric=None, **kwargs):
     """Logs all keyword arguments.
 
     .. code-block:: python
@@ -64,58 +83,57 @@ def report(**kwargs):
         analysis = tune.run(run_me)
 
     Args:
+        _metric: Optional default anonymous metric for ``tune.report(value)``
         **kwargs: Any key value pair to be logged by Tune. Any of these
             metrics can be used for early stopping or optimization.
     """
     _session = get_session()
     if _session:
-        return _session(**kwargs)
+        return _session(_metric, **kwargs)
 
 
 def make_checkpoint_dir(step=None):
     """Gets the next checkpoint dir.
 
-    .. code-block:: python
-
-        import time
-        from ray import tune
-
-        def func(config, checkpoint=None):
-            start = 0
-            if checkpoint:
-                with open(checkpoint) as f:
-                    state = json.loads(f.read())
-                    start = state["step"] + 1
-
-            for iter in range(start, 100):
-                time.sleep(1)
-
-                checkpoint_dir = tune.make_checkpoint_dir(step=step)
-                path = os.path.join(checkpoint_dir, "checkpoint")
-                with open(path, "w") as f:
-                    f.write(json.dumps({"step": start}))
-                tune.save_checkpoint(path)
-
-                tune.report(hello="world", ray="tune")
-
-    .. warning:: Do not call this function within the Trainable Class API.
-
-    Args:
-        step (int): Current training iteration - used for setting
-            an index to uniquely identify the checkpoint.
-
     .. versionadded:: 0.8.6
 
+    .. deprecated:: 0.8.7
+        Use tune.checkpoint_dir instead.
     """
-    _session = get_session()
-    if _session:
-        return _session.make_checkpoint_dir(step=step)
-    else:
-        return os.path.abspath("./")
+    raise DeprecationWarning(
+        "Deprecated method. Use `tune.checkpoint_dir` instead.")
 
 
 def save_checkpoint(checkpoint):
     """Register the given checkpoint.
+
+    .. versionadded:: 0.8.6
+
+    .. deprecated:: 0.8.7
+        Use tune.checkpoint_dir instead.
+    """
+    raise DeprecationWarning(
+        "Deprecated method. Use `tune.checkpoint_dir` instead.")
+
+
+@contextmanager
+def checkpoint_dir(step):
+    """Returns a checkpoint dir inside a context.
+
+    Store any files related to restoring state within the
+    provided checkpoint dir.
+
+    You should call this *before* calling ``tune.report``. The reason is
+    because we want checkpoints to be correlated with the result
+    (i.e., be able to retrieve the best checkpoint, etc). Many algorithms
+    depend on this behavior too.
+
+    Calling ``checkpoint_dir`` after report could introduce
+    inconsistencies.
+
+    Args:
+        step (int): Index for the checkpoint. Expected to be a
+            monotonically increasing quantity.
 
     .. code-block:: python
 
@@ -124,10 +142,10 @@ def save_checkpoint(checkpoint):
         import time
         from ray import tune
 
-        def func(config, checkpoint=None):
+        def func(config, checkpoint_dir=None):
             start = 0
-            if checkpoint:
-                with open(checkpoint) as f:
+            if checkpoint_dir:
+                with open(os.path.join(checkpoint_dir, "checkpoint")) as f:
                     state = json.loads(f.read())
                     accuracy = state["acc"]
                     start = state["step"] + 1
@@ -135,27 +153,32 @@ def save_checkpoint(checkpoint):
             for iter in range(start, 10):
                 time.sleep(1)
 
-                checkpoint_dir = tune.make_checkpoint_dir(step=iter)
-                path = os.path.join(checkpoint_dir, "checkpoint")
-                with open(path, "w") as f:
-                    f.write(json.dumps({"step": start}))
-                tune.save_checkpoint(path)
+                with tune.checkpoint_dir(step=iter) as checkpoint_dir:
+                    path = os.path.join(checkpoint_dir, "checkpoint")
+                    with open(path, "w") as f:
+                        f.write(json.dumps({"step": start}))
 
                 tune.report(hello="world", ray="tune")
 
-        analysis = tune.run(run_me)
+    Yields:
+        checkpoint_dir (str): Directory for checkpointing.
 
-    .. warning:: Do not call this function within the Trainable Class API.
-
-    Args:
-        **kwargs: Any key value pair to be logged by Tune. Any of these
-            metrics can be used for early stopping or optimization.
-
-    .. versionadded:: 0.8.6
+    .. versionadded:: 0.8.7
     """
     _session = get_session()
+
+    if step is None:
+        raise ValueError("checkpoint_dir(step) must be provided - got None.")
+
     if _session:
-        return _session.save_checkpoint(checkpoint)
+        _checkpoint_dir = _session.make_checkpoint_dir(step=step)
+    else:
+        _checkpoint_dir = os.path.abspath("./")
+
+    yield _checkpoint_dir
+
+    if _session:
+        _session.set_checkpoint(_checkpoint_dir)
 
 
 def get_trial_dir():

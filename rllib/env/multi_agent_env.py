@@ -2,7 +2,7 @@ from typing import Tuple, Dict, List
 import gym
 
 from ray.rllib.utils.annotations import PublicAPI
-from ray.rllib.utils.types import MultiAgentDict, AgentID
+from ray.rllib.utils.typing import MultiAgentDict, AgentID
 
 # If the obs space is Dict type, look for the global state under this key.
 ENV_STATE = "state"
@@ -100,7 +100,7 @@ class MultiAgentEnv:
 
         This API is experimental.
 
-        Arguments:
+        Args:
             groups (dict): Mapping from group id to a list of the agent ids
                 of group members. If an agent id is not present in any group
                 value, it will be left ungrouped.
@@ -117,7 +117,69 @@ class MultiAgentEnv:
             ... })
         """
 
-        from ray.rllib.env.group_agents_wrapper import _GroupAgentsWrapper
-        return _GroupAgentsWrapper(self, groups, obs_space, act_space)
+        from ray.rllib.env.wrappers.group_agents_wrapper import \
+            GroupAgentsWrapper
+        return GroupAgentsWrapper(self, groups, obs_space, act_space)
 # __grouping_doc_end__
 # yapf: enable
+
+
+def make_multi_agent(env_name_or_creator):
+    """Convenience wrapper for any sigle-agent env to be converted into MA.
+
+    Agent IDs are int numbers starting from 0 (first agent).
+
+    Args:
+        env_name_or_creator (Union[str, Callable[]]: String specifier or
+            env_maker function.
+
+    Returns:
+        Type[MultiAgentEnv]: New MultiAgentEnv class to be used as env.
+            The constructor takes a config dict with `num_agents` key
+            (default=1). The reset of the config dict will be passed on to the
+            underlying single-agent env's constructor.
+
+    Examples:
+         >>> # By gym string:
+         >>> ma_cartpole_cls = make_multi_agent("CartPole-v0")
+         >>> # Create a 2 agent multi-agent cartpole.
+         >>> ma_cartpole = ma_cartpole_cls({"num_agents": 2})
+         >>> obs = ma_cartpole.reset()
+         >>> print(obs)
+         ... {0: [...], 1: [...]}
+
+         >>> # By env-maker callable:
+         >>> ma_stateless_cartpole_cls = make_multi_agent(
+         ...    lambda config: StatelessCartPole(config))
+         >>> # Create a 2 agent multi-agent stateless cartpole.
+         >>> ma_stateless_cartpole = ma_stateless_cartpole_cls(
+         ...    {"num_agents": 2})
+    """
+
+    class MultiEnv(MultiAgentEnv):
+        def __init__(self, config):
+            num = config.pop("num_agents", 1)
+            if isinstance(env_name_or_creator, str):
+                self.agents = [
+                    gym.make(env_name_or_creator) for _ in range(num)
+                ]
+            else:
+                self.agents = [env_name_or_creator(config) for _ in range(num)]
+            self.dones = set()
+            self.observation_space = self.agents[0].observation_space
+            self.action_space = self.agents[0].action_space
+
+        def reset(self):
+            self.dones = set()
+            return {i: a.reset() for i, a in enumerate(self.agents)}
+
+        def step(self, action_dict):
+            obs, rew, done, info = {}, {}, {}, {}
+            for i, action in action_dict.items():
+                obs[i], rew[i], done[i], info[i] = self.agents[i].step(action)
+                if done[i]:
+                    self.dones.add(i)
+            done["__all__"] = len(self.dones) == len(self.agents)
+            return obs, rew, done, info
+
+    return MultiEnv

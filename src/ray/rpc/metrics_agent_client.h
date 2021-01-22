@@ -37,6 +37,8 @@ class MetricsAgentClient {
   /// \param[in] client_call_manager The `ClientCallManager` used for managing requests.
   MetricsAgentClient(const std::string &address, const int port,
                      ClientCallManager &client_call_manager) {
+    RAY_LOG(DEBUG) << "Initiate the metrics client of address:" << address
+                   << " port:" << port;
     grpc_client_ = std::unique_ptr<GrpcClient<ReporterService>>(
         new GrpcClient<ReporterService>(address, port, client_call_manager));
   };
@@ -46,6 +48,12 @@ class MetricsAgentClient {
   /// \param[in] request The request message.
   /// \param[in] callback The callback function that handles reply.
   VOID_RPC_CLIENT_METHOD(ReporterService, ReportMetrics, grpc_client_, )
+
+  /// Report open census protobuf metrics to metrics agent.
+  ///
+  /// \param[in] request The request message.
+  /// \param[in] callback The callback function that handles reply.
+  VOID_RPC_CLIENT_METHOD(ReporterService, ReportOCMetrics, grpc_client_, )
 
  private:
   /// The RPC client.

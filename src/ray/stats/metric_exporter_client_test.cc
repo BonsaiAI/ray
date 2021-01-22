@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#include "gmock/gmock.h"
-#include "gtest/gtest.h"
+#include "ray/stats/metric_exporter_client.h"
 
 #include <chrono>
 #include <iostream>
@@ -21,10 +20,11 @@
 #include <vector>
 
 #include "absl/memory/memory.h"
+#include "gmock/gmock.h"
+#include "gtest/gtest.h"
 #include "opencensus/stats/internal/delta_producer.h"
 #include "opencensus/stats/internal/stats_exporter_impl.h"
 #include "ray/stats/metric_exporter.h"
-#include "ray/stats/metric_exporter_client.h"
 #include "ray/stats/stats.h"
 
 namespace ray {
@@ -144,7 +144,7 @@ bool DoubleEqualTo(double value, double compared_value) {
 TEST_F(MetricExporterClientTest, decorator_test) {
   // Export client should emit at least once in report flush interval.
   for (size_t i = 0; i < 100; ++i) {
-    stats::CurrentWorker().Record(i + 1);
+    stats::LiveActors().Record(i + 1);
   }
   opencensus::stats::DeltaProducer::Get()->Flush();
   opencensus::stats::StatsExporterImpl::Get()->Export();

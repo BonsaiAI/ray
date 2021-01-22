@@ -7,6 +7,7 @@ import ray
 from ray.rllib.agents.qmix.mixers import VDNMixer, QMixer
 from ray.rllib.agents.qmix.model import RNNModel, _get_size
 from ray.rllib.env.multi_agent_env import ENV_STATE
+from ray.rllib.env.wrappers.group_agents_wrapper import GROUP_REWARDS
 from ray.rllib.evaluation.metrics import LEARNER_STATS_KEY
 from ray.rllib.models.torch.torch_action_dist import TorchCategorical
 from ray.rllib.policy.policy import Policy
@@ -14,7 +15,6 @@ from ray.rllib.policy.rnn_sequencing import chop_into_sequences
 from ray.rllib.policy.sample_batch import SampleBatch
 from ray.rllib.models.catalog import ModelCatalog
 from ray.rllib.models.modelv2 import _unpack_obs
-from ray.rllib.env.constants import GROUP_REWARDS
 from ray.rllib.utils.framework import try_import_torch
 from ray.rllib.utils.annotations import override
 
@@ -57,7 +57,7 @@ class QMixLoss(nn.Module):
                 next_state=None):
         """Forward pass of the loss.
 
-        Arguments:
+        Args:
             rewards: Tensor of shape [B, T, n_agents]
             actions: Tensor of shape [B, T, n_agents]
             terminated: Tensor of shape [B, T, n_agents]
@@ -143,7 +143,7 @@ class QMixLoss(nn.Module):
         return loss, mask, masked_td_error, chosen_action_qvals, targets
 
 
-# TODO(sven): Make this a TorchPolicy child.
+# TODO(sven): Make this a TorchPolicy child via `build_policy_class`.
 class QMixTorchPolicy(Policy):
     """QMix impl. Assumes homogeneous agents for now.
 
@@ -162,6 +162,7 @@ class QMixTorchPolicy(Policy):
         self.framework = "torch"
         super().__init__(obs_space, action_space, config)
         self.n_agents = len(obs_space.original_space.spaces)
+        config["model"]["n_agents"] = self.n_agents
         self.n_actions = action_space.spaces[0].n
         self.h_size = config["model"]["lstm_cell_size"]
         self.has_env_global_state = False
@@ -280,14 +281,14 @@ class QMixTorchPolicy(Policy):
             masked_q_values = q_values.clone()
             masked_q_values[avail == 0.0] = -float("inf")
             masked_q_values_folded = torch.reshape(
-                masked_q_values,
-                [-1] + list(masked_q_values.shape)[2:])
+                masked_q_values, [-1] + list(masked_q_values.shape)[2:])
             actions, _ = self.exploration.get_exploration_action(
                 action_distribution=TorchCategorical(masked_q_values_folded),
                 timestep=timestep,
                 explore=explore)
             actions = torch.reshape(
-                actions, list(masked_q_values.shape)[:-1]).cpu().numpy()
+                actions,
+                list(masked_q_values.shape)[:-1]).cpu().numpy()
             hiddens = [s.cpu().numpy() for s in hiddens]
 
         return tuple(actions.transpose([1, 0])), hiddens, {}
@@ -530,7 +531,7 @@ def _validate(obs_space, action_space):
 def _mac(model, obs, h):
     """Forward pass of the multi-agent controller.
 
-    Arguments:
+    Args:
         model: TorchModelV2 class
         obs: Tensor of shape [B, n_agents, obs_size]
         h: List of tensors of shape [B, n_agents, h_size]

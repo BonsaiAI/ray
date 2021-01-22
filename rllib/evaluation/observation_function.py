@@ -4,7 +4,7 @@ from ray.rllib.env import BaseEnv
 from ray.rllib.policy import Policy
 from ray.rllib.evaluation import MultiAgentEpisode, RolloutWorker
 from ray.rllib.utils.framework import TensorType
-from ray.rllib.utils.types import AgentID, PolicyID
+from ray.rllib.utils.typing import AgentID, PolicyID
 
 
 class ObservationFunction:
@@ -14,7 +14,7 @@ class ObservationFunction:
     in multi-agent scenarios.
 
     Observation functions can be specified in the multi-agent config by
-    specifying ``{"observation_function": your_obs_func}``. Note that
+    specifying ``{"observation_fn": your_obs_func}``. Note that
     ``your_obs_func`` can be a plain Python function.
 
     This API is **experimental**.

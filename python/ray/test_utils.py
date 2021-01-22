@@ -1,7 +1,6 @@
 import asyncio
 import errno
 import io
-import json
 import fnmatch
 import os
 import subprocess
@@ -13,8 +12,10 @@ import math
 from contextlib import redirect_stdout, redirect_stderr
 
 import ray
-import ray.services
+import ray._private.services
 import ray.utils
+import requests
+from prometheus_client.parser import text_string_to_metric_families
 from ray.scripts.scripts import main as ray_main
 
 import psutil  # We must import psutil after ray because we bundle it with ray.
@@ -121,7 +122,7 @@ def wait_for_pid_to_exit(pid, timeout=20):
             return
         time.sleep(0.1)
     raise RayTestTimeoutException(
-        "Timed out while waiting for process {} to exit.".format(pid))
+        f"Timed out while waiting for process {pid} to exit.")
 
 
 def wait_for_children_of_pid(pid, num_children=1, timeout=20):
@@ -151,7 +152,7 @@ def wait_for_children_of_pid_to_exit(pid, timeout=20):
 
 def kill_process_by_name(name, SIGKILL=False):
     for p in psutil.process_iter(attrs=["name"]):
-        if p.info["name"] == name + ray.services.EXE_SUFFIX:
+        if p.info["name"] == name + ray._private.services.EXE_SUFFIX:
             if SIGKILL:
                 p.kill()
             else:
@@ -208,37 +209,19 @@ def run_string_as_driver_nonblocking(driver_script):
     return proc
 
 
-def flat_errors():
-    errors = []
-    for job_errors in ray.errors(all_jobs=True).values():
-        errors.extend(job_errors)
-    return errors
-
-
-def relevant_errors(error_type):
-    return [error for error in flat_errors() if error["type"] == error_type]
-
-
-def wait_for_num_actors(num_actors, timeout=10):
+def wait_for_num_actors(num_actors, state=None, timeout=10):
     start_time = time.time()
     while time.time() - start_time < timeout:
-        if len(ray.actors()) >= num_actors:
+        if len([
+                _ for _ in ray.actors().values()
+                if state is None or _["State"] == state
+        ]) >= num_actors:
             return
         time.sleep(0.1)
     raise RayTestTimeoutException("Timed out while waiting for global state.")
 
 
-def wait_for_errors(error_type, num_errors, timeout=20):
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        if len(relevant_errors(error_type)) >= num_errors:
-            return
-        time.sleep(0.1)
-    raise RayTestTimeoutException("Timed out waiting for {} {} errors.".format(
-        num_errors, error_type))
-
-
-def wait_for_condition(condition_predictor, timeout=30, retry_interval_ms=100):
+def wait_for_condition(condition_predictor, timeout=10, retry_interval_ms=100):
     """Wait until a condition is met or time out with an exception.
 
     Args:
@@ -303,10 +286,9 @@ def recursive_fnmatch(dirpath, pattern):
     return matches
 
 
-def generate_internal_config_map(**kwargs):
-    internal_config = json.dumps(kwargs)
+def generate_system_config_map(**kwargs):
     ray_kwargs = {
-        "_internal_config": internal_config,
+        "_system_config": kwargs,
     }
     return ray_kwargs
 
@@ -357,6 +339,25 @@ def dicts_equal(dict1, dict2, abs_tol=1e-4):
     return True
 
 
+def same_elements(elems_a, elems_b):
+    """Checks if two iterables (such as lists) contain the same elements. Elements
+        do not have to be hashable (this allows us to compare sets of dicts for
+        example). This comparison is not necessarily efficient.
+    """
+    a = list(elems_a)
+    b = list(elems_b)
+
+    for x in a:
+        if x not in b:
+            return False
+
+    for x in b:
+        if x not in a:
+            return False
+
+    return True
+
+
 @ray.remote
 def _put(obj):
     return obj
@@ -367,6 +368,13 @@ def put_object(obj, use_ray_put):
         return ray.put(obj)
     else:
         return _put.remote(obj)
+
+
+def put_unpinned_object(obj):
+    value = ray.worker.global_worker.get_serialization_context().serialize(obj)
+    return ray.ObjectRef(
+        ray.worker.global_worker.core_worker.put_serialized_object(
+            value, pin_object=False))
 
 
 def wait_until_server_available(address,
@@ -404,3 +412,70 @@ def get_other_nodes(cluster, exclude_head=False):
 def get_non_head_nodes(cluster):
     """Get all non-head nodes."""
     return list(filter(lambda x: x.head is False, cluster.list_all_nodes()))
+
+
+def init_error_pubsub():
+    """Initialize redis error info pub/sub"""
+    p = ray.worker.global_worker.redis_client.pubsub(
+        ignore_subscribe_messages=True)
+    error_pubsub_channel = ray.gcs_utils.RAY_ERROR_PUBSUB_PATTERN
+    p.psubscribe(error_pubsub_channel)
+    return p
+
+
+def get_error_message(pub_sub, num, error_type=None, timeout=20):
+    """Get errors through pub/sub."""
+    start_time = time.time()
+    msgs = []
+    while time.time() - start_time < timeout and len(msgs) < num:
+        msg = pub_sub.get_message()
+        if msg is None:
+            time.sleep(0.01)
+            continue
+        pubsub_msg = ray.gcs_utils.PubSubMessage.FromString(msg["data"])
+        error_data = ray.gcs_utils.ErrorTableData.FromString(pubsub_msg.data)
+        if error_type is None or error_type == error_data.type:
+            msgs.append(error_data)
+        else:
+            time.sleep(0.01)
+
+    return msgs
+
+
+def format_web_url(url):
+    """Format web url."""
+    url = url.replace("localhost", "http://127.0.0.1")
+    if not url.startswith("http://"):
+        return "http://" + url
+    return url
+
+
+def new_scheduler_enabled():
+    return os.environ.get("RAY_ENABLE_NEW_SCHEDULER", "1") == "1"
+
+
+def client_test_enabled() -> bool:
+    return os.environ.get("RAY_CLIENT_MODE") == "1"
+
+
+def fetch_prometheus(prom_addresses):
+    components_dict = {}
+    metric_names = set()
+    metric_samples = []
+    for address in prom_addresses:
+        if address not in components_dict:
+            components_dict[address] = set()
+        try:
+            response = requests.get(f"http://{address}/metrics")
+        except requests.exceptions.ConnectionError:
+            continue
+
+        for line in response.text.split("\n"):
+            for family in text_string_to_metric_families(line):
+                for sample in family.samples:
+                    metric_names.add(sample.name)
+                    metric_samples.append(sample)
+                    if "Component" in sample.labels:
+                        components_dict[address].add(
+                            sample.labels["Component"])
+    return components_dict, metric_names, metric_samples

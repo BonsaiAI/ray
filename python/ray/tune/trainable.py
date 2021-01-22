@@ -1,14 +1,15 @@
+import sys
+from contextlib import redirect_stdout, redirect_stderr
 from datetime import datetime
 
 import copy
-import io
 import logging
-import glob
 import os
-import pickle
+import ray.cloudpickle as pickle
 import platform
-import pandas as pd
-from six import string_types
+
+from ray.tune.utils.trainable import TrainableUtil
+from ray.tune.utils.util import Tee
 import shutil
 import tempfile
 import time
@@ -16,161 +17,16 @@ import uuid
 
 import ray
 from ray.util.debug import log_once
-from ray.tune.logger import UnifiedLogger
-from ray.tune.result import (DEFAULT_RESULTS_DIR, TIME_THIS_ITER_S,
-                             TIMESTEPS_THIS_ITER, DONE, TIMESTEPS_TOTAL,
-                             EPISODES_THIS_ITER, EPISODES_TOTAL,
-                             TRAINING_ITERATION, RESULT_DUPLICATE, TRIAL_INFO)
+from ray.tune.result import (
+    DEFAULT_RESULTS_DIR, SHOULD_CHECKPOINT, TIME_THIS_ITER_S,
+    TIMESTEPS_THIS_ITER, DONE, TIMESTEPS_TOTAL, EPISODES_THIS_ITER,
+    EPISODES_TOTAL, TRAINING_ITERATION, RESULT_DUPLICATE, TRIAL_INFO,
+    STDOUT_FILE, STDERR_FILE)
 from ray.tune.utils import UtilMonitor
 
 logger = logging.getLogger(__name__)
 
 SETUP_TIME_THRESHOLD = 10
-
-
-class TrainableUtil:
-    @staticmethod
-    def process_checkpoint(checkpoint, parent_dir, trainable_state):
-        saved_as_dict = False
-        if isinstance(checkpoint, string_types):
-            if not checkpoint.startswith(parent_dir):
-                raise ValueError(
-                    "The returned checkpoint path must be within the "
-                    "given checkpoint dir {}: {}".format(
-                        parent_dir, checkpoint))
-            checkpoint_path = checkpoint
-            if os.path.isdir(checkpoint_path):
-                # Add trailing slash to prevent tune metadata from
-                # being written outside the directory.
-                checkpoint_path = os.path.join(checkpoint_path, "")
-        elif isinstance(checkpoint, dict):
-            saved_as_dict = True
-            checkpoint_path = os.path.join(parent_dir, "checkpoint")
-            with open(checkpoint_path, "wb") as f:
-                pickle.dump(checkpoint, f)
-        else:
-            raise ValueError("Returned unexpected type {}. "
-                             "Expected str or dict.".format(type(checkpoint)))
-
-        with open(checkpoint_path + ".tune_metadata", "wb") as f:
-            trainable_state["saved_as_dict"] = saved_as_dict
-            pickle.dump(trainable_state, f)
-        return checkpoint_path
-
-    @staticmethod
-    def pickle_checkpoint(checkpoint_path):
-        """Pickles checkpoint data."""
-        checkpoint_dir = TrainableUtil.find_checkpoint_dir(checkpoint_path)
-        data = {}
-        for basedir, _, file_names in os.walk(checkpoint_dir):
-            for file_name in file_names:
-                path = os.path.join(basedir, file_name)
-                with open(path, "rb") as f:
-                    data[os.path.relpath(path, checkpoint_dir)] = f.read()
-        # Use normpath so that a directory path isn't mapped to empty string.
-        name = os.path.relpath(
-            os.path.normpath(checkpoint_path), checkpoint_dir)
-        name += os.path.sep if os.path.isdir(checkpoint_path) else ""
-        data_dict = pickle.dumps({
-            "checkpoint_name": name,
-            "data": data,
-        })
-        return data_dict
-
-    @staticmethod
-    def checkpoint_to_object(checkpoint_path):
-        data_dict = TrainableUtil.pickle_checkpoint(checkpoint_path)
-        out = io.BytesIO()
-        if len(data_dict) > 10e6:  # getting pretty large
-            logger.info("Checkpoint size is {} bytes".format(len(data_dict)))
-        out.write(data_dict)
-        return out.getvalue()
-
-    @staticmethod
-    def find_checkpoint_dir(checkpoint_path):
-        """Returns the directory containing the checkpoint path.
-
-        Raises:
-            FileNotFoundError if the directory is not found.
-        """
-        if not os.path.exists(checkpoint_path):
-            raise FileNotFoundError("Path does not exist", checkpoint_path)
-        if os.path.isdir(checkpoint_path):
-            checkpoint_dir = checkpoint_path
-        else:
-            checkpoint_dir = os.path.dirname(checkpoint_path)
-        while checkpoint_dir != os.path.dirname(checkpoint_dir):
-            if os.path.exists(os.path.join(checkpoint_dir, ".is_checkpoint")):
-                break
-            checkpoint_dir = os.path.dirname(checkpoint_dir)
-        else:
-            raise FileNotFoundError("Checkpoint directory not found for {}"
-                                    .format(checkpoint_path))
-        return checkpoint_dir
-
-    @staticmethod
-    def make_checkpoint_dir(checkpoint_dir, index):
-        """Creates a checkpoint directory within the provided path.
-
-        Args:
-            checkpoint_dir (str): Path to checkpoint directory.
-            index (str): A subdirectory will be created
-                at the checkpoint directory named 'checkpoint_{index}'.
-        """
-        suffix = "checkpoint"
-        if index is not None:
-            suffix += "_{}".format(index)
-        checkpoint_dir = os.path.join(checkpoint_dir, suffix)
-
-        os.makedirs(checkpoint_dir, exist_ok=True)
-        # Drop marker in directory to identify it as a checkpoint dir.
-        open(os.path.join(checkpoint_dir, ".is_checkpoint"), "a").close()
-        return checkpoint_dir
-
-    @staticmethod
-    def create_from_pickle(obj, tmpdir):
-        info = pickle.loads(obj)
-        data = info["data"]
-        checkpoint_path = os.path.join(tmpdir, info["checkpoint_name"])
-
-        for relpath_name, file_contents in data.items():
-            path = os.path.join(tmpdir, relpath_name)
-
-            # This may be a subdirectory, hence not just using tmpdir
-            os.makedirs(os.path.dirname(path), exist_ok=True)
-            with open(path, "wb") as f:
-                f.write(file_contents)
-        return checkpoint_path
-
-    @staticmethod
-    def get_checkpoints_paths(logdir):
-        """ Finds the checkpoints within a specific folder.
-
-        Returns a pandas DataFrame of training iterations and checkpoint
-        paths within a specific folder.
-
-        Raises:
-            FileNotFoundError if the directory is not found.
-        """
-        marker_paths = glob.glob(
-            os.path.join(logdir, "checkpoint_*/.is_checkpoint"))
-        iter_chkpt_pairs = []
-        for marker_path in marker_paths:
-            chkpt_dir = os.path.dirname(marker_path)
-            metadata_file = glob.glob(
-                os.path.join(chkpt_dir, "*.tune_metadata"))
-            if len(metadata_file) != 1:
-                raise ValueError(
-                    "{} has zero or more than one tune_metadata.".format(
-                        chkpt_dir))
-
-            chkpt_path = metadata_file[0][:-len(".tune_metadata")]
-            chkpt_iter = int(chkpt_dir[chkpt_dir.rfind("_") + 1:])
-            iter_chkpt_pairs.append([chkpt_iter, chkpt_path])
-
-        chkpt_df = pd.DataFrame(
-            iter_chkpt_pairs, columns=["training_iteration", "chkpt_path"])
-        return chkpt_df
 
 
 class Trainable:
@@ -216,16 +72,16 @@ class Trainable:
         self.config = config or {}
         trial_info = self.config.pop(TRIAL_INFO, None)
 
-        if logger_creator:
-            self._result_logger = logger_creator(self.config)
-            self._logdir = self._result_logger.logdir
-        else:
-            logdir_prefix = datetime.today().strftime("%Y-%m-%d_%H-%M-%S")
-            ray.utils.try_to_create_directory(DEFAULT_RESULTS_DIR)
-            self._logdir = tempfile.mkdtemp(
-                prefix=logdir_prefix, dir=DEFAULT_RESULTS_DIR)
-            self._result_logger = UnifiedLogger(
-                self.config, self._logdir, loggers=None)
+        self._result_logger = self._logdir = None
+        self._create_logger(self.config, logger_creator)
+
+        self._stdout_context = self._stdout_fp = self._stdout_stream = None
+        self._stderr_context = self._stderr_fp = self._stderr_stream = None
+        self._stderr_logging_handler = None
+
+        stdout_file = self.config.pop(STDOUT_FILE, None)
+        stderr_file = self.config.pop(STDERR_FILE, None)
+        self._open_logfiles(stdout_file, stderr_file)
 
         self._iteration = 0
         self._time_total = 0.0
@@ -284,6 +140,48 @@ class Trainable:
         self._local_ip = ray.services.get_node_ip_address()
         return self._local_ip
 
+    def train_buffered(self,
+                       buffer_time_s: float,
+                       max_buffer_length: int = 1000):
+        """Runs multiple iterations of training.
+
+        Calls ``train()`` internally. Collects and combines multiple results.
+        This function will run ``self.train()`` repeatedly until one of
+        the following conditions is met: 1) the maximum buffer length is
+        reached, 2) the maximum buffer time is reached, or 3) a checkpoint
+        was created. Even if the maximum time is reached, it will always
+        block until at least one result is received.
+
+        Args:
+            buffer_time_s (float): Maximum time to buffer. The next result
+                received after this amount of time has passed will return
+                the whole buffer.
+            max_buffer_length (int): Maximum number of results to buffer.
+
+        """
+        results = []
+
+        now = time.time()
+        send_buffer_at = now + buffer_time_s
+        while now < send_buffer_at or not results:  # At least one result
+            result = self.train()
+            results.append(result)
+            if result.get(DONE, False):
+                # If the trial is done, return
+                break
+            elif result.get(SHOULD_CHECKPOINT, False):
+                # If a checkpoint was created, return
+                break
+            elif result.get(RESULT_DUPLICATE):
+                # If the function API trainable completed, return
+                break
+            elif len(results) >= max_buffer_length:
+                # If the buffer is full, return
+                break
+            now = time.time()
+
+        return results
+
     def train(self):
         """Runs one logical iteration of training.
 
@@ -294,7 +192,7 @@ class Trainable:
             `done` (bool): training is terminated. Filled only if not provided.
 
             `time_this_iter_s` (float): Time in seconds this iteration
-            took to run. This may be overriden in order to override the
+            took to run. This may be overridden in order to override the
             system-computed time difference.
 
             `time_total_s` (float): Accumulated time in seconds for this
@@ -388,6 +286,11 @@ class Trainable:
             result.update(monitor_data)
 
         self.log_result(result)
+
+        if self._stdout_context:
+            self._stdout_stream.flush()
+        if self._stderr_context:
+            self._stderr_stream.flush()
 
         return result
 
@@ -521,13 +424,56 @@ class Trainable:
         export_dir = export_dir or self.logdir
         return self._export_model(export_formats, export_dir)
 
+    def reset(self, new_config, logger_creator=None):
+        """Resets trial for use with new config.
+
+        Subclasses should override reset_config() to actually
+        reset actor behavior for the new config."""
+        self.config = new_config
+
+        trial_info = new_config.pop(TRIAL_INFO, None)
+        if trial_info:
+            self._trial_info = trial_info
+
+        self._result_logger.flush()
+        self._result_logger.close()
+
+        if logger_creator:
+            logger.debug("Logger reset.")
+            self._create_logger(new_config.copy(), logger_creator)
+        else:
+            logger.debug("Did not reset logger. Got: "
+                         f"trainable.reset(logger_creator={logger_creator}).")
+
+        stdout_file = new_config.pop(STDOUT_FILE, None)
+        stderr_file = new_config.pop(STDERR_FILE, None)
+
+        self._close_logfiles()
+        self._open_logfiles(stdout_file, stderr_file)
+
+        success = self.reset_config(new_config)
+        if not success:
+            return False
+
+        # Reset attributes. Will be overwritten by `restore` if a checkpoint
+        # is provided.
+        self._iteration = 0
+        self._time_total = 0.0
+        self._timesteps_total = None
+        self._episodes_total = None
+        self._time_since_restore = 0.0
+        self._timesteps_since_restore = 0
+        self._iterations_since_restore = 0
+        self._restored = False
+
+        return True
+
     def reset_config(self, new_config):
         """Resets configuration without restarting the trial.
 
         This method is optional, but can be implemented to speed up algorithms
         such as PBT, and to allow performance optimizations such as running
-        experiments with reuse_actors=True. Note that self.config need to
-        be updated to reflect the latest parameter information in Ray logs.
+        experiments with reuse_actors=True.
 
         Args:
             new_config (dict): Updated hyperparameter configuration
@@ -538,6 +484,67 @@ class Trainable:
         """
         return False
 
+    def _create_logger(self, config, logger_creator=None):
+        """Create logger from logger creator.
+
+        Sets _logdir and _result_logger.
+        """
+        if logger_creator:
+            self._result_logger = logger_creator(config)
+            self._logdir = self._result_logger.logdir
+        else:
+            from ray.tune.logger import UnifiedLogger
+
+            logdir_prefix = datetime.today().strftime("%Y-%m-%d_%H-%M-%S")
+            ray.utils.try_to_create_directory(DEFAULT_RESULTS_DIR)
+            self._logdir = tempfile.mkdtemp(
+                prefix=logdir_prefix, dir=DEFAULT_RESULTS_DIR)
+            self._result_logger = UnifiedLogger(
+                config, self._logdir, loggers=None)
+
+    def _open_logfiles(self, stdout_file, stderr_file):
+        """Create loggers. Open stdout and stderr logfiles."""
+        if stdout_file:
+            stdout_path = os.path.expanduser(
+                os.path.join(self._logdir, stdout_file))
+            self._stdout_fp = open(stdout_path, "a+")
+            self._stdout_stream = Tee(sys.stdout, self._stdout_fp)
+            self._stdout_context = redirect_stdout(self._stdout_stream)
+            self._stdout_context.__enter__()
+
+        if stderr_file:
+            stderr_path = os.path.expanduser(
+                os.path.join(self._logdir, stderr_file))
+            self._stderr_fp = open(stderr_path, "a+")
+            self._stderr_stream = Tee(sys.stderr, self._stderr_fp)
+            self._stderr_context = redirect_stderr(self._stderr_stream)
+            self._stderr_context.__enter__()
+
+            # Add logging handler to root ray logger
+            formatter = logging.Formatter("[%(levelname)s %(asctime)s] "
+                                          "%(filename)s: %(lineno)d  "
+                                          "%(message)s")
+            self._stderr_logging_handler = logging.StreamHandler(
+                self._stderr_fp)
+            self._stderr_logging_handler.setFormatter(formatter)
+            ray.logger.addHandler(self._stderr_logging_handler)
+
+    def _close_logfiles(self):
+        """Close stdout and stderr logfiles."""
+        if self._stderr_logging_handler:
+            ray.logger.removeHandler(self._stderr_logging_handler)
+
+        if self._stdout_context:
+            self._stdout_stream.flush()
+            self._stdout_context.__exit__(None, None, None)
+            self._stdout_fp.close()
+            self._stdout_context = None
+        if self._stderr_context:
+            self._stderr_stream.flush()
+            self._stderr_context.__exit__(None, None, None)
+            self._stderr_fp.close()
+            self._stderr_context = None
+
     def stop(self):
         """Releases all resources used by this trainable.
 
@@ -546,7 +553,12 @@ class Trainable:
         """
         self._result_logger.flush()
         self._result_logger.close()
+        if self._monitor.is_alive():
+            self._monitor.stop()
+            self._monitor.join()
         self.cleanup()
+
+        self._close_logfiles()
 
     @property
     def logdir(self):
@@ -631,7 +643,7 @@ class Trainable:
         """
         result = self._train()
 
-        if self._is_overriden("_train") and log_once("_train"):
+        if self._is_overridden("_train") and log_once("_train"):
             logger.warning(
                 "Trainable._train is deprecated and will be removed in "
                 "a future version of Ray. Override Trainable.step instead.")
@@ -682,7 +694,7 @@ class Trainable:
         """
         checkpoint = self._save(tmp_checkpoint_dir)
 
-        if self._is_overriden("_save") and log_once("_save"):
+        if self._is_overridden("_save") and log_once("_save"):
             logger.warning(
                 "Trainable._save is deprecated and will be removed in a "
                 "future version of Ray. Override "
@@ -740,7 +752,7 @@ class Trainable:
                 underneath the `checkpoint_dir` `save_checkpoint` is preserved.
         """
         self._restore(checkpoint)
-        if self._is_overriden("_restore") and log_once("_restore"):
+        if self._is_overridden("_restore") and log_once("_restore"):
             logger.warning(
                 "Trainable._restore is deprecated and will be removed in a "
                 "future version of Ray. Override Trainable.load_checkpoint "
@@ -763,7 +775,7 @@ class Trainable:
                 Copy of `self.config`.
         """
         self._setup(config)
-        if self._is_overriden("_setup") and log_once("_setup"):
+        if self._is_overridden("_setup") and log_once("_setup"):
             logger.warning(
                 "Trainable._setup is deprecated and will be removed in "
                 "a future version of Ray. Override Trainable.setup instead.")
@@ -788,7 +800,7 @@ class Trainable:
             result (dict): Training result returned by step().
         """
         self._log_result(result)
-        if self._is_overriden("_log_result") and log_once("_log_result"):
+        if self._is_overridden("_log_result") and log_once("_log_result"):
             logger.warning(
                 "Trainable._log_result is deprecated and will be removed in "
                 "a future version of Ray. Override "
@@ -813,7 +825,7 @@ class Trainable:
         .. versionadded:: 0.8.7
         """
         self._stop()
-        if self._is_overriden("_stop") and log_once("trainable.cleanup"):
+        if self._is_overridden("_stop") and log_once("trainable.cleanup"):
             logger.warning(
                 "Trainable._stop is deprecated and will be removed in "
                 "a future version of Ray. Override Trainable.cleanup instead.")
@@ -837,5 +849,5 @@ class Trainable:
         """
         return {}
 
-    def _is_overriden(self, key):
+    def _is_overridden(self, key):
         return getattr(self, key).__code__ != getattr(Trainable, key).__code__

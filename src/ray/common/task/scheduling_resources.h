@@ -5,6 +5,7 @@
 #include <unordered_set>
 #include <vector>
 
+#include "ray/common/id.h"
 #include "ray/raylet/format/node_manager_generated.h"
 
 namespace ray {
@@ -135,8 +136,7 @@ class ResourceSet {
   ///
   /// \param other: The other resource set to add.
   /// \param total_resources: Total resource set which sets upper limits on capacity for
-  /// each label. \return True if the resource set was added successfully. False
-  /// otherwise.
+  /// each label.
   void AddResourcesCapacityConstrained(const ResourceSet &other,
                                        const ResourceSet &total_resources);
 
@@ -146,23 +146,6 @@ class ResourceSet {
   /// \param other: The other resource set to add.
   /// \return Void.
   void AddResources(const ResourceSet &other);
-
-  /// \brief Aggregate resources from the other set into this set, adding any missing
-  /// resource labels to this set. The resource id will change to bundle_id + "_" +
-  /// reource_id
-  ///
-  /// \param other: The other resource set to add.
-  /// \param bundle_id: The bundle_id of the bundle.
-  /// \return Void.
-  void AddBundleResources(const std::string &bundle_id, const ResourceSet &other);
-
-  /// \brief Return back all the bundle resource. Changing the resource name and adding
-  /// any missing resource labels to this set. The resource id will remove bundle_id + "_"
-  /// part.
-  ///
-  /// \param bundle_id: The bundle_id of the bundle.
-  /// \return Void.
-  void ReturnBundleResources(const std::string &bundle_id);
 
   /// \brief Subtract a set of resources from the current set of resources and
   /// check that the post-subtraction result nonnegative. Assumes other
@@ -420,17 +403,6 @@ class ResourceIdSet {
   /// \param capacity capacity of the resource being added
   void AddOrUpdateResource(const std::string &resource_name, int64_t capacity);
 
-  /// \brief  Add a Bundle resource in the ResourceIdSet.
-  ///
-  /// \param resource_name the name of the resource to create/update
-  /// \param resource_ids resource_ids of the resource being added
-  void AddBundleResource(const std::string &resource_name, ResourceIds &resource_ids);
-
-  /// \brief  remove a Bundle resource in the ResourceIdSet.
-  ///
-  /// \param resource_name the name of the resource to remove.
-
-  void CancelResourceReserve(const std::string &resource_name);
   /// \brief Deletes a resource in the ResourceIdSet. This does not raise an exception,
   /// just deletes the resource. Tasks with acquired resources keep running.
   ///
@@ -539,6 +511,12 @@ class SchedulingResources {
   /// \return Void.
   void Acquire(const ResourceSet &resources);
 
+  /// \brief Add a new resource to available resource.
+  ///
+  /// \param resources: the amount of resources to be added.
+  /// \return Void.
+  void AddResource(const ResourceSet &resources);
+
   /// Returns debug string for class.
   ///
   /// \return string.
@@ -551,18 +529,6 @@ class SchedulingResources {
   /// \param capacity: New capacity of the resource.
   /// \return Void.
   void UpdateResourceCapacity(const std::string &resource_name, int64_t capacity);
-
-  /// \brief Update total, available and load resources with the ResourceIds.
-  /// Create if not exists.
-  /// \param resource_name: Name of the resource to be modified
-  /// \param resource_set: New resource_set of the resource.
-  void UpdateBundleResource(const std::string &bundle_id,
-                            const ResourceSet &resource_set);
-
-  /// \brief delete total, available and load resources with the ResourceIds.
-  /// Create if not exists.
-  /// \param resource_name: Name of the resource to be deleted
-  void ReturnBundleResource(const std::string &bundle_id);
 
   /// \brief Delete resource from total, available and load resources.
   ///

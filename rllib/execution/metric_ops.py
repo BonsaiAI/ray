@@ -1,9 +1,9 @@
-from typing import Any, List
+from typing import Any, List, Dict, Callable, Optional, Sequence
 import time
 
 from ray.util.iter import LocalIterator
 from ray.rllib.evaluation.metrics import collect_episodes, summarize_episodes
-from ray.rllib.execution.common import STEPS_SAMPLED_COUNTER, \
+from ray.rllib.execution.common import STEPS_SAMPLED_COUNTER, TIMESTEPS_TOTAL, \
     _get_shared_metrics
 from ray.rllib.evaluation.worker_set import WorkerSet
 
@@ -15,7 +15,7 @@ def StandardMetricsReporting(
         selected_workers: List["ActorHandle"] = None) -> LocalIterator[dict]:
     """Operator to periodically collect and report metrics.
 
-    Arguments:
+    Args:
         train_op (LocalIterator): Operator for executing training steps.
             We ignore the output values.
         workers (WorkerSet): Rollout workers to collect metrics from.
@@ -25,7 +25,7 @@ def StandardMetricsReporting(
             to collect metrics from.
 
     Returns:
-        A local iterator over training results.
+        LocalIterator[dict]: A local iterator over training results.
 
     Examples:
         >>> train_op = ParallelRollouts(...).for_each(TrainOneStep(...))
@@ -33,14 +33,15 @@ def StandardMetricsReporting(
         >>> next(metrics_op)
         {"episode_reward_max": ..., "episode_reward_mean": ..., ...}
     """
-
+    custom_summarize_episodes = config.get("custom_summarize_episodes_callback")
     output_op = train_op \
         .filter(OncePerTimestepsElapsed(config["timesteps_per_iteration"])) \
         .filter(OncePerTimeInterval(config["min_iter_time_s"])) \
         .for_each(CollectMetrics(
             workers, min_history=config["metrics_smoothing_episodes"],
             timeout_seconds=config["collect_metrics_timeout"],
-            selected_workers=selected_workers))
+            selected_workers=selected_workers,
+            custom_summarize_episodes=custom_summarize_episodes))
     return output_op
 
 
@@ -59,18 +60,24 @@ class CollectMetrics:
     """
 
     def __init__(self,
-                 workers,
-                 min_history=100,
-                 timeout_seconds=180,
-                 selected_workers: List["ActorHandle"] = None):
+                 workers: WorkerSet,
+                 min_history: int = 100,
+                 timeout_seconds: int = 180,
+                 selected_workers: List["ActorHandle"] = None,
+                 custom_summarize_episodes: Optional[
+                     Callable[[Sequence[Any], Sequence[Any], Dict[str, Any]],
+                              Dict[str, Any]]
+                 ] = None,
+    ):
         self.workers = workers
         self.episode_history = []
         self.to_be_collected = []
         self.min_history = min_history
         self.timeout_seconds = timeout_seconds
         self.selected_workers = selected_workers
+        self._custom_summarize_episodes = custom_summarize_episodes
 
-    def __call__(self, _):
+    def __call__(self, _: Any) -> Dict:
         # Collect worker metrics.
         episodes, self.to_be_collected = collect_episodes(
             self.workers.local_worker(),
@@ -85,6 +92,8 @@ class CollectMetrics:
         self.episode_history.extend(orig_episodes)
         self.episode_history = self.episode_history[-self.min_history:]
         res = summarize_episodes(episodes, orig_episodes)
+        if self._custom_summarize_episodes:
+            res = self._custom_summarize_episodes(episodes, orig_episodes, res)
 
         # Add in iterator metrics.
         metrics = _get_shared_metrics()
@@ -101,7 +110,7 @@ class CollectMetrics:
                     timer.mean_throughput, 3)
         res.update({
             "num_healthy_workers": len(self.workers.remote_workers()),
-            "timesteps_total": metrics.counters[STEPS_SAMPLED_COUNTER],
+            TIMESTEPS_TOTAL: metrics.counters[STEPS_SAMPLED_COUNTER],
         })
         res["timers"] = timers
         res["info"] = info
@@ -124,11 +133,11 @@ class OncePerTimeInterval:
         5.00001  # will be greater than 5 seconds
     """
 
-    def __init__(self, delay):
+    def __init__(self, delay: int):
         self.delay = delay
         self.last_called = 0
 
-    def __call__(self, item):
+    def __call__(self, item: Any) -> bool:
         if self.delay <= 0.0:
             return True
         now = time.time()
@@ -151,11 +160,11 @@ class OncePerTimestepsElapsed:
         # will only return after 1000 steps have elapsed
     """
 
-    def __init__(self, delay_steps):
+    def __init__(self, delay_steps: int):
         self.delay_steps = delay_steps
         self.last_called = 0
 
-    def __call__(self, item):
+    def __call__(self, item: Any) -> bool:
         if self.delay_steps <= 0:
             return True
         metrics = _get_shared_metrics()

@@ -3,6 +3,7 @@
 #include <cmath>
 #include <sstream>
 
+#include "absl/container/flat_hash_map.h"
 #include "ray/util/logging.h"
 
 namespace ray {
@@ -199,8 +200,8 @@ void ResourceSet::AddResourcesCapacityConstrained(const ResourceSet &other,
     const FractionalResourceQuantity &to_add_resource_capacity = resource_pair.second;
     if (total_resource_map.count(to_add_resource_label) != 0) {
       // If resource exists in total map, add to the local capacity map.
-      // If the new capacity will be greater the total capacity, set the new capacity to
-      // total capacity (capping to the total)
+      // If the new capacity is less than the total capacity, set the new capacity to
+      // the local capacity (capping to the total).
       const FractionalResourceQuantity &total_capacity =
           total_resource_map.at(to_add_resource_label);
       resource_capacity_[to_add_resource_label] =
@@ -223,30 +224,6 @@ void ResourceSet::AddResources(const ResourceSet &other) {
     const std::string &resource_label = resource_pair.first;
     const FractionalResourceQuantity &resource_capacity = resource_pair.second;
     resource_capacity_[resource_label] += resource_capacity;
-  }
-}
-
-void ResourceSet::AddBundleResources(const std::string &bundle_id,
-                                     const ResourceSet &other) {
-  for (const auto &resource_pair : other.GetResourceAmountMap()) {
-    const std::string &resource_label = bundle_id + "_" + resource_pair.first;
-    const FractionalResourceQuantity &resource_capacity = resource_pair.second;
-    resource_capacity_[resource_label] += resource_capacity;
-  }
-}
-
-void ResourceSet::ReturnBundleResources(const std::string &bundle_id) {
-  for (auto iter = resource_capacity_.begin(); iter != resource_capacity_.end();) {
-    const std::string &bundle_resource_label = iter->first;
-    if (bundle_resource_label.find(bundle_id) != std::string::npos) {
-      const std::string &resource_label =
-          bundle_resource_label.substr(bundle_resource_label.find_last_of("_") + 1);
-      const FractionalResourceQuantity &resource_capacity = iter->second;
-      resource_capacity_[resource_label] += resource_capacity;
-      iter = resource_capacity_.erase(iter);
-    } else {
-      iter++;
-    }
   }
 }
 
@@ -305,7 +282,7 @@ const std::string ResourceSet::ToString() const {
 
 const std::unordered_map<std::string, double> ResourceSet::GetResourceMap() const {
   std::unordered_map<std::string, double> result;
-  for (const auto resource_pair : resource_capacity_) {
+  for (const auto &resource_pair : resource_capacity_) {
     result[resource_pair.first] = resource_pair.second.ToDouble();
   }
   return result;
@@ -663,28 +640,10 @@ void ResourceIdSet::AddOrUpdateResource(const std::string &resource_name,
   }
 }
 
-void ResourceIdSet::AddBundleResource(const std::string &resource_name,
-                                      ResourceIds &resource_ids) {
-  available_resources_[resource_name] = resource_ids;
-}
-
-void ResourceIdSet::CancelResourceReserve(const std::string &resource_name) {
-  std::string origin_resource_name = resource_name.substr(resource_name.find("_") + 1);
-  auto iter_orig = available_resources_.find(origin_resource_name);
-  auto iter_bundle = available_resources_.find(resource_name);
-  if (iter_bundle == available_resources_.end()) {
-    return;
-  } else {
-    if (iter_orig == available_resources_.end()) {
-      available_resources_[origin_resource_name] = iter_bundle->second;
-    } else {
-      iter_orig->second.Release(iter_bundle->second);
-    }
-    available_resources_.erase(iter_bundle);
-  }
-}
 void ResourceIdSet::DeleteResource(const std::string &resource_name) {
-  available_resources_.erase(resource_name);
+  if (available_resources_.count(resource_name) != 0) {
+    available_resources_.erase(resource_name);
+  }
 }
 
 const std::unordered_map<std::string, ResourceIds> &ResourceIdSet::AvailableResources()
@@ -810,6 +769,14 @@ void SchedulingResources::Acquire(const ResourceSet &resources) {
   resources_available_.SubtractResourcesStrict(resources);
 }
 
+// The reason we need this method is sometimes we may want add some converted
+// resource which is not exist in total resource to the available resource.
+// (e.g., placement group)
+void SchedulingResources::AddResource(const ResourceSet &resources) {
+  resources_total_.AddResources(resources);
+  resources_available_.AddResources(resources);
+}
+
 void SchedulingResources::UpdateResourceCapacity(const std::string &resource_name,
                                                  int64_t capacity) {
   const FractionalResourceQuantity new_capacity = FractionalResourceQuantity(capacity);
@@ -833,19 +800,6 @@ void SchedulingResources::UpdateResourceCapacity(const std::string &resource_nam
     resources_total_.AddOrUpdateResource(resource_name, new_capacity);
     resources_available_.AddOrUpdateResource(resource_name, new_capacity);
   }
-}
-
-void SchedulingResources::UpdateBundleResource(const std::string &bundle_id,
-                                               const ResourceSet &resource_set) {
-  resources_available_.SubtractResourcesStrict(resource_set);
-  resources_available_.AddBundleResources(bundle_id, resource_set);
-  resources_total_.SubtractResourcesStrict(resource_set);
-  resources_total_.AddBundleResources(bundle_id, resource_set);
-}
-
-void SchedulingResources::ReturnBundleResource(const std::string &bundle_id) {
-  resources_available_.ReturnBundleResources(bundle_id);
-  resources_total_.ReturnBundleResources(bundle_id);
 }
 
 void SchedulingResources::DeleteResource(const std::string &resource_name) {

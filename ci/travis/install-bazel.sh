@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-
-set -euox pipefail
+set -x
+set -euo pipefail
 
 ROOT_DIR=$(cd "$(dirname "${BASH_SOURCE:-$0}")"; pwd)
 
@@ -32,11 +32,13 @@ esac
 { git ls-files -s 2>/dev/null || true; } | (
   set +x
   missing_symlinks=()
+  set +x
   while read -r mode _ _ path; do
     if [ "${mode}" = 120000 ]; then
       test -L "${path}" || missing_symlinks+=("${paths}")
     fi
   done
+  set -x
   if [ ! 0 -eq "${#missing_symlinks[@]}" ]; then
     echo "error: expected symlink: ${missing_symlinks[*]}" 1>&2
     echo "For a correct build, please run 'git config --local core.symlinks true' and re-run git checkout." 1>&2
@@ -44,9 +46,9 @@ esac
   fi
 )
 
+export PATH=/opt/python/cp36-cp36m/bin:$PATH
 python="$(command -v python3 || command -v python || echo python)"
 version="$("${python}" -s -c "import runpy, sys; runpy.run_path(sys.argv.pop(), run_name='__api__')" bazel_version "${ROOT_DIR}/../../python/setup.py")"
-version="3.3.0"
 # In azure pipelines or github acions, we don't need to install bazel
 if [ -x "$(command -v bazel)" ]; then
   echo 'Bazel is already installed'
@@ -61,10 +63,8 @@ else
   curl -f -s -L -R -o "${target}" "https://github.com/bazelbuild/bazel/releases/download/${version}/bazel-${version}-installer-${platform}-${achitecture}.sh"
   chmod +x "${target}"
   if [ "${CI-}" = true ] || [ "${arg1-}" = "--system" ]; then
-    sudo "${target}" > /dev/null  # system-wide install for CI
-    command -V bazel 1>&2
-    # "$(command -v sudo || echo command)" "${target}" > /dev/null  # system-wide install for CI
-    # which bazel > /dev/null
+    "$(command -v sudo || echo command)" "${target}" > /dev/null  # system-wide install for CI
+    which bazel > /dev/null
   else
     "${target}" --user > /dev/null
   fi
@@ -122,6 +122,8 @@ if [ "${CI-}" = true ]; then
     cat <<EOF >> ~/.bazelrc
 build --google_credentials="${translated_path}"
 EOF
+  elif [ -n "${BUILDKITE-}" ]; then
+    echo "Using buildkite secret store to communicate with cache address"
   else
     echo "Using remote build cache in read-only mode." 1>&2
     cat <<EOF >> ~/.bazelrc

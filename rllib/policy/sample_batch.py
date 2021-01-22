@@ -2,19 +2,15 @@ import collections
 import numpy as np
 import sys
 import itertools
-from typing import Any, Dict, Iterable, List, Optional, Set, Union
+from typing import Dict, Iterable, List, Optional, Set, Union
 
 from ray.rllib.utils.annotations import PublicAPI, DeveloperAPI
 from ray.rllib.utils.compression import pack, unpack, is_compressed
 from ray.rllib.utils.memory import concat_aligned
-from ray.rllib.utils.deprecation import deprecation_warning
-from ray.rllib.utils.types import TensorType
+from ray.rllib.utils.typing import PolicyID, TensorType
 
 # Default policy id for single agent environments
 DEFAULT_POLICY_ID = "default_policy"
-
-# TODO(ekl) reuse the other id def once we fix imports
-PolicyID = Any
 
 
 @PublicAPI
@@ -26,6 +22,7 @@ class SampleBatch:
     """
 
     # Outputs from interacting with the environment
+    OBS = "obs"
     CUR_OBS = "obs"
     NEXT_OBS = "new_obs"
     ACTIONS = "actions"
@@ -40,7 +37,7 @@ class SampleBatch:
     ACTION_PROB = "action_prob"
     ACTION_LOGP = "action_logp"
 
-    # Uniquely identifies an episode
+    # Uniquely identifies an episode.
     EPS_ID = "eps_id"
 
     # Uniquely identifies a sample batch. This is important to distinguish RNN
@@ -48,33 +45,55 @@ class SampleBatch:
     # concatenated (fusing sequences across batches can be unsafe).
     UNROLL_ID = "unroll_id"
 
-    # Uniquely identifies an agent within an episode
+    # Uniquely identifies an agent within an episode.
     AGENT_INDEX = "agent_index"
 
-    # Value function predictions emitted by the behaviour policy
+    # Value function predictions emitted by the behaviour policy.
     VF_PREDS = "vf_preds"
 
     @PublicAPI
     def __init__(self, *args, **kwargs):
         """Constructs a sample batch (same params as dict constructor)."""
 
-        self._initial_inputs = kwargs.pop("_initial_inputs", {})
+        # Possible seq_lens (TxB or BxT) setup.
+        self.time_major = kwargs.pop("_time_major", None)
+        self.seq_lens = kwargs.pop("_seq_lens", None)
+        self.dont_check_lens = kwargs.pop("_dont_check_lens", False)
+        self.max_seq_len = None
+        if self.seq_lens is not None and len(self.seq_lens) > 0:
+            self.max_seq_len = max(self.seq_lens)
 
+        # The actual data, accessible by column name (str).
         self.data = dict(*args, **kwargs)
+
         lengths = []
         for k, v in self.data.copy().items():
             assert isinstance(k, str), self
             lengths.append(len(v))
-            self.data[k] = np.array(v, copy=False)
+            if isinstance(v, list):
+                self.data[k] = np.array(v)
         if not lengths:
             raise ValueError("Empty sample batch")
-        assert len(set(lengths)) == 1, ("data columns must be same length",
-                                        self.data, lengths)
-        self.count = lengths[0]
+        if not self.dont_check_lens:
+            assert len(set(lengths)) == 1, \
+                "Data columns must be same length, but lens are " \
+                "{}".format(lengths)
+        if self.seq_lens is not None and len(self.seq_lens) > 0:
+            self.count = sum(self.seq_lens)
+        else:
+            self.count = len(next(iter(self.data.values())))
+
+        # Keeps track of new columns added after initial ones.
+        self.new_columns = []
+
+    @PublicAPI
+    def __len__(self):
+        """Returns the amount of samples in the sample batch."""
+        return self.count
 
     @staticmethod
     @PublicAPI
-    def concat_samples(samples: List[Dict[str, TensorType]]) -> \
+    def concat_samples(samples: List["SampleBatch"]) -> \
             Union["SampleBatch", "MultiAgentBatch"]:
         """Concatenates n data dicts or MultiAgentBatches.
 
@@ -87,11 +106,24 @@ class SampleBatch:
         """
         if isinstance(samples[0], MultiAgentBatch):
             return MultiAgentBatch.concat_samples(samples)
+        seq_lens = []
+        concat_samples = []
+        for s in samples:
+            if s.count > 0:
+                concat_samples.append(s)
+                if s.seq_lens is not None:
+                    seq_lens.extend(s.seq_lens)
+
         out = {}
-        samples = [s for s in samples if s.count > 0]
-        for k in samples[0].keys():
-            out[k] = concat_aligned([s[k] for s in samples])
-        return SampleBatch(out)
+        for k in concat_samples[0].keys():
+            out[k] = concat_aligned(
+                [s[k] for s in concat_samples],
+                time_major=concat_samples[0].time_major)
+        return SampleBatch(
+            out,
+            _seq_lens=np.array(seq_lens, dtype=np.int32),
+            _time_major=concat_samples[0].time_major,
+            _dont_check_lens=True)
 
     @PublicAPI
     def concat(self, other: "SampleBatch") -> "SampleBatch":
@@ -130,7 +162,8 @@ class SampleBatch:
         """
         return SampleBatch(
             {k: np.array(v, copy=True)
-             for (k, v) in self.data.items()})
+             for (k, v) in self.data.items()},
+            _seq_lens=self.seq_lens)
 
     @PublicAPI
     def rows(self) -> Dict[str, TensorType]:
@@ -221,8 +254,41 @@ class SampleBatch:
             SampleBatch: A new SampleBatch, which has a slice of this batch's
                 data.
         """
+        if self.seq_lens is not None and len(self.seq_lens) > 0:
+            data = {k: v[start:end] for k, v in self.data.items()}
+            # Fix state_in_x data.
+            count = 0
+            state_start = None
+            seq_lens = None
+            for i, seq_len in enumerate(self.seq_lens):
+                count += seq_len
+                if count >= end:
+                    state_idx = 0
+                    state_key = "state_in_{}".format(state_idx)
+                    while state_key in self.data:
+                        data[state_key] = self.data[state_key][state_start:i +
+                                                               1]
+                        state_idx += 1
+                        state_key = "state_in_{}".format(state_idx)
+                    seq_lens = list(self.seq_lens[state_start:i]) + [
+                        seq_len - (count - end)
+                    ]
+                    assert sum(seq_lens) == (end - start)
+                    break
+                elif state_start is None and count > start:
+                    state_start = i
 
-        return SampleBatch({k: v[start:end] for k, v in self.data.items()})
+            return SampleBatch(
+                data,
+                _seq_lens=np.array(seq_lens, dtype=np.int32),
+                _time_major=self.time_major,
+                _dont_check_lens=True)
+        else:
+            return SampleBatch(
+                {k: v[start:end]
+                 for k, v in self.data.items()},
+                _seq_lens=None,
+                _time_major=self.time_major)
 
     @PublicAPI
     def timeslices(self, k: int) -> List["SampleBatch"]:
@@ -279,7 +345,7 @@ class SampleBatch:
         Returns:
             int: The overall size in bytes of the data buffer (all columns).
         """
-        return sum(sys.getsizeof(d) for d in self.data)
+        return sum(sys.getsizeof(d) for d in self.data.values())
 
     @PublicAPI
     def __getitem__(self, key: str) -> TensorType:
@@ -289,7 +355,7 @@ class SampleBatch:
             key (str): The key (column name) to return.
 
         Returns:
-            TensorType]: The data under the given key.
+            TensorType: The data under the given key.
         """
         return self.data[key]
 
@@ -301,13 +367,14 @@ class SampleBatch:
             key (str): The column name to set a value for.
             item (TensorType): The data to insert.
         """
+        if key not in self.data:
+            self.new_columns.append(key)
         self.data[key] = item
 
     @DeveloperAPI
-    def compress(
-            self,
-            bulk: bool = False,
-            columns: Set[str] = frozenset(["obs", "new_obs"])) -> None:
+    def compress(self,
+                 bulk: bool = False,
+                 columns: Set[str] = frozenset(["obs", "new_obs"])) -> None:
         """Compresses the data buffers (by column) in place.
 
         Args:
@@ -326,10 +393,9 @@ class SampleBatch:
                         [pack(o) for o in self.data[key]])
 
     @DeveloperAPI
-    def decompress_if_needed(
-            self,
-            columns: Set[str] = frozenset(
-                ["obs", "new_obs"])) -> "SampleBatch":
+    def decompress_if_needed(self,
+                             columns: Set[str] = frozenset(
+                                 ["obs", "new_obs"])) -> "SampleBatch":
         """Decompresses data buffers (per column if not compressed) in place.
 
         Args:
@@ -373,24 +439,24 @@ class MultiAgentBatch:
     """
 
     @PublicAPI
-    def __init__(self,
-                 policy_batches: Dict[PolicyID, SampleBatch],
+    def __init__(self, policy_batches: Dict[PolicyID, SampleBatch],
                  env_steps: int):
         """Initialize a MultiAgentBatch object.
 
         Args:
             policy_batches (Dict[PolicyID, SampleBatch]): Mapping from policy
                 ids to SampleBatches of experiences.
-            env_steps (int): The number of timesteps in the environment this
-                batch contains. This will be less than the number of
+            env_steps (int): The number of environment steps in the environment
+                this batch contains. This will be less than the number of
                 transitions this batch contains across all policies in total.
         """
 
         for v in policy_batches.values():
             assert isinstance(v, SampleBatch)
         self.policy_batches = policy_batches
-        # Called count for uniformity with SampleBatch. Prefer to access this
-        # via the env_steps() method when possible for clarity.
+        # Called "count" for uniformity with SampleBatch.
+        # Prefer to access this via the `env_steps()` method when possible
+        # for clarity.
         self.count = env_steps
 
     @PublicAPI
@@ -490,7 +556,8 @@ class MultiAgentBatch:
         """
         if len(policy_batches) == 1 and DEFAULT_POLICY_ID in policy_batches:
             return policy_batches[DEFAULT_POLICY_ID]
-        return MultiAgentBatch(policy_batches, env_steps)
+        return MultiAgentBatch(
+            policy_batches=policy_batches, env_steps=env_steps)
 
     @staticmethod
     @PublicAPI
@@ -540,11 +607,9 @@ class MultiAgentBatch:
         return sum(b.size_bytes() for b in self.policy_batches.values())
 
     @DeveloperAPI
-    def compress(
-            self,
-            bulk: bool = False,
-            columns: Set[str] = frozenset(
-                ["obs", "new_obs"])) -> None:
+    def compress(self,
+                 bulk: bool = False,
+                 columns: Set[str] = frozenset(["obs", "new_obs"])) -> None:
         """Compresses each policy batch (per column) in place.
 
         Args:
@@ -557,10 +622,9 @@ class MultiAgentBatch:
             batch.compress(bulk=bulk, columns=columns)
 
     @DeveloperAPI
-    def decompress_if_needed(
-            self,
-            columns: Set[str] = frozenset(
-                ["obs", "new_obs"])) -> "MultiAgentBatch":
+    def decompress_if_needed(self,
+                             columns: Set[str] = frozenset(
+                                 ["obs", "new_obs"])) -> "MultiAgentBatch":
         """Decompresses each policy batch (per column), if already compressed.
 
         Args:
@@ -580,8 +644,3 @@ class MultiAgentBatch:
     def __repr__(self):
         return "MultiAgentBatch({}, env_steps={})".format(
             str(self.policy_batches), self.count)
-
-    # Deprecated.
-    def total(self):
-        deprecation_warning("batch.total()", "batch.agent_steps()")
-        return self.agent_steps()

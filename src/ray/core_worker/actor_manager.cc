@@ -15,7 +15,6 @@
 #include "ray/core_worker/actor_manager.h"
 
 #include "ray/gcs/pb_util.h"
-#include "ray/gcs/redis_accessor.h"
 
 namespace ray {
 
@@ -36,8 +35,7 @@ ActorID ActorManager::RegisterActorHandle(std::unique_ptr<ActorHandle> actor_han
   return actor_id;
 }
 
-const std::unique_ptr<ActorHandle> &ActorManager::GetActorHandle(
-    const ActorID &actor_id) {
+std::shared_ptr<ActorHandle> ActorManager::GetActorHandle(const ActorID &actor_id) {
   absl::MutexLock lock(&mutex_);
   auto it = actor_handles_.find(actor_id);
   RAY_CHECK(it != actor_handles_.end())
@@ -91,35 +89,8 @@ bool ActorManager::AddActorHandle(std::unique_ptr<ActorHandle> actor_handle,
                   std::placeholders::_1, std::placeholders::_2);
     RAY_CHECK_OK(gcs_client_->Actors().AsyncSubscribe(
         actor_id, actor_notification_callback, nullptr));
-
-    if (!RayConfig::instance().gcs_actor_service_enabled()) {
-      RAY_CHECK(reference_counter_->SetDeleteCallback(
-          actor_creation_return_id,
-          [this, actor_id, is_owner_handle](const ObjectID &object_id) {
-            if (is_owner_handle) {
-              // If we own the actor and the actor handle is no longer in scope,
-              // terminate the actor. We do not do this if the GCS service is
-              // enabled since then the GCS will terminate the actor for us.
-              // TODO(sang): Remove this block once gcs_actor_service is enabled by
-              // default.
-              RAY_LOG(INFO) << "Owner's handle and creation ID " << object_id
-                            << " has gone out of scope, sending message to actor "
-                            << actor_id << " to do a clean exit.";
-              RAY_CHECK(CheckActorHandleExists(actor_id));
-              direct_actor_submitter_->KillActor(actor_id,
-                                                 /*force_kill=*/false,
-                                                 /*no_restart=*/false);
-
-              // TODO(swang): Erase the actor handle once all refs to the actor
-              // have gone out of scope. We cannot erase it here in case the
-              // language frontend receives another ref to the same actor. In this
-              // case, we must remember the last task counter that we sent to the
-              // actor.
-              // TODO(ekl) we can't unsubscribe to actor notifications here due to
-              // https://github.com/ray-project/ray/pull/6885
-            }
-          }));
-    }
+  } else {
+    RAY_LOG(ERROR) << "Actor handle already exists " << actor_id.Hex();
   }
 
   return inserted;
@@ -151,24 +122,23 @@ void ActorManager::WaitForActorOutOfScope(
 }
 
 void ActorManager::HandleActorStateNotification(const ActorID &actor_id,
-                                                const gcs::ActorTableData &actor_data) {
-  const auto &actor_state = gcs::ActorTableData::ActorState_Name(actor_data.state());
+                                                const rpc::ActorTableData &actor_data) {
+  const auto &actor_state = rpc::ActorTableData::ActorState_Name(actor_data.state());
   RAY_LOG(INFO) << "received notification on actor, state: " << actor_state
                 << ", actor_id: " << actor_id
                 << ", ip address: " << actor_data.address().ip_address()
                 << ", port: " << actor_data.address().port() << ", worker_id: "
                 << WorkerID::FromBinary(actor_data.address().worker_id())
-                << ", raylet_id: "
-                << ClientID::FromBinary(actor_data.address().raylet_id())
+                << ", raylet_id: " << NodeID::FromBinary(actor_data.address().raylet_id())
                 << ", num_restarts: " << actor_data.num_restarts();
-  if (actor_data.state() == gcs::ActorTableData::RESTARTING) {
+  if (actor_data.state() == rpc::ActorTableData::RESTARTING) {
     direct_actor_submitter_->DisconnectActor(actor_id, actor_data.num_restarts(), false);
-  } else if (actor_data.state() == gcs::ActorTableData::DEAD) {
+  } else if (actor_data.state() == rpc::ActorTableData::DEAD) {
     direct_actor_submitter_->DisconnectActor(actor_id, actor_data.num_restarts(), true);
     // We cannot erase the actor handle here because clients can still
     // submit tasks to dead actors. This also means we defer unsubscription,
     // otherwise we crash when bulk unsubscribing all actor handles.
-  } else if (actor_data.state() == gcs::ActorTableData::ALIVE) {
+  } else if (actor_data.state() == rpc::ActorTableData::ALIVE) {
     direct_actor_submitter_->ConnectActor(actor_id, actor_data.address(),
                                           actor_data.num_restarts());
   } else {

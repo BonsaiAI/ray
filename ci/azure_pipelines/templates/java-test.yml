@@ -20,6 +20,7 @@ steps:
 
     exit 0
   env:
+    JAVA_TESTS: 1
     PYTHONWARNINGS: 'ignore'
     TRAVIS: 'true'
     RAY_INSTALL_JAVA: 1

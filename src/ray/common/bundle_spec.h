@@ -49,10 +49,7 @@ class BundleSpecification : public MessageWrapper<rpc::Bundle> {
     ComputeResources();
   }
   // Return the bundle_id
-  std::pair<PlacementGroupID, int64_t> BundleId() const;
-
-  // Return the bundle_id of string. eg: placement_group_id + index.
-  std::string BundleIdAsString() const;
+  BundleID BundleId() const;
 
   // Return the Placement Group id which the Bundle belong to.
   PlacementGroupID PlacementGroupId() const;
@@ -75,23 +72,55 @@ class BundleSpecification : public MessageWrapper<rpc::Bundle> {
     on_spillback_ = callback;
   }
 
+  /// Get all placement group bundle resource labels.
+  const std::unordered_map<std::string, double> &GetFormattedResources() const {
+    return bundle_resource_labels_;
+  }
+
   /// Returns the schedule bundle callback, or nullptr.
   const ScheduleBundleCallback &OnSchedule() const { return on_schedule_; }
 
   /// Returns the spillback bundle callback, or nullptr.
   const SpillbackBundleCallback &OnSpillback() const { return on_spillback_; }
 
+  std::string DebugString() const;
+
  private:
   void ComputeResources();
+  void ComputeBundleResourceLabels();
 
   /// Field storing unit resources. Initialized in constructor.
   /// TODO(ekl) consider optimizing the representation of ResourceSet for fast copies
   /// instead of keeping shared pointers here.
   std::shared_ptr<ResourceSet> unit_resource_;
 
+  /// When a bundle is assigned on a node, we'll add the following special resources on
+  /// that node:
+  /// 1) `CPU_group_${group_id}`: this is the requested resource when the actor
+  /// or task specifies placement group without bundle id.
+  /// 2) `CPU_group_${bundle_index}_${group_id}`: this is the requested resource
+  /// when the actor or task specifies placement group with bundle id.
+  std::unordered_map<std::string, double> bundle_resource_labels_;
+
   mutable ScheduleBundleCallback on_schedule_ = nullptr;
 
   mutable SpillbackBundleCallback on_spillback_ = nullptr;
 };
+
+/// Format a placement group resource, e.g., CPU -> CPU_group_i
+std::string FormatPlacementGroupResource(const std::string &original_resource_name,
+                                         const PlacementGroupID &group_id,
+                                         int64_t bundle_index = -1);
+
+/// Format a placement group resource, e.g., CPU -> CPU_group_YYY_i
+std::string FormatPlacementGroupResource(const std::string &original_resource_name,
+                                         const BundleSpecification &bundle_spec);
+
+/// Return whether a formatted resource is a bundle of the given index.
+bool IsBundleIndex(const std::string &resource, const PlacementGroupID &group_id,
+                   const int bundle_index);
+
+/// Return the original resource name of the placement group resource.
+std::string GetOriginalResourceName(const std::string &resource);
 
 }  // namespace ray

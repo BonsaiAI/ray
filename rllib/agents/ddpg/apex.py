@@ -24,17 +24,19 @@ APEX_DDPG_DEFAULT_CONFIG = DDPGTrainer.merge_trainer_configs(
         "timesteps_per_iteration": 25000,
         "worker_side_prioritization": True,
         "min_iter_time_s": 30,
+        # If set, this will fix the ratio of sampled to replayed timesteps.
+        # Otherwise, replay will proceed as fast as possible.
+        "training_intensity": None,
+        # Which mode to use in the ParallelRollouts operator used to collect
+        # samples. For more details check the operator in rollout_ops module.
+        "parallel_rollouts_mode": "async",
+        # This only applies if async mode is used (above config setting).
+        # Controls the max number of async requests in flight per actor
+        "parallel_rollouts_num_async": 2,
     },
 )
-
-
-def validate_config(config):
-    if config.get("framework") == "tfe":
-        raise ValueError("APEX_DDPG does not support tf-eager yet!")
-
 
 ApexDDPGTrainer = DDPGTrainer.with_updates(
     name="APEX_DDPG",
     default_config=APEX_DDPG_DEFAULT_CONFIG,
-    validate_config=validate_config,
     execution_plan=apex_execution_plan)

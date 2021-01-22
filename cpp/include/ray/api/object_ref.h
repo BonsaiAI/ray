@@ -2,9 +2,8 @@
 #pragma once
 
 #include <memory>
-#include <utility>
-
 #include <msgpack.hpp>
+#include <utility>
 
 #include "ray/core.h"
 
@@ -17,6 +16,7 @@ template <typename T>
 class ObjectRef {
  public:
   ObjectRef();
+  ~ObjectRef();
 
   ObjectRef(const ObjectID &id);
 
@@ -47,6 +47,17 @@ ObjectRef<T>::ObjectRef() {}
 template <typename T>
 ObjectRef<T>::ObjectRef(const ObjectID &id) {
   id_ = id;
+  if (CoreWorkerProcess::IsInitialized()) {
+    auto &core_worker = CoreWorkerProcess::GetCoreWorker();
+    core_worker.AddLocalReference(id_);
+  }
+}
+template <typename T>
+ObjectRef<T>::~ObjectRef() {
+  if (CoreWorkerProcess::IsInitialized()) {
+    auto &core_worker = CoreWorkerProcess::GetCoreWorker();
+    core_worker.RemoveLocalReference(id_);
+  }
 }
 
 template <typename T>

@@ -144,11 +144,12 @@ void ReferenceCounter::AddObjectRefStats(
   }
 }
 
-void ReferenceCounter::AddOwnedObject(
-    const ObjectID &object_id, const std::vector<ObjectID> &inner_ids,
-    const rpc::Address &owner_address, const std::string &call_site,
-    const int64_t object_size, bool is_reconstructable,
-    const absl::optional<ClientID> &pinned_at_raylet_id) {
+void ReferenceCounter::AddOwnedObject(const ObjectID &object_id,
+                                      const std::vector<ObjectID> &inner_ids,
+                                      const rpc::Address &owner_address,
+                                      const std::string &call_site,
+                                      const int64_t object_size, bool is_reconstructable,
+                                      const absl::optional<NodeID> &pinned_at_raylet_id) {
   RAY_LOG(DEBUG) << "Adding owned object " << object_id;
   absl::MutexLock lock(&mutex_);
   RAY_CHECK(object_id_refs_.count(object_id) == 0)
@@ -163,6 +164,20 @@ void ReferenceCounter::AddOwnedObject(
     // the inner objects until the outer object ID goes out of scope.
     AddNestedObjectIdsInternal(object_id, inner_ids, rpc_address_);
   }
+}
+
+void ReferenceCounter::RemoveOwnedObject(const ObjectID &object_id) {
+  absl::MutexLock lock(&mutex_);
+  auto it = object_id_refs_.find(object_id);
+  RAY_CHECK(it != object_id_refs_.end())
+      << "Tried to remove reference for nonexistent owned object " << object_id
+      << ", object must be added with ReferenceCounter::AddOwnedObject() before it "
+      << "can be removed";
+  RAY_CHECK(it->second.RefCount() == 0)
+      << "Tried to remove reference for owned object " << object_id << " that has "
+      << it->second.RefCount() << " references, must have 0 references to be removed";
+  RAY_LOG(DEBUG) << "Removing owned object " << object_id;
+  DeleteReferenceInternal(it, nullptr);
 }
 
 void ReferenceCounter::UpdateObjectSize(const ObjectID &object_id, int64_t object_size) {
@@ -491,6 +506,9 @@ bool ReferenceCounter::SetDeleteCallback(
     // The object has been freed by the language frontend, so it
     // should be deleted immediately.
     return false;
+  } else if (it->second.spilled) {
+    // The object has been spilled, so it can be released immediately.
+    return false;
   }
 
   // NOTE: In two cases, `GcsActorManager` will send `WaitForActorOutOfScope` request more
@@ -504,12 +522,12 @@ bool ReferenceCounter::SetDeleteCallback(
 }
 
 std::vector<ObjectID> ReferenceCounter::ResetObjectsOnRemovedNode(
-    const ClientID &raylet_id) {
+    const NodeID &raylet_id) {
   absl::MutexLock lock(&mutex_);
   std::vector<ObjectID> lost_objects;
   for (auto it = object_id_refs_.begin(); it != object_id_refs_.end(); it++) {
     const auto &object_id = it->first;
-    if (it->second.pinned_at_raylet_id.value_or(ClientID::Nil()) == raylet_id) {
+    if (it->second.pinned_at_raylet_id.value_or(NodeID::Nil()) == raylet_id) {
       lost_objects.push_back(object_id);
       ReleasePlasmaObject(it);
     }
@@ -518,7 +536,7 @@ std::vector<ObjectID> ReferenceCounter::ResetObjectsOnRemovedNode(
 }
 
 void ReferenceCounter::UpdateObjectPinnedAtRaylet(const ObjectID &object_id,
-                                                  const ClientID &raylet_id) {
+                                                  const NodeID &raylet_id) {
   absl::MutexLock lock(&mutex_);
   auto it = object_id_refs_.find(object_id);
   if (it != object_id_refs_.end()) {
@@ -538,15 +556,18 @@ void ReferenceCounter::UpdateObjectPinnedAtRaylet(const ObjectID &object_id,
   }
 }
 
-bool ReferenceCounter::IsPlasmaObjectPinned(const ObjectID &object_id,
-                                            bool *pinned) const {
+bool ReferenceCounter::IsPlasmaObjectPinnedOrSpilled(const ObjectID &object_id,
+                                                     bool *owned_by_us, NodeID *pinned_at,
+                                                     bool *spilled) const {
   absl::MutexLock lock(&mutex_);
   auto it = object_id_refs_.find(object_id);
   if (it != object_id_refs_.end()) {
     if (it->second.owned_by_us) {
-      *pinned = it->second.pinned_at_raylet_id.has_value();
-      return true;
+      *owned_by_us = true;
+      *spilled = it->second.spilled;
+      *pinned_at = it->second.pinned_at_raylet_id.value_or(NodeID::Nil());
     }
+    return true;
   }
   return false;
 }
@@ -732,17 +753,13 @@ void ReferenceCounter::WaitForRefRemoved(const ReferenceTable::iterator &ref_it,
   request.set_contained_in_id(contained_in_id.Binary());
   request.set_intended_worker_id(addr.worker_id.Binary());
 
-  auto it = borrower_cache_.find(addr);
-  if (it == borrower_cache_.end()) {
-    RAY_CHECK(client_factory_ != nullptr);
-    it = borrower_cache_.emplace(addr, client_factory_(addr.ToProto())).first;
-  }
+  auto conn = borrower_pool_.GetOrConnect(addr.ToProto());
 
   RAY_LOG(DEBUG) << "Sending WaitForRefRemoved to borrower " << addr.ip_address << ":"
                  << addr.port << " for object " << object_id;
   // Send the borrower a message about this object. The borrower responds once
   // it is no longer using the object ID.
-  RAY_CHECK_OK(it->second->WaitForRefRemoved(
+  conn->WaitForRefRemoved(
       request, [this, object_id, addr](const Status &status,
                                        const rpc::WaitForRefRemovedReply &reply) {
         RAY_LOG(DEBUG) << "Received reply from borrower " << addr.ip_address << ":"
@@ -759,7 +776,7 @@ void ReferenceCounter::WaitForRefRemoved(const ReferenceTable::iterator &ref_it,
         RAY_CHECK(it != object_id_refs_.end());
         RAY_CHECK(it->second.borrowers.erase(addr));
         DeleteReferenceInternal(it, nullptr);
-      }));
+      });
 }
 
 void ReferenceCounter::AddNestedObjectIds(const ObjectID &object_id,
@@ -891,6 +908,90 @@ void ReferenceCounter::SetReleaseLineageCallback(
     const LineageReleasedCallback &callback) {
   RAY_CHECK(on_lineage_released_ == nullptr);
   on_lineage_released_ = callback;
+}
+
+bool ReferenceCounter::AddObjectLocation(const ObjectID &object_id,
+                                         const NodeID &node_id) {
+  absl::MutexLock lock(&mutex_);
+  auto it = object_id_refs_.find(object_id);
+  if (it == object_id_refs_.end()) {
+    RAY_LOG(WARNING) << "Tried to add an object location for an object " << object_id
+                     << " that doesn't exist in the reference table";
+    return false;
+  }
+  it->second.locations.insert(node_id);
+  return true;
+}
+
+bool ReferenceCounter::RemoveObjectLocation(const ObjectID &object_id,
+                                            const NodeID &node_id) {
+  absl::MutexLock lock(&mutex_);
+  auto it = object_id_refs_.find(object_id);
+  if (it == object_id_refs_.end()) {
+    RAY_LOG(WARNING) << "Tried to remove an object location for an object " << object_id
+                     << " that doesn't exist in the reference table";
+    return false;
+  }
+  it->second.locations.erase(node_id);
+  return true;
+}
+
+absl::optional<absl::flat_hash_set<NodeID>> ReferenceCounter::GetObjectLocations(
+    const ObjectID &object_id) {
+  absl::MutexLock lock(&mutex_);
+  auto it = object_id_refs_.find(object_id);
+  if (it == object_id_refs_.end()) {
+    RAY_LOG(WARNING) << "Tried to get the object locations for an object " << object_id
+                     << " that doesn't exist in the reference table";
+    return absl::nullopt;
+  }
+  return it->second.locations;
+}
+
+void ReferenceCounter::HandleObjectSpilled(const ObjectID &object_id) {
+  absl::MutexLock lock(&mutex_);
+  auto it = object_id_refs_.find(object_id);
+  if (it == object_id_refs_.end()) {
+    RAY_LOG(WARNING) << "Spilled object " << object_id << " already out of scope";
+    return;
+  }
+
+  it->second.spilled = true;
+  // Release the primary plasma copy, if any.
+  ReleasePlasmaObject(it);
+}
+
+absl::optional<LocalityData> ReferenceCounter::GetLocalityData(
+    const ObjectID &object_id) {
+  absl::MutexLock lock(&mutex_);
+  // Uses the reference table to return locality data for an object.
+  auto it = object_id_refs_.find(object_id);
+  if (it == object_id_refs_.end()) {
+    RAY_LOG(DEBUG) << "Object " << object_id
+                   << " not in reference table, locality data not available";
+    return absl::nullopt;
+  }
+
+  const auto &node_id = it->second.pinned_at_raylet_id;
+  if (!node_id.has_value()) {
+    RAY_LOG(DEBUG)
+        << "Reference " << it->second.call_site << " for object " << object_id
+        << " doesn't have a defined pinned raylet ID, locality data not available";
+    return absl::nullopt;
+  }
+  // The raylet ID to which this reference is pinned is defined.
+
+  const auto object_size = it->second.object_size;
+  if (object_size < 0) {
+    RAY_LOG(DEBUG) << "Reference " << it->second.call_site << " for object " << object_id
+                   << " has an unknown object size, locality data not available";
+    return absl::nullopt;
+  }
+  // The object size of this reference is known.
+
+  absl::optional<LocalityData> locality_data(
+      {static_cast<uint64_t>(object_size), {node_id.value()}});
+  return locality_data;
 }
 
 ReferenceCounter::Reference ReferenceCounter::Reference::FromProto(

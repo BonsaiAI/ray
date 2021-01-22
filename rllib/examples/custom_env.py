@@ -11,6 +11,7 @@ import argparse
 import gym
 from gym.spaces import Discrete, Box
 import numpy as np
+import os
 
 import ray
 from ray import tune
@@ -70,7 +71,6 @@ class CustomModel(TFModelV2):
                                           model_config, name)
         self.model = FullyConnectedNetwork(obs_space, action_space,
                                            num_outputs, model_config, name)
-        self.register_variables(self.model.variables())
 
     def forward(self, input_dict, state, seq_lens):
         return self.model.forward(input_dict, state, seq_lens)
@@ -114,10 +114,12 @@ if __name__ == "__main__":
         "env_config": {
             "corridor_length": 5,
         },
+        # Use GPUs iff `RLLIB_NUM_GPUS` env var set to > 0.
+        "num_gpus": int(os.environ.get("RLLIB_NUM_GPUS", "0")),
         "model": {
             "custom_model": "my_model",
+            "vf_share_layers": True,
         },
-        "vf_share_layers": True,
         "lr": grid_search([1e-2, 1e-4, 1e-6]),  # try different lrs
         "num_workers": 1,  # parallelism
         "framework": "torch" if args.torch else "tf",

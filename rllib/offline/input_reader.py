@@ -1,3 +1,4 @@
+from abc import ABCMeta, abstractmethod
 import logging
 import numpy as np
 import threading
@@ -6,7 +7,7 @@ from ray.rllib.policy.sample_batch import MultiAgentBatch
 from ray.rllib.utils.annotations import PublicAPI
 from ray.rllib.utils.framework import try_import_tf
 from typing import Dict, List
-from ray.rllib.utils.types import TensorType, SampleBatchType
+from ray.rllib.utils.typing import TensorType, SampleBatchType
 
 tf1, tf, tfv = try_import_tf()
 
@@ -14,15 +15,16 @@ logger = logging.getLogger(__name__)
 
 
 @PublicAPI
-class InputReader:
+class InputReader(metaclass=ABCMeta):
     """Input object for loading experiences in policy evaluation."""
 
+    @abstractmethod
     @PublicAPI
     def next(self):
-        """Return the next batch of experiences read.
+        """Returns the next batch of experiences read.
 
         Returns:
-            SampleBatch or MultiAgentBatch read.
+            Union[SampleBatch, MultiAgentBatch]: The experience read.
         """
         raise NotImplementedError
 
@@ -37,7 +39,7 @@ class InputReader:
         This method creates a queue runner thread that will call next() on this
         reader repeatedly to feed the TensorFlow queue.
 
-        Arguments:
+        Args:
             queue_size (int): Max elements to allow in the TF queue.
 
         Example:

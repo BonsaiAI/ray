@@ -26,20 +26,25 @@ namespace ray {
 namespace raylet {
 
 /// A constructor responsible for initializing the state of a worker.
-Worker::Worker(const WorkerID &worker_id, const Language &language,
-               const std::string &ip_address,
+Worker::Worker(const JobID &job_id, const WorkerID &worker_id, const Language &language,
+               rpc::WorkerType worker_type, const std::string &ip_address,
                std::shared_ptr<ClientConnection> connection,
                rpc::ClientCallManager &client_call_manager)
     : worker_id_(worker_id),
       language_(language),
+      worker_type_(worker_type),
       ip_address_(ip_address),
       assigned_port_(-1),
       port_(-1),
       connection_(connection),
+      assigned_job_id_(job_id),
+      bundle_id_(std::make_pair(PlacementGroupID::Nil(), -1)),
       dead_(false),
       blocked_(false),
       client_call_manager_(client_call_manager),
       is_detached_actor_(false) {}
+
+rpc::WorkerType Worker::GetWorkerType() const { return worker_type_; }
 
 void Worker::MarkDead() { dead_ = true; }
 
@@ -106,8 +111,6 @@ const std::unordered_set<TaskID> &Worker::GetBlockedTaskIds() const {
   return blocked_task_ids_;
 }
 
-void Worker::AssignJobId(const JobID &job_id) { assigned_job_id_ = job_id; }
-
 const JobID &Worker::GetAssignedJobId() const { return assigned_job_id_; }
 
 void Worker::AssignActorId(const ActorID &actor_id) {
@@ -161,42 +164,22 @@ void Worker::AcquireTaskCpuResources(const ResourceIdSet &cpu_resources) {
   task_resource_ids_.Release(cpu_resources);
 }
 
-Status Worker::AssignTask(const Task &task, const ResourceIdSet &resource_id_set) {
-  RAY_CHECK(port_ > 0);
-  rpc::AssignTaskRequest request;
-  request.set_intended_worker_id(worker_id_.Binary());
-  request.mutable_task()->mutable_task_spec()->CopyFrom(
-      task.GetTaskSpecification().GetMessage());
-  request.mutable_task()->mutable_task_execution_spec()->CopyFrom(
-      task.GetTaskExecutionSpec().GetMessage());
-  request.set_resource_ids(resource_id_set.Serialize());
-
-  return rpc_client_->AssignTask(request, [](Status status,
-                                             const rpc::AssignTaskReply &reply) {
-    if (!status.ok()) {
-      RAY_LOG(DEBUG) << "Worker failed to finish executing task: " << status.ToString();
-    }
-    // Worker has finished this task. There's nothing to do here
-    // and assigning new task will be done when raylet receives
-    // `TaskDone` message.
-  });
-}
-
 void Worker::DirectActorCallArgWaitComplete(int64_t tag) {
   RAY_CHECK(port_ > 0);
   rpc::DirectActorCallArgWaitCompleteRequest request;
   request.set_tag(tag);
   request.set_intended_worker_id(worker_id_.Binary());
-  auto status = rpc_client_->DirectActorCallArgWaitComplete(
+  rpc_client_->DirectActorCallArgWaitComplete(
       request, [](Status status, const rpc::DirectActorCallArgWaitCompleteReply &reply) {
         if (!status.ok()) {
           RAY_LOG(ERROR) << "Failed to send wait complete: " << status.ToString();
         }
       });
-  if (!status.ok()) {
-    RAY_LOG(ERROR) << "Failed to send wait complete: " << status.ToString();
-  }
 }
+
+const BundleID &Worker::GetBundleId() const { return bundle_id_; }
+
+void Worker::SetBundleId(const BundleID &bundle_id) { bundle_id_ = bundle_id; }
 
 }  // namespace raylet
 

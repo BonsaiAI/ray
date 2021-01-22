@@ -7,6 +7,7 @@ from ray.rllib.agents.dqn.dqn_torch_model import \
 from ray.rllib.models.tf.fcnet import FullyConnectedNetwork
 from ray.rllib.models.torch.fcnet import FullyConnectedNetwork as TorchFC
 from ray.rllib.utils.framework import try_import_tf, try_import_torch
+from ray.rllib.utils.torch_ops import FLOAT_MIN, FLOAT_MAX
 
 tf1, tf, tfv = try_import_tf()
 torch, nn = try_import_torch()
@@ -35,7 +36,6 @@ class ParametricActionsModel(DistributionalQTFModel):
         self.action_embed_model = FullyConnectedNetwork(
             Box(-1, 1, shape=true_obs_shape), action_space, action_embed_size,
             model_config, name + "_action_embed")
-        self.register_variables(self.action_embed_model.variables())
 
     def forward(self, input_dict, state, seq_lens):
         # Extract the available actions tensor from the observation.
@@ -101,8 +101,8 @@ class TorchParametricActionsModel(DQNTorchModel):
         # Mask out invalid actions (use -inf to tag invalid).
         # These are then recognized by the EpsilonGreedy exploration component
         # as invalid actions that are not to be chosen.
-        inf_mask = torch.clamp(
-            torch.log(action_mask), -float("inf"), float("inf"))
+        inf_mask = torch.clamp(torch.log(action_mask), FLOAT_MIN, FLOAT_MAX)
+
         return action_logits + inf_mask, state
 
     def value_function(self):

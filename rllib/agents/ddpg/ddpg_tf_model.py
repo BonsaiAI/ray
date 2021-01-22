@@ -89,7 +89,6 @@ class DDPGTFModel(TFModelV2):
             actor_out = tf.keras.layers.Lambda(lambda_)(actor_out)
 
         self.policy_model = tf.keras.Model(self.model_out, actor_out)
-        self.register_variables(self.policy_model.variables)
 
         # Build the Q-model(s).
         self.actions_input = tf.keras.layers.Input(
@@ -116,12 +115,10 @@ class DDPGTFModel(TFModelV2):
             return q_net
 
         self.q_model = build_q_net("q", self.model_out, self.actions_input)
-        self.register_variables(self.q_model.variables)
 
         if twin_q:
             self.twin_q_model = build_q_net("twin_q", self.model_out,
                                             self.actions_input)
-            self.register_variables(self.twin_q_model.variables)
         else:
             self.twin_q_model = None
 
@@ -130,7 +127,7 @@ class DDPGTFModel(TFModelV2):
 
         This implements Q(s, a).
 
-        Arguments:
+        Args:
             model_out (Tensor): obs embeddings from the model layers, of shape
                 [BATCH_SIZE, num_outputs].
             actions (Tensor): Actions to return the Q-values for.
@@ -149,7 +146,7 @@ class DDPGTFModel(TFModelV2):
 
         This implements the twin Q(s, a).
 
-        Arguments:
+        Args:
             model_out (Tensor): obs embeddings from the model layers, of shape
                 [BATCH_SIZE, num_outputs].
             actions (Tensor): Actions to return the Q-values for.
@@ -169,7 +166,7 @@ class DDPGTFModel(TFModelV2):
         This outputs the support for pi(s). For continuous action spaces, this
         is the action directly.
 
-        Arguments:
+        Args:
             model_out (Tensor): obs embeddings from the model layers, of shape
                 [BATCH_SIZE, num_outputs].
 

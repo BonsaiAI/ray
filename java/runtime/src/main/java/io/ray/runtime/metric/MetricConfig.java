@@ -2,9 +2,7 @@ package io.ray.runtime.metric;
 
 import com.google.common.base.MoreObjects;
 
-/**
- * Configurations of the metric.
- */
+/** Configurations of the metric. */
 public class MetricConfig {
 
   private static final long DEFAULT_TIME_INTERVAL_MS = 5000L;
@@ -12,8 +10,8 @@ public class MetricConfig {
   private static final long DEFAULT_SHUTDOWN_WAIT_TIME_MS = 3000L;
 
   public static final MetricConfig DEFAULT_CONFIG =
-    new MetricConfig(DEFAULT_TIME_INTERVAL_MS, DEFAULT_THREAD_POLL_SIZE,
-      DEFAULT_SHUTDOWN_WAIT_TIME_MS);
+      new MetricConfig(
+          DEFAULT_TIME_INTERVAL_MS, DEFAULT_THREAD_POLL_SIZE, DEFAULT_SHUTDOWN_WAIT_TIME_MS);
 
   private final long timeIntervalMs;
   private final int threadPoolSize;
@@ -40,10 +38,10 @@ public class MetricConfig {
   @Override
   public String toString() {
     return MoreObjects.toStringHelper(this)
-      .add("timeIntervalMs", timeIntervalMs)
-      .add("threadPoolSize", threadPoolSize)
-      .add("shutdownWaitTimeMs", shutdownWaitTimeMs)
-      .toString();
+        .add("timeIntervalMs", timeIntervalMs)
+        .add("threadPoolSize", threadPoolSize)
+        .add("shutdownWaitTimeMs", shutdownWaitTimeMs)
+        .toString();
   }
 
   public static MetricConfigBuilder builder() {
@@ -74,6 +72,4 @@ public class MetricConfig {
       return this;
     }
   }
-
-
 }

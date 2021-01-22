@@ -20,9 +20,9 @@ steps:
   
       exit 0
     env:
+      TESTSUITE: cpp_worker
       PYTHONWARNINGS: 'ignore'
       TRAVIS: 'true'
-      TESTSUITE: cpp_worker
     displayName: 'Run original CPP Worker job'
     timeoutInMinutes: 120
   

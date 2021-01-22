@@ -14,15 +14,13 @@
 
 #pragma once
 
+#include <boost/asio.hpp>
 #include <functional>
 #include <unordered_map>
 #include <unordered_set>
 
-#include <boost/asio.hpp>
-
 #include "ray/common/id.h"
-#include "ray/gcs/tables.h"
-
+#include "ray/gcs/gcs_client.h"
 #include "ray/object_manager/object_directory.h"
 
 namespace ray {
@@ -33,7 +31,8 @@ using rpc::TaskReconstructionData;
 
 class ReconstructionPolicyInterface {
  public:
-  virtual void ListenAndMaybeReconstruct(const ObjectID &object_id) = 0;
+  virtual void ListenAndMaybeReconstruct(const ObjectID &object_id,
+                                         const rpc::Address &owner_address) = 0;
   virtual void Cancel(const ObjectID &object_id) = 0;
   virtual ~ReconstructionPolicyInterface(){};
 };
@@ -48,14 +47,14 @@ class ReconstructionPolicy : public ReconstructionPolicyInterface {
   /// \param initial_reconstruction_timeout_ms The initial timeout within which
   /// a task lease notification must be received. Otherwise, reconstruction
   /// will be triggered.
-  /// \param client_id The client ID to use when requesting notifications from
+  /// \param node_id The node ID to use when requesting notifications from
   /// the GCS.
   /// \param gcs_client The Client of GCS.
   /// lease notifications from.
   ReconstructionPolicy(
       boost::asio::io_service &io_service,
       std::function<void(const TaskID &, const ObjectID &)> reconstruction_handler,
-      int64_t initial_reconstruction_timeout_ms, const ClientID &client_id,
+      int64_t initial_reconstruction_timeout_ms, const NodeID &node_id,
       std::shared_ptr<gcs::GcsClient> gcs_client,
       std::shared_ptr<ObjectDirectoryInterface> object_directory);
 
@@ -65,7 +64,8 @@ class ReconstructionPolicy : public ReconstructionPolicyInterface {
   /// for the task that created the object.
   ///
   /// \param object_id The object to check for reconstruction.
-  void ListenAndMaybeReconstruct(const ObjectID &object_id);
+  void ListenAndMaybeReconstruct(const ObjectID &object_id,
+                                 const rpc::Address &owner_address);
 
   /// Cancel listening for an object. Notifications for the object will be
   /// ignored. This does not cancel a reconstruction attempt that is already in
@@ -89,9 +89,6 @@ class ReconstructionPolicy : public ReconstructionPolicyInterface {
   /// \return string.
   std::string DebugString() const;
 
-  /// Record metrics.
-  void RecordMetrics() const;
-
  private:
   struct ReconstructionTask {
     ReconstructionTask(boost::asio::io_service &io_service)
@@ -102,6 +99,8 @@ class ReconstructionPolicy : public ReconstructionPolicyInterface {
 
     // The objects created by this task that we are listening for notifications for.
     std::unordered_set<ObjectID> created_objects;
+    // Owner addresses of created objects.
+    std::unordered_map<ObjectID, rpc::Address> owner_addresses;
     // The time at which the timer for this task expires, according to this
     // node's steady clock.
     int64_t expires_at;
@@ -152,8 +151,8 @@ class ReconstructionPolicy : public ReconstructionPolicyInterface {
   /// The initial timeout within which a task lease notification must be
   /// received. Otherwise, reconstruction will be triggered.
   const int64_t initial_reconstruction_timeout_ms_;
-  /// The client ID to use when requesting notifications from the GCS.
-  const ClientID client_id_;
+  /// The node ID to use when requesting notifications from the GCS.
+  const NodeID node_id_;
   /// A client connection to the GCS.
   std::shared_ptr<gcs::GcsClient> gcs_client_;
   /// The object directory used to lookup object locations.

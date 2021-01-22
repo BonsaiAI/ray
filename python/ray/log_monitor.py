@@ -3,6 +3,7 @@ import errno
 import glob
 import json
 import logging
+import logging.handlers
 import os
 import platform
 import re
@@ -11,16 +12,17 @@ import time
 import traceback
 
 import ray.ray_constants as ray_constants
-import ray.services as services
+import ray._private.services as services
 import ray.utils
+from ray.ray_logging import setup_component_logger
 
 # Logger for this module. It should be configured at the entry point
 # into the program using Ray. Ray provides a default configuration at
 # entry/init points.
 logger = logging.getLogger(__name__)
 
-# First group is worker id. Second group is job id.
-JOB_LOG_PATTERN = re.compile(".*worker-([0-9a-f]{40})-(\d+)")
+# The groups are worker id, job id, and pid.
+JOB_LOG_PATTERN = re.compile(".*worker-([0-9a-f]+)-(\d+)-(\d+)")
 
 
 class LogFileInfo:
@@ -30,7 +32,8 @@ class LogFileInfo:
                  file_position=None,
                  file_handle=None,
                  is_err_file=False,
-                 job_id=None):
+                 job_id=None,
+                 worker_pid=None):
         assert (filename is not None and size_when_last_opened is not None
                 and file_position is not None)
         self.filename = filename
@@ -39,7 +42,7 @@ class LogFileInfo:
         self.file_handle = file_handle
         self.is_err_file = is_err_file
         self.job_id = job_id
-        self.worker_pid = None
+        self.worker_pid = worker_pid
 
 
 class LogMonitor:
@@ -78,7 +81,7 @@ class LogMonitor:
         """Initialize the log monitor object."""
         self.ip = services.get_node_ip_address()
         self.logs_dir = logs_dir
-        self.redis_client = ray.services.create_redis_client(
+        self.redis_client = ray._private.services.create_redis_client(
             redis_address, password=redis_password)
         self.log_filenames = set()
         self.open_file_infos = []
@@ -94,7 +97,8 @@ class LogMonitor:
             try:
                 # Test if the worker process that generated the log file
                 # is still alive. Only applies to worker processes.
-                if file_info.worker_pid != "raylet":
+                if (file_info.worker_pid != "raylet"
+                        and file_info.worker_pid != "gcs_server"):
                     os.kill(file_info.worker_pid, 0)
             except OSError:
                 # The process is not alive any more, so move the log file
@@ -106,8 +110,9 @@ class LogMonitor:
                     shutil.move(file_info.filename, target)
                 except (IOError, OSError) as e:
                     if e.errno == errno.ENOENT:
-                        logger.warning("Warning: The file {} was not "
-                                       "found.".format(file_info.filename))
+                        logger.warning(
+                            f"Warning: The file {file_info.filename} "
+                            "was not found.")
                     else:
                         raise e
             else:
@@ -117,18 +122,24 @@ class LogMonitor:
     def update_log_filenames(self):
         """Update the list of log files to monitor."""
         # output of user code is written here
-        log_file_paths = glob.glob("{}/worker*[.out|.err]".format(
-            self.logs_dir))
+        log_file_paths = glob.glob(f"{self.logs_dir}/worker*[.out|.err]")
         # segfaults and other serious errors are logged here
-        raylet_err_paths = glob.glob("{}/raylet*.err".format(self.logs_dir))
-        for file_path in log_file_paths + raylet_err_paths:
+        raylet_err_paths = glob.glob(f"{self.logs_dir}/raylet*.err")
+        # monitor logs are needed to report autoscaler events
+        monitor_log_paths = glob.glob(f"{self.logs_dir}/monitor.log")
+        # If gcs server restarts, there can be multiple log files.
+        gcs_err_path = glob.glob(f"{self.logs_dir}/gcs_server*.err")
+        for file_path in (log_file_paths + raylet_err_paths + gcs_err_path +
+                          monitor_log_paths):
             if os.path.isfile(
                     file_path) and file_path not in self.log_filenames:
                 job_match = JOB_LOG_PATTERN.match(file_path)
                 if job_match:
                     job_id = job_match.group(2)
+                    worker_pid = int(job_match.group(3))
                 else:
                     job_id = None
+                    worker_pid = None
 
                 is_err_file = file_path.endswith("err")
 
@@ -140,9 +151,10 @@ class LogMonitor:
                         file_position=0,
                         file_handle=None,
                         is_err_file=is_err_file,
-                        job_id=job_id))
+                        job_id=job_id,
+                        worker_pid=worker_pid))
                 log_filename = os.path.basename(file_path)
-                logger.info("Beginning to track file {}".format(log_filename))
+                logger.info(f"Beginning to track file {log_filename}")
 
     def open_closed_files(self):
         """Open some closed files if they may have new lines.
@@ -170,8 +182,8 @@ class LogMonitor:
             except (IOError, OSError) as e:
                 # Catch "file not found" errors.
                 if e.errno == errno.ENOENT:
-                    logger.warning("Warning: The file {} was not "
-                                   "found.".format(file_info.filename))
+                    logger.warning(f"Warning: The file {file_info.filename} "
+                                   "was not found.")
                     self.log_filenames.remove(file_info.filename)
                     continue
                 raise e
@@ -183,8 +195,9 @@ class LogMonitor:
                     f = open(file_info.filename, "rb")
                 except (IOError, OSError) as e:
                     if e.errno == errno.ENOENT:
-                        logger.warning("Warning: The file {} was not "
-                                       "found.".format(file_info.filename))
+                        logger.warning(
+                            f"Warning: The file {file_info.filename} "
+                            "was not found.")
                         self.log_filenames.remove(file_info.filename)
                         continue
                     else:
@@ -225,20 +238,19 @@ class LogMonitor:
                         next_line = next_line[:-1]
                     lines_to_publish.append(next_line)
                 except Exception:
-                    logger.error("Error: Reading file: {}, position: {} "
-                                 "failed.".format(
-                                     file_info.full_path,
-                                     file_info.file_info.file_handle.tell()))
+                    logger.error(
+                        f"Error: Reading file: {file_info.full_path}, "
+                        f"position: {file_info.file_info.file_handle.tell()} "
+                        "failed.")
                     raise
 
             if file_info.file_position == 0:
-                if (len(lines_to_publish) > 0 and
-                        lines_to_publish[0].startswith("Ray worker pid: ")):
-                    file_info.worker_pid = int(
-                        lines_to_publish[0].split(" ")[-1])
-                    lines_to_publish = lines_to_publish[1:]
-                elif "/raylet" in file_info.filename:
+                if "/raylet" in file_info.filename:
                     file_info.worker_pid = "raylet"
+                elif "/gcs_server" in file_info.filename:
+                    file_info.worker_pid = "gcs_server"
+                elif "/monitor" in file_info.filename:
+                    file_info.worker_pid = "autoscaler"
 
             # Record the current position in the file.
             file_info.file_position = file_info.file_handle.tell()
@@ -303,13 +315,42 @@ if __name__ == "__main__":
         default=ray_constants.LOGGER_FORMAT,
         help=ray_constants.LOGGER_FORMAT_HELP)
     parser.add_argument(
+        "--logging-filename",
+        required=False,
+        type=str,
+        default=ray_constants.LOG_MONITOR_LOG_FILE_NAME,
+        help="Specify the name of log file, "
+        "log to stdout if set empty, default is "
+        f"\"{ray_constants.LOG_MONITOR_LOG_FILE_NAME}\"")
+    parser.add_argument(
         "--logs-dir",
         required=True,
         type=str,
         help="Specify the path of the temporary directory used by Ray "
         "processes.")
+    parser.add_argument(
+        "--logging-rotate-bytes",
+        required=False,
+        type=int,
+        default=ray_constants.LOGGING_ROTATE_BYTES,
+        help="Specify the max bytes for rotating "
+        "log file, default is "
+        f"{ray_constants.LOGGING_ROTATE_BYTES} bytes.")
+    parser.add_argument(
+        "--logging-rotate-backup-count",
+        required=False,
+        type=int,
+        default=ray_constants.LOGGING_ROTATE_BACKUP_COUNT,
+        help="Specify the backup count of rotated log file, default is "
+        f"{ray_constants.LOGGING_ROTATE_BACKUP_COUNT}.")
     args = parser.parse_args()
-    ray.utils.setup_logger(args.logging_level, args.logging_format)
+    setup_component_logger(
+        logging_level=args.logging_level,
+        logging_format=args.logging_format,
+        log_dir=args.logs_dir,
+        filename=args.logging_filename,
+        max_bytes=args.logging_rotate_bytes,
+        backup_count=args.logging_rotate_backup_count)
 
     log_monitor = LogMonitor(
         args.logs_dir, args.redis_address, redis_password=args.redis_password)
@@ -318,11 +359,12 @@ if __name__ == "__main__":
         log_monitor.run()
     except Exception as e:
         # Something went wrong, so push an error to all drivers.
-        redis_client = ray.services.create_redis_client(
+        redis_client = ray._private.services.create_redis_client(
             args.redis_address, password=args.redis_password)
         traceback_str = ray.utils.format_error_message(traceback.format_exc())
-        message = ("The log monitor on node {} failed with the following "
-                   "error:\n{}".format(platform.node(), traceback_str))
+        message = (f"The log monitor on node {platform.node()} "
+                   f"failed with the following error:\n{traceback_str}")
         ray.utils.push_error_to_driver_through_redis(
             redis_client, ray_constants.LOG_MONITOR_DIED_ERROR, message)
+        logger.error(message)
         raise e

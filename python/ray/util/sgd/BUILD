@@ -3,6 +3,14 @@
 # Please keep these sorted alphabetically.
 # --------------------------------------------------------------------
 py_test(
+    name = "test_ptl",
+    size = "large",
+    srcs = ["tests/test_ptl.py"],
+    tags = ["exclusive", "pytorch-lightning", "pytorch"],
+    deps = [":sgd_lib"],
+)
+
+py_test(
     name = "test_tensorflow",
     size = "small",
     srcs = ["tests/test_tensorflow.py"],
@@ -19,17 +27,17 @@ py_test(
 )
 
 py_test(
-    name = "test_torch_runner",
-    size = "small",
-    srcs = ["tests/test_torch_runner.py"],
+    name = "test_torch_failure",
+    size = "large",
+    srcs = ["tests/test_torch_failure.py"],
     tags = ["exclusive", "pytorch"],
     deps = [":sgd_lib"],
 )
 
 py_test(
-    name = "test_torch_trainable",
+    name = "test_torch_runner",
     size = "small",
-    srcs = ["tests/test_torch_trainable.py"],
+    srcs = ["tests/test_torch_runner.py"],
     tags = ["exclusive", "pytorch"],
     deps = [":sgd_lib"],
 )
@@ -75,7 +83,7 @@ py_test(
     srcs = ["tf/examples/tensorflow_train_example.py"],
     tags = ["exclusive", "tf"],
     deps = [":sgd_lib"],
-    args = ["--num-replicas=1"]
+    args = ["--num-replicas=1", "--smoke-test"]
 )
 
 py_test(
@@ -85,7 +93,7 @@ py_test(
     srcs = ["tf/examples/tensorflow_train_example.py"],
     tags = ["exclusive", "tf"],
     deps = [":sgd_lib"],
-    args = ["--num-replicas=2"]
+    args = ["--num-replicas=2", "--smoke-test"]
 )
 
 py_test(
@@ -95,7 +103,7 @@ py_test(
     srcs = ["tf/examples/tensorflow_train_example.py"],
     tags = ["exclusive", "tf"],
     deps = [":sgd_lib"],
-    args = ["--tune"]
+    args = ["--tune", "--smoke-test"]
 )
 
 # --------------------------------------------------------------------
@@ -156,7 +164,7 @@ py_test(
     srcs = ["torch/examples/train_example.py"],
     tags = ["exclusive", "pytorch"],
     deps = [":sgd_lib"],
-    args = ["--num-workers=1"]
+    args = ["--num-workers=1", "--smoke-test"]
 )
 
 py_test(
@@ -166,7 +174,7 @@ py_test(
     srcs = ["torch/examples/train_example.py"],
     tags = ["exclusive", "pytorch"],
     deps = [":sgd_lib"],
-    args = ["--num-workers=2"]
+    args = ["--num-workers=2", "--smoke-test"]
 )
 
 py_test(
@@ -176,7 +184,7 @@ py_test(
     srcs = ["torch/examples/tune_example.py"],
     tags = ["exclusive", "pytorch"],
     deps = [":sgd_lib"],
-    args = ["--num-workers=1"]
+    args = ["--num-workers=1", "--smoke-test"]
 )
 
 py_test(
@@ -186,7 +194,17 @@ py_test(
     srcs = ["torch/examples/tune_example.py"],
     tags = ["exclusive", "pytorch"],
     deps = [":sgd_lib"],
-    args = ["--num-workers=2"]
+    args = ["--num-workers=2", "--smoke-test"]
+)
+
+py_test(
+    name = "tune_example_3",
+    size = "small",
+    main = "torch/examples/tune_example.py",
+    srcs = ["torch/examples/tune_example.py"],
+    tags = ["exclusive", "pytorch"],
+    deps = [":sgd_lib"],
+    args = ["--num-workers=2", "--smoke-test", "--lr-reduce-on-plateau"]
 )
 
 
@@ -212,6 +230,15 @@ py_test(
     tags = ["exclusive", "pytorch"],
     deps = [":sgd_lib"],
     args = ["--no-gpu", "--mock-data", "--smoke-test", "--ray-num-workers=2", "--model=mobilenetv3_small_075", "data"]
+)
+
+py_test(
+    name = "mnist-ptl",
+    size = "small",
+    srcs = ["torch/examples/pytorch-lightning/mnist-ptl.py"],
+    tags = ["exclusive", "pytorch", "pytorch-lightning"],
+    deps = [":sgd_lib"],
+    args = ["--smoke-test"]
 )
 
 # This is a dummy test dependency that causes the above tests to be

@@ -2,6 +2,7 @@ import logging
 import numpy as np
 import collections
 from typing import List, Optional, Tuple, Union
+from numbers import Number
 
 import ray
 from ray.rllib.evaluation.rollout_metrics import RolloutMetrics
@@ -9,7 +10,7 @@ from ray.rllib.policy.sample_batch import DEFAULT_POLICY_ID
 from ray.rllib.offline.off_policy_estimator import OffPolicyEstimate
 from ray.rllib.policy.policy import LEARNER_STATS_KEY
 from ray.rllib.utils.annotations import DeveloperAPI
-from ray.rllib.utils.types import GradInfoDict, LearnerStatsDict, ResultDict
+from ray.rllib.utils.typing import GradInfoDict, LearnerStatsDict, ResultDict
 
 logger = logging.getLogger(__name__)
 
@@ -91,7 +92,7 @@ def summarize_episodes(
 ) -> ResultDict:
     """Summarizes a set of episode metrics tuples.
 
-    Arguments:
+    Args:
         episodes: smoothed set of episodes including historical ones
         new_episodes: just the new episodes in this iteration. This must be
             a subset of `episodes`. If None, assumes all episodes are new.
@@ -150,14 +151,20 @@ def summarize_episodes(
         hist_stats["policy_{}_reward".format(policy_id)] = rewards
 
     for k, v_list in custom_metrics.copy().items():
-        filt = [v for v in v_list if not np.isnan(v)]
-        custom_metrics[k + "_mean"] = np.mean(filt)
-        if filt:
-            custom_metrics[k + "_min"] = np.min(filt)
-            custom_metrics[k + "_max"] = np.max(filt)
+        is_mesurable = all([isinstance(v, Number) for v in v_list])
+        if is_mesurable:
+            filt = [v for v in v_list if not np.isnan(v)]
+            custom_metrics[k + "_mean"] = np.mean(filt)
+            if filt:
+                custom_metrics[k + "_min"] = np.min(filt)
+                custom_metrics[k + "_max"] = np.max(filt)
+            else:
+                custom_metrics[k + "_min"] = float("nan")
+                custom_metrics[k + "_max"] = float("nan")
         else:
-            custom_metrics[k + "_min"] = float("nan")
-            custom_metrics[k + "_max"] = float("nan")
+            not_measurable_metric_samples = [v for v in v_list if not isinstance(v, Number)]
+            logger.debug(f"The key {k} in the custom metrics can't be reduced, keeping as it is. "
+                         "Example: {not_measurable_metric_samples[0]}")
         del custom_metrics[k]
 
     for k, v_list in perf_stats.copy().items():

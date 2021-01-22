@@ -16,12 +16,12 @@ public class GcsClientTest extends BaseTest {
 
   @BeforeClass
   public void setUp() {
-    System.setProperty("ray.resources", "A:8");
+    System.setProperty("ray.head-args.0", "--resources={\"A\":8}");
   }
 
   @AfterClass
   public void tearDown() {
-    System.clearProperty("ray.resources");
+    System.clearProperty("ray.head-args.0");
   }
 
   public void testGetAllNodeInfo() {
@@ -33,7 +33,7 @@ public class GcsClientTest extends BaseTest {
     Assert.assertEquals(allNodeInfo.size(), 1);
     Assert.assertEquals(allNodeInfo.get(0).nodeAddress, config.nodeIp);
     Assert.assertTrue(allNodeInfo.get(0).isAlive);
-    Assert.assertEquals(allNodeInfo.get(0).resources.get("A"), 8.0);
+    Assert.assertEquals((double) allNodeInfo.get(0).resources.get("A"), 8.0);
   }
 
   @Test
@@ -46,6 +46,5 @@ public class GcsClientTest extends BaseTest {
     for (int i = 2; i < 100; ++i) {
       Assert.assertEquals(gcsClient.nextJobId(), JobId.fromInt(i));
     }
-
   }
 }

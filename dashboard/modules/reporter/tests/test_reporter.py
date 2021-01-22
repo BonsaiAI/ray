@@ -4,6 +4,7 @@ import logging
 import requests
 import time
 
+import platform
 import pytest
 import ray
 from ray import ray_constants

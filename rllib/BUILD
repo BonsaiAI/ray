@@ -438,13 +438,13 @@ py_test(
     srcs = ["agents/a3c/tests/test_a3c.py"]
 )
 
-## APEXTrainer (DQN)
-#py_test(
-#    name = "test_apex_dqn",
-#    tags = ["agents_dir"],
-#    size = "large",
-#    srcs = ["agents/dqn/tests/test_apex_dqn.py"]
-#)
+# APEXTrainer (DQN)
+py_test(
+    name = "test_apex_dqn",
+    tags = ["agents_dir"],
+    size = "medium",
+    srcs = ["agents/dqn/tests/test_apex_dqn.py"]
+)
 
 # APEXDDPGTrainer
 py_test(
@@ -483,6 +483,15 @@ py_test(
     size = "medium",
     srcs = ["agents/dqn/tests/test_simple_q.py"]
 )
+
+# TODO: enable once we have a MuJoCo-independent test case.
+## Dreamer
+#py_test(
+#    name = "test_dreamer",
+#    tags = ["agents_dir"],
+#    size = "small",
+#    srcs = ["agents/dreamer/tests/test_dreamer.py"]
+#)
 
 # ES
 py_test(
@@ -566,13 +575,13 @@ py_test(
     srcs = ["agents/ppo/tests/test_ddppo.py"]
 )
 
-# # PPO: APPO
-# py_test(
-#     name = "test_appo",
-#     tags = ["agents_dir"],
-#     size = "medium",
-#     srcs = ["agents/ppo/tests/test_appo.py"]
-# )
+# PPO: APPO
+py_test(
+    name = "test_appo",
+    tags = ["agents_dir"],
+    size = "medium",
+    srcs = ["agents/ppo/tests/test_appo.py"]
+)
 
 # QMixTrainer
 py_test(

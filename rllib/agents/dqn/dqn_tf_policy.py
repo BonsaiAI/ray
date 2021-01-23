@@ -1,5 +1,5 @@
 """Tensorflow policy class used for DQN"""
-import logging
+
 from typing import Dict
 
 import gym
@@ -24,8 +24,6 @@ from ray.rllib.utils.tf_ops import (huber_loss, make_tf_callable,
                                     minimize_and_clip, reduce_mean_ignore_inf)
 from ray.rllib.utils.typing import (ModelGradients, TensorType,
                                     TrainerConfigDict)
-
-logger = logging.getLogger(__name__)
 
 tf1, tf, tfv = try_import_tf()
 

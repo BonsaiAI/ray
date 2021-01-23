@@ -22,13 +22,11 @@ steps:
 
     # Start Original script part
 
-    # raylet integration tests (core_worker_tests included in bazel tests below)
-    # Originally with ./ci/suppress_output
-    bash src/ray/test/run_object_manager_tests.sh
-
     # cc bazel tests (w/o RLlib)
+    # NOTE: core_worker_test is out-of-date and should already covered by Python
+    # tests.
     # Originally with ./ci/suppress_output
-    bazel test --config=ci $(./scripts/bazel_export_options) --build_tests_only -- //:all -rllib/...
+    bazel test --config=ci $(./scripts/bazel_export_options) --build_tests_only -- //:all -rllib/... -core_worker_test
 
     # ray serve tests
     # Desabling this tests because is not working in ADO and is not required yet in Bonsai

@@ -1,3 +1,4 @@
+from __future__ import generator_stop
 import collections
 import logging
 import numpy as np

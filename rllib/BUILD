@@ -41,6 +41,8 @@
 # inside rllib/tuned_examples/[algo-name] for actual learning success.
 # --------------------------------------------------------------------
 
+SRCS = ["tests/conftest.py"]
+
 # A2C/A3C
 py_test(
     name = "run_regression_tests_cartpole_a2c_tf",
@@ -1005,7 +1007,19 @@ py_test(
         "--env", "CartPole-v1",
         "--run", "PPO",
         "--stop", "'{\"training_iteration\": 1}'",
-        "--config", "'{\"framework\": \"tf\", \"kl_coeff\": 1.0, \"num_sgd_iter\": 10, \"lr\": 1e-4, \"sgd_minibatch_size\": 64, \"train_batch_size\": 2000, \"num_workers\": 1, \"use_gae\": false, \"batch_mode\": \"complete_episodes\"}'"
+        "--config", "'{\"framework\": \"tf\", \"kl_coeff\": 1.0, \"num_sgd_iter\": 10, \"lr\": 1e-4, \"sgd_minibatch_size\": 64, \"train_batch_size\": 2000, \"num_workers\": 1, \"use_gae\": false, \"batch_mode\": \"complete_episodes\", \"use_critic\": false}'"
+        ]
+)
+
+py_test(
+    name = "test_ppo_tf_cartpole_v1_complete_episode_batches_gae",
+    main = "train.py", srcs = ["train.py"],
+    tags = ["quick_train"],
+    args = [
+        "--env", "CartPole-v1",
+        "--run", "PPO",
+        "--stop", "'{\"training_iteration\": 1}'",
+        "--config", "'{\"framework\": \"tf\", \"kl_coeff\": 1.0, \"num_sgd_iter\": 10, \"lr\": 1e-4, \"sgd_minibatch_size\": 64, \"train_batch_size\": 2000, \"num_workers\": 1, \"use_gae\": true, \"batch_mode\": \"complete_episodes\", \"use_critic\": true}'"
         ]
 )
 
@@ -1251,6 +1265,20 @@ py_test(
 # it correctly by its starting letter, e.g. tags=["tests_dir", "tests_dir_A"]
 # for `tests/test_all_stuff.py`.
 # --------------------------------------------------------------------
+# All new parametrized pytest tests - Compilation
+py_test(
+    name = "test_compilation",
+    tags = ["tests_dir", "tests_dir_A", "quick_train"],
+    srcs = ["tests/agents/test_compilation.py"]
+)
+
+# All new parametrized pytest tests - Learning
+py_test(
+    name = "test_learning",
+    tags = ["tests_dir", "tests_dir_A", "learning_tests"],
+    size = "large",
+    srcs = ["tests/agents/test_learning.py"]
+)
 
 py_test(
     name = "tests/test_attention_net_learning",
@@ -1331,7 +1359,7 @@ py_test(
     name = "tests/test_execution",
     tags = ["tests_dir", "tests_dir_E"],
     size = "medium",
-    srcs = ["tests/test_execution.py"]
+    srcs = SRCS + ["tests/test_execution.py"]
 )
 
 py_test(

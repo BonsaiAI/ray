@@ -521,7 +521,7 @@ py_test(
     tags = ["agents_dir"],
     size = "medium",
     # Include the json data file.
-    data = ["tests/data/cartpole/large.json"],
+    data = ["tests/data/cartpole/large.json", "tests/data/cartpole/small.json"],
     srcs = ["agents/marwil/tests/test_marwil.py"]
 )
 

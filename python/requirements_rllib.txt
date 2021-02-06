@@ -20,6 +20,3 @@ higher
 # Unity3D testing
 mlagents
 mlagents_envs
-
-# Offline RL
-d4rl==1.1.0.973611

@@ -1111,6 +1111,20 @@ py_test(
     srcs = ["env/wrappers/tests/test_group_agents_wrapper.py"]
 )
 
+py_test(
+    name = "env/wrappers/moabsim/test_moab_model",
+    tags = ["env"],
+    size = "small",
+    srcs = ["env/wrappers/moabsim/test_moab_model.py"]
+)
+
+py_test(
+    name = "env/wrappers/tests/test_moab_wrapper",
+    tags = ["env"],
+    size = "small",
+    srcs = ["env/wrappers/tests/test_moab_wrapper.py"]
+)
+
 # --------------------------------------------------------------------
 # Models and Distributions
 # rllib/models/

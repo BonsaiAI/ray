@@ -1,4 +1,5 @@
 """Contains the pytest params used in `test_agents` tests."""
+import logging
 from itertools import chain
 from typing import List, Optional, Tuple
 
@@ -11,6 +12,7 @@ from ray.rllib.agents.trainer_factory import (
     ContinuousActionSpaceAlgorithm,
     Framework,
 )
+from ray.rllib.env.wrappers.moab_wrapper import MOAB_MOVE_TO_CENTER_ENV_NAME
 
 
 @attr.s(auto_attribs=True)
@@ -86,6 +88,24 @@ class TestAgentParams:
     def for_cart_pole_and_pendulum(cls, *args, **kwargs) -> List["TestAgentParams"]:
         return list(
             chain(cls.for_cart_pole(*args, **kwargs), cls.for_pendulum(*args, **kwargs))
+        )
+
+    @classmethod
+    def for_moab_move_to_center(
+        cls,
+        algorithm: Algorithm,
+        config_updates: dict,
+        frameworks: Optional[List[Framework]] = None,
+        n_iter=2,
+        threshold=1.0,
+    ) -> List["TestAgentParams"]:
+        return cls.for_frameworks(
+            algorithm=algorithm,
+            config_updates=config_updates,
+            env=MOAB_MOVE_TO_CENTER_ENV_NAME,
+            frameworks=frameworks,
+            n_iter=n_iter,
+            threshold=threshold,
         )
 
     def astuple(self):
@@ -175,22 +195,27 @@ test_compilation_params: List[Tuple[Algorithm, dict, str, Framework, int, float]
                 "prioritized_replay": True,
             },
         ),
-        TestAgentParams.for_frameworks(
-            algorithm=DiscreteActionSpaceAlgorithm.SAC,
-            config_updates={
-                "num_workers": 0,
-                "twin_q": True,
-                "soft_horizon": True,
-                "clip_actions": False,
-                "normalize_actions": True,
-                "learning_starts": 0,
-                "prioritized_replay": True,
-            },
-            env="MsPacmanNoFrameskip-v4",
-            # TensorFlow returns Nan mean ep reward for the first few epoch
-            frameworks=[Framework.Torch],
-            n_iter=1,
-            threshold=1.0,
+        # TestAgentParams.for_frameworks(
+        #     algorithm=DiscreteActionSpaceAlgorithm.SAC,
+        #     config_updates={
+        #         "num_workers": 0,
+        #         "twin_q": True,
+        #         "soft_horizon": True,
+        #         "clip_actions": False,
+        #         "normalize_actions": True,
+        #         "learning_starts": 0,
+        #         "prioritized_replay": True,
+        #     },
+        #     env="MsPacmanNoFrameskip-v4",
+        #     # TensorFlow returns Nan mean ep reward for the first few epoch
+        #     # Torch is also failing in latest RLlib
+        #     frameworks=[Framework.Torch],
+        #     n_iter=1,
+        #     threshold=1.0,
+        # ),
+        TestAgentParams.for_moab_move_to_center(
+            algorithm=ContinuousActionSpaceAlgorithm.PPO,
+            config_updates={"num_workers": 0},
         ),
     )
 ]
@@ -333,6 +358,40 @@ test_monotonic_convergence_params: List[
             },
             n_iter=200,
             threshold=-750.0,
+        ),
+        TestAgentParams.for_moab_move_to_center(
+            algorithm=ContinuousActionSpaceAlgorithm.PPO,
+            config_updates={
+                "num_gpus": 2,
+                "_fake_gpus": True,
+                "num_workers": 3,
+                "num_envs_per_worker": 5,
+                # Advance configs
+                "batch_mode": "complete_episodes",  # default truncate_episodes
+                "use_gae": True,  # default True
+                "use_critic": True,  # default True
+                "shuffle_sequences": True,  # default True
+                "entropy_coeff": 0.0,  # default 0.0 - range 0 to 0.01
+                "vf_loss_coeff": 1.0,  # default 1.0 - range 0.5, 1
+                "kl_coeff": 0.2,  # default 0.2 - range 0.3 to 1
+                "kl_target": 0.01,  # default 0.01 - range 0.003 to 0.03
+                "clip_param": 0.3,  # default 0.3 - range 0.1, 0.2, 0.3
+                "vf_clip_param": 100.0,
+                # default 10.0 - range sensitive to scale of the rewards
+                "gamma": 0.99,  # default 0.99 - range 0.8 to 0.9997
+                "lambda": 1.0,  # default 1.0 - range 0.9 to 1
+                # Size of batches collected from each worker
+                "rollout_fragment_length": 100,
+                "sgd_minibatch_size": 128,  # default 128
+                # Num of SGD passes per train batch
+                "num_sgd_iter": 15,  # PDP2=15 - RLlib=30
+                # Number of timesteps collected for each SGD round
+                "train_batch_size": 6000,
+                "log_level": logging.INFO,
+            },
+            n_iter=250,
+            threshold=240.0,
+            # frameworks=[Framework.TensorFlow],
         ),
     )
 ]

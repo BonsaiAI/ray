@@ -7,6 +7,8 @@ monotonic convergence tests - similar to convergence tests, but take advantage o
 
 These tests exist in a separate file so that we can tag them separately in Bazel build.
 """
+import logging
+
 import pytest
 
 from ray.rllib.agents.trainer import Trainer
@@ -15,6 +17,9 @@ from ray.rllib.tests.agents.parameters import (
     test_convergence_params,
     test_monotonic_convergence_params,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 @pytest.mark.minutes
@@ -77,9 +82,11 @@ def test_monotonically_improving_algorithms_can_converge_with_different_framewor
     """
     learnt = False
     episode_reward_mean = -float("inf")
-    for _ in range(n_iter):
+    for i in range(n_iter):
         results = trainer.train()
         episode_reward_mean = results["episode_reward_mean"]
+        logger.warning(f"Train call {i} with reward {episode_reward_mean} and "
+                    f"Metrics:\n{results}")
         if episode_reward_mean >= threshold:
             learnt = True
             break

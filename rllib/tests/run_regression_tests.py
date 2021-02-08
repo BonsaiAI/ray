@@ -64,7 +64,6 @@ if __name__ == "__main__":
     logging_level = logging.INFO
     if args.debug:
         logging_level = logging.DEBUG
-    logging.basicConfig(level=logging_level)
 
     # Bazel regression test mode: Get path to look for yaml files.
     # Get the path or single file to use.
@@ -111,7 +110,7 @@ if __name__ == "__main__":
         passed = False
         for i in range(3):
             try:
-                ray.init(num_cpus=args.num_cpus, local_mode=args.local_mode)
+                ray.init(num_cpus=args.num_cpus, local_mode=args.local_mode, logging_level=logging_level)
                 trials = run_experiments(experiments, resume=False, verbose=2)
             finally:
                 ray.shutdown()

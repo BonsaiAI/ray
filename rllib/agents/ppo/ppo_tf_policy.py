@@ -75,19 +75,25 @@ class PPOLoss:
                 return tf.reduce_mean(t)
 
         prev_dist = dist_class(prev_logits, model)
+
+        self.curr_dist_params = curr_action_dist.inputs
+        self.prev_dist_params = prev_dist.inputs
+
+        self.curr_actions_logp = curr_action_dist.logp(actions)
+
         # Make loss functions.
-        logp_ratio = tf.exp(curr_action_dist.logp(actions) - prev_actions_logp)
+        self.logp_ratio = tf.exp(self.curr_actions_logp - prev_actions_logp)
         action_kl = prev_dist.kl(curr_action_dist)
         self.mean_kl = reduce_mean_valid(action_kl)
 
         curr_entropy = curr_action_dist.entropy()
         self.mean_entropy = reduce_mean_valid(curr_entropy)
 
-        surrogate_loss = tf.minimum(
-            advantages * logp_ratio,
-            advantages * tf.clip_by_value(logp_ratio, 1 - clip_param,
+        self.surrogate_loss = tf.minimum(
+            advantages * self.logp_ratio,
+            advantages * tf.clip_by_value(self.logp_ratio, 1 - clip_param,
                                           1 + clip_param))
-        self.mean_policy_loss = reduce_mean_valid(-surrogate_loss)
+        self.mean_policy_loss = reduce_mean_valid(-self.surrogate_loss)
 
         if use_gae:
             vf_loss1 = tf.square(value_fn - value_targets)
@@ -97,11 +103,11 @@ class PPOLoss:
             vf_loss = tf.maximum(vf_loss1, vf_loss2)
             self.mean_vf_loss = reduce_mean_valid(vf_loss)
             loss = reduce_mean_valid(
-                -surrogate_loss + cur_kl_coeff * action_kl +
+                -self.surrogate_loss + cur_kl_coeff * action_kl +
                 vf_loss_coeff * vf_loss - entropy_coeff * curr_entropy)
         else:
             self.mean_vf_loss = tf.constant(0.0)
-            loss = reduce_mean_valid(-surrogate_loss +
+            loss = reduce_mean_valid(-self.surrogate_loss +
                                      cur_kl_coeff * action_kl -
                                      entropy_coeff * curr_entropy)
         self.loss = loss

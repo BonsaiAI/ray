@@ -205,6 +205,25 @@ COMMON_CONFIG: TrainerConfigDict = {
     # Note that evaluation is currently not parallelized, and that for Ape-X
     # metrics are already only reported for the lowest epsilon workers.
     "evaluation_interval": None,
+    # Evaluate the policy after the `episode_reward_mean` is equal or greater than
+    # this number. The interaction between this config and `evaluation_interval`
+    # is as follow:
+    # - `evaluation_interval` == None with `evaluation_reward_threshold` == None:
+    #   evaluation is disable.
+    # - `evaluation_interval` == None with `evaluation_reward_threshold` != None:
+    #   evaluation is performed in every train step after the `episode_reward_mean`
+    #   is equal or greater than the number specified by `evaluation_reward_threshold`.
+    # - `evaluation_interval` != None with `evaluation_reward_threshold` == None:
+    #   evaluation is performed every `evaluation_interval` train steps.
+    # - `evaluation_interval` != None with `evaluation_reward_threshold` != None:
+    #   after the `episode_reward_mean` is equal or greater than the number specified
+    #   by `evaluation_reward_threshold`, the evaluation will be performed every
+    #   `evaluation_interval` train steps.
+    # Note that `episode_reward_mean` can decrease in cases where the agents gets
+    # into an unlearning condition. That's why this setting is used as switch,
+    # whenever the `episode_reward_mean` get to this threshold, the evaluation will
+    # be executed following the logic described before.
+    "evaluation_reward_threshold": None,
     # Number of episodes to run per evaluation period. If using multiple
     # evaluation workers, we will run at least this many episodes total.
     "evaluation_num_episodes": 10,
@@ -480,6 +499,10 @@ class Trainer(Trainable):
         # in self.setup().
         config = config or {}
 
+        # The default value equal to True indicates that by default
+        # the evaluation schedule is controlled by `evaluation_interval`
+        self._evaluation_reward_threshold_pass = True
+
         # Trainers allow env ids to be passed directly to the constructor.
         self._env_id = self._register_if_needed(env or config.get("env"))
 
@@ -672,7 +695,17 @@ class Trainer(Trainable):
             self._init(self.config, self.env_creator)
 
             # Evaluation setup.
-            if self.config.get("evaluation_interval"):
+            if (self.config.get("evaluation_interval") or
+                self.config.get("evaluation_reward_threshold") is not None):
+                # If no evaluation interval is provided, we assumed that evaluations
+                # have to be performed every train step after the `episode_reward_mean`
+                # is equal or greater than the number specified by
+                # `evaluation_reward_threshold`.
+                if not self.config.get("evaluation_interval"):
+                    self.config["evaluation_interval"] = 1
+                self._evaluation_reward_threshold_pass = (self.config.
+                                                          get("evaluation_reward_threshold")
+                                                          is None)
                 # Update env_config with evaluation settings:
                 extra_config = copy.deepcopy(self.config["evaluation_config"])
                 # Assert that user has not unset "in_evaluation".

@@ -156,10 +156,15 @@ def build_trainer(
             # is already over.
             if (self.config["evaluation_interval"] and (self._iteration + 1) %
                     self.config["evaluation_interval"] == 0):
-                evaluation_metrics = self._evaluate()
-                assert isinstance(evaluation_metrics, dict), \
-                    "_evaluate() needs to return a dict."
-                res.update(evaluation_metrics)
+                if not self._evaluation_reward_threshold_pass:
+                    episode_reward_mean = res["episode_reward_mean"]
+                    self._evaluation_reward_threshold_pass = (episode_reward_mean >=
+                                                              self.config["evaluation_reward_threshold"])
+                if self._evaluation_reward_threshold_pass:
+                    evaluation_metrics = self._evaluate()
+                    assert isinstance(evaluation_metrics, dict), \
+                        "_evaluate() needs to return a dict."
+                    res.update(evaluation_metrics)
 
             timesteps_this_iter = res[TIMESTEPS_TOTAL] - self._prev_timesteps_total
             self._prev_timesteps_total = res[TIMESTEPS_TOTAL]

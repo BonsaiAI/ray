@@ -376,15 +376,15 @@ test_monotonic_convergence_params: List[
                 "kl_coeff": 0.2,  # default 0.2 - range 0.3 to 1
                 "kl_target": 0.01,  # default 0.01 - range 0.003 to 0.03
                 "clip_param": 0.3,  # default 0.3 - range 0.1, 0.2, 0.3
-                "vf_clip_param": 100.0,
                 # default 10.0 - range sensitive to scale of the rewards
+                "vf_clip_param": 100.0,
                 "gamma": 0.99,  # default 0.99 - range 0.8 to 0.9997
                 "lambda": 1.0,  # default 1.0 - range 0.9 to 1
                 # Size of batches collected from each worker
                 "rollout_fragment_length": 100,
                 "sgd_minibatch_size": 128,  # default 128
                 # Num of SGD passes per train batch
-                "num_sgd_iter": 15,  # PDP2=15 - RLlib=30
+                "num_sgd_iter": 15,  # default 30
                 # Number of timesteps collected for each SGD round
                 "train_batch_size": 6000,
                 "log_level": logging.INFO,

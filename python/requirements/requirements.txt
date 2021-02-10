@@ -77,3 +77,6 @@ werkzeug
 xlrd
 starlette
 smart_open[s3]
+
+# Moab contrib
+pyrr==0.10.3

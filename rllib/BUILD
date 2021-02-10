@@ -1358,7 +1358,7 @@ py_test(
 py_test(
     name = "tests/test_evaluators",
     tags = ["tests_dir", "tests_dir_E"],
-    size = "medium",
+    size = "large",
     srcs = ["tests/test_evaluators.py"]
 )
 

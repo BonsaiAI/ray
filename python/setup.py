@@ -114,6 +114,7 @@ extras["rllib"] = extras["tune"] + [
     "opencv-python-headless<=4.3.0.36",
     "pyyaml",
     "scipy",
+    "pyrr==0.10.3",
 ]
 
 extras["all"] = list(set(chain.from_iterable(extras.values())))

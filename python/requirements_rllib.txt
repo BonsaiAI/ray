@@ -20,6 +20,3 @@ higher
 # Unity3D testing
 mlagents
 mlagents_envs
-
-#Moab contrib
-pyrr==0.10.3

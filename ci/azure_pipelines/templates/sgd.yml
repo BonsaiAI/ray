@@ -28,5 +28,5 @@ steps:
     PYTHONWARNINGS: 'ignore'
     TRAVIS: 'true'
   displayName: 'Run original SGD job'
-  timeoutInMinutes: 120
+  timeoutInMinutes: 240
   continueOnError: 'false'

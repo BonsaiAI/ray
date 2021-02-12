@@ -148,9 +148,28 @@ def build_trainer(
         @override(Trainer)
         def step(self):
             res = next(self.train_exec_impl)
+
+            # self._iteration gets incremented after this function returns,
+            # meaning that e. g. the first time this function is called,
+            # self._iteration will be 0. We check `self._iteration+1` in the
+            # if-statement below to reflect that the first training iteration
+            # is already over.
+            if (self.config["evaluation_interval"] and (self._iteration + 1) %
+                    self.config["evaluation_interval"] == 0):
+                if not self._evaluation_reward_threshold_pass:
+                    episode_reward_mean = res["episode_reward_mean"]
+                    self._evaluation_reward_threshold_pass = (episode_reward_mean >=
+                                                              self.config["evaluation_reward_threshold"])
+                if self._evaluation_reward_threshold_pass:
+                    evaluation_metrics = self._evaluate()
+                    assert isinstance(evaluation_metrics, dict), \
+                        "_evaluate() needs to return a dict."
+                    res.update(evaluation_metrics)
+
             timesteps_this_iter = res[TIMESTEPS_TOTAL] - self._prev_timesteps_total
             self._prev_timesteps_total = res[TIMESTEPS_TOTAL]
             res["timesteps_this_iter"] = timesteps_this_iter
+
             return res
 
         @override(Trainer)

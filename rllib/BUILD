@@ -521,7 +521,7 @@ py_test(
     tags = ["agents_dir"],
     size = "medium",
     # Include the json data file.
-    data = ["tests/data/cartpole/large.json"],
+    data = ["tests/data/cartpole/large.json", "tests/data/cartpole/small.json"],
     srcs = ["agents/marwil/tests/test_marwil.py"]
 )
 
@@ -1084,6 +1084,13 @@ sh_test(
 )
 
 py_test(
+    name = "env/wrappers/tests/test_unity3d_env",
+    tags = ["env"],
+    size = "small",
+    srcs = ["env/wrappers/tests/test_unity3d_env.py"]
+)
+
+py_test(
     name = "env/wrappers/tests/test_recsim_wrapper",
     tags = ["env"],
     size = "small",
@@ -1102,6 +1109,20 @@ py_test(
     tags = ["env"],
     size = "small",
     srcs = ["env/wrappers/tests/test_group_agents_wrapper.py"]
+)
+
+py_test(
+    name = "env/wrappers/moabsim/test_moab_model",
+    tags = ["env"],
+    size = "small",
+    srcs = ["env/wrappers/moabsim/test_moab_model.py"]
+)
+
+py_test(
+    name = "env/wrappers/tests/test_moab_wrapper",
+    tags = ["env"],
+    size = "small",
+    srcs = ["env/wrappers/tests/test_moab_wrapper.py"]
 )
 
 # --------------------------------------------------------------------
@@ -1337,7 +1358,7 @@ py_test(
 py_test(
     name = "tests/test_evaluators",
     tags = ["tests_dir", "tests_dir_E"],
-    size = "medium",
+    size = "large",
     srcs = ["tests/test_evaluators.py"]
 )
 
@@ -1530,6 +1551,13 @@ py_test(
     srcs = ["tests/test_timesteps.py"]
 )
 
+py_test(
+    name = "tests/test_trainer",
+    tags = ["tests_dir", "tests_dir_T"],
+    size = "small",
+    srcs = ["tests/test_trainer.py"]
+)
+
 # --------------------------------------------------------------------
 # examples/ directory
 #
@@ -1617,7 +1645,7 @@ py_test(
     name = "examples/batch_norm_model_ddpg_tf",
     main = "examples/batch_norm_model.py",
     tags = ["examples", "examples_B"],
-    size = "small",
+    size = "medium",
     srcs = ["examples/batch_norm_model.py"],
     args = ["--run=DDPG", "--stop-iters=1"]
 )
@@ -2128,7 +2156,7 @@ py_test(
     tags = ["examples", "examples_T"],
     size = "medium",
     srcs = ["examples/trajectory_view_api.py"],
-    args = ["--as-test", "--framework=tf", "--stop-reward=80.0"]
+    args = ["--as-test", "--framework=tf", "--stop-reward=100.0"]
 )
 
 py_test(
@@ -2137,7 +2165,7 @@ py_test(
     tags = ["examples", "examples_T"],
     size = "medium",
     srcs = ["examples/trajectory_view_api.py"],
-    args = ["--as-test", "--framework=torch", "--stop-reward=80.0"]
+    args = ["--as-test", "--framework=torch", "--stop-reward=100.0"]
 )
 
 py_test(

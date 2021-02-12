@@ -38,7 +38,7 @@ stages:
         steps:
           - task: NodeTool@0
             inputs:
-              versionSpec: '14.15.0'
+              versionSpec: '14.x'
               checkLatest: true
             displayName: 'Install latest Node.js'
           # Template containing steps to show info
@@ -78,7 +78,7 @@ stages:
         steps:
           - task: NodeTool@0
             inputs:
-              versionSpec: '14.15.0'
+              versionSpec: '14.x'
               checkLatest: true
             displayName: 'Install latest Node.js'
           # Template containing steps to show info
@@ -118,7 +118,7 @@ stages:
         steps:
           - task: NodeTool@0
             inputs:
-              versionSpec: '14.15.0'
+              versionSpec: '14.x'
               checkLatest: true
             displayName: 'Install latest Node.js'
           # Template containing steps to show info
@@ -152,7 +152,7 @@ stages:
         steps:
           - task: NodeTool@0
             inputs:
-              versionSpec: '14.15.0'
+              versionSpec: '14.x'
               checkLatest: true
             displayName: 'Install latest Node.js'
           # Template containing steps to show info
@@ -315,7 +315,7 @@ stages:
         steps:
           - task: NodeTool@0
             inputs:
-              versionSpec: '14.15.0'
+              versionSpec: '14.x'
               checkLatest: true
             displayName: 'Install latest Node.js'
           # Template containing the installation of steps of python
@@ -670,7 +670,7 @@ stages:
           - template: templates/artifacts.yml
       - job: Lint
         # Disabled
-        # condition: False
+        condition: False
         timeoutInMinutes: 240
         cancelTimeoutInMinutes: 5
         strategy:

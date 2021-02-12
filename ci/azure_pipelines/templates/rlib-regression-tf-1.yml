@@ -29,4 +29,4 @@ steps:
     PYTHONWARNINGS: 'ignore'
     TRAVIS: 'true'
   displayName: 'Run original rlib learning test job with TF 1.x'
-  timeoutInMinutes: 120
+  timeoutInMinutes: 240

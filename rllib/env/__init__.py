@@ -15,6 +15,10 @@ from ray.rllib.env.wrappers.kaggle_wrapper import KaggleFootballMultiAgentEnv
 from ray.rllib.env.wrappers.pettingzoo_env import PettingZooEnv
 from ray.rllib.env.wrappers.unity3d_env import Unity3DEnv
 
+from ray.rllib.env.wrappers.moab_wrapper import MoabMoveToCenterWrapper
+from ray.rllib.env.wrappers.moab_wrapper import MoabMoveToCenterPartialObservableWrapper
+from ray.rllib.env.wrappers.moab_wrapper import MoabMoveToCenterAvoidObstacleWrapper
+
 __all__ = [
     "BaseEnv",
     "DMEnv",
@@ -31,4 +35,7 @@ __all__ = [
     "RemoteVectorEnv",
     "Unity3DEnv",
     "VectorEnv",
+    "MoabMoveToCenterWrapper",
+    "MoabMoveToCenterPartialObservableWrapper",
+    "MoabMoveToCenterAvoidObstacleWrapper",
 ]

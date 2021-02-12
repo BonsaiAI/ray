@@ -65,8 +65,7 @@ def _using_torch_framework_(config_overrides_: dict) -> None:
     except ImportError:
         pytest.skip("`using_framework` fixture skipping torch (Not Installed)!")
     else:
-        config_overrides_["use_pytorch"] = True
-        assert config_overrides_.get("eager", False) is False
+        config_overrides_["framework"] = "torch"
 
 
 def _using_eager_framework_(config_overrides_: dict) -> None:
@@ -89,8 +88,7 @@ def _using_eager_framework_(config_overrides_: dict) -> None:
         return
     with eager_mode():
         assert tf.executing_eagerly()
-        assert config_overrides_.get("use_pytorch", False) is False
-        config_overrides_["eager"] = True
+        config_overrides_["framework"] = "tfe"
         # TODO(Adi): Can this be just return instead of yield?
         yield
 
@@ -104,8 +102,7 @@ def _using_tensorflow_framework_(config_overrides_: dict) -> None:
         )
         return
     assert not tf.executing_eagerly()
-    assert config_overrides_.get("use_pytorch", False) is False
-    assert config_overrides_.get("eager", False) is False
+    config_overrides_["framework"] = "tf"
 
 
 @pytest.fixture()

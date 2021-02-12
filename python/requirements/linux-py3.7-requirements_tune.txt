@@ -573,7 +573,7 @@ pytorch-lightning==1.0.3
     # via
     #   -r requirements_tune.in
     #   pytorch-lightning-bolts
-pytz==2020.5
+pytz==2021.1
     # via pandas
 pyyaml==5.4.1
     # via

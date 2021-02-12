@@ -10,6 +10,10 @@ from ray.rllib.env.env_context import EnvContext
 from ray.rllib.env.policy_client import PolicyClient
 from ray.rllib.env.policy_server_input import PolicyServerInput
 
+from ray.rllib.env.wrappers.moab_wrapper import MoabMoveToCenterWrapper
+from ray.rllib.env.wrappers.moab_wrapper import MoabMoveToCenterPartialObservableWrapper
+from ray.rllib.env.wrappers.moab_wrapper import MoabMoveToCenterAvoidObstacleWrapper
+
 # Represents one of the env types in this package.
 EnvType = Any
 
@@ -23,4 +27,7 @@ __all__ = [
     "DMEnv",
     "PolicyClient",
     "PolicyServerInput",
+    "MoabMoveToCenterWrapper",
+    "MoabMoveToCenterPartialObservableWrapper",
+    "MoabMoveToCenterAvoidObstacleWrapper",
 ]

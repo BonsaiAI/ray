@@ -10,6 +10,7 @@ from ray.rllib.agents.dqn import apex
 from ray.rllib.agents.ppo import ddppo, appo
 from ray.rllib.agents.sac import apex
 from ray.rllib.agents.trainer import Trainer
+from ray.rllib.env.wrappers.moab_wrapper import ensure_moab_envs_register
 
 
 class Framework(enum.Enum):
@@ -71,6 +72,7 @@ def trainer_factory(
         Trainer
 
     """
+    ensure_moab_envs_register()
     trainer_cls = algorithm.get_trainer_cls()
     default_config = algorithm.get_default_config()
     return trainer_cls(config={**default_config, **config_overrides}, env=env)

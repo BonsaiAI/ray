@@ -15,6 +15,7 @@ from ray.rllib.utils import add_mixins
 from ray.rllib.utils.annotations import override
 from ray.rllib.utils.framework import try_import_tf
 from ray.rllib.utils.spaces.space_utils import flatten_to_single_ndarray
+from ray.rllib.utils.tracking_dict import UsageTrackingDict
 
 tf = try_import_tf()
 logger = logging.getLogger(__name__)
@@ -672,6 +673,16 @@ def build_eager_tf_policy(name,
             loss_fn(self, self.model, self.dist_class, postprocessed_batch)
             if stats_fn:
                 stats_fn(self, postprocessed_batch)
+
+        def _lazy_tensor_dict(self, postprocessed_batch):
+            train_batch = UsageTrackingDict(postprocessed_batch)
+            train_batch.set_get_interceptor(_convert_to_tf)
+            return train_batch
+
+        def _lazy_numpy_dict(self, postprocessed_batch):
+            train_batch = UsageTrackingDict(postprocessed_batch)
+            train_batch.set_get_interceptor(convert_to_non_tf_type)
+            return train_batch
 
         @classmethod
         def with_tracing(cls):

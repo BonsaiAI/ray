@@ -461,8 +461,20 @@ py_test(
 py_test(
     name = "test_marwil",
     tags = ["agents_dir"],
-    size = "small",
+    size = "medium",
+    # Include the json data file.
+    data = ["tests/data/cartpole/large.json", "tests/data/cartpole/small.json"],
     srcs = ["agents/marwil/tests/test_marwil.py"]
+)
+
+# BCTrainer (sub-type of MARWIL)
+py_test(
+    name = "test_bc",
+    tags = ["agents_dir"],
+    size = "medium",
+    # Include the json data file.
+    data = ["tests/data/cartpole/large.json"],
+    srcs = ["agents/marwil/tests/test_bc.py"]
 )
 
 # PGTrainer
@@ -760,12 +772,12 @@ py_test(
     tags = ["quick_train", "external_files"],
     size = "small",
     # Include the json data file.
-    data = glob(["tests/data/cartpole_small/**"]),
+    data = glob(["tests/data/cartpole/small.json"]),
     args = [
         "--env", "CartPole-v0",
         "--run", "MARWIL",
         "--stop", "'{\"training_iteration\": 1}'",
-        "--config", "'{\"framework\": \"tf\", \"input\": \"tests/data/cartpole_small\", \"learning_starts\": 0, \"input_evaluation\": [\"wis\", \"is\"], \"shuffle_buffer_size\": 10}'"
+        "--config", "'{\"framework\": \"tf\", \"input\": \"tests/data/cartpole\", \"learning_starts\": 0, \"input_evaluation\": [\"wis\", \"is\"], \"shuffle_buffer_size\": 10}'"
         ]
 )
 
@@ -776,12 +788,12 @@ py_test(
     tags = ["quick_train", "external_files"],
     size = "small",
     # Include the json data file.
-    data = glob(["tests/data/cartpole_small/**"]),
+    data = glob(["tests/data/cartpole/small.json"]),
     args = [
         "--env", "CartPole-v0",
         "--run", "MARWIL",
         "--stop", "'{\"training_iteration\": 1}'",
-        "--config", "'{\"framework\": \"torch\", \"input\": \"tests/data/cartpole_small\", \"learning_starts\": 0, \"input_evaluation\": [\"wis\", \"is\"], \"shuffle_buffer_size\": 10}'"
+        "--config", "'{\"framework\": \"torch\", \"input\": \"tests/data/cartpole\", \"learning_starts\": 0, \"input_evaluation\": [\"wis\", \"is\"], \"shuffle_buffer_size\": 10}'"
         ]
 )
 
@@ -1013,6 +1025,20 @@ sh_test(
     data = glob(["examples/serving/*.py"]),
 )
 
+py_test(
+    name = "env/wrappers/moabsim/test_moab_model",
+    tags = ["env"],
+    size = "small",
+    srcs = ["env/wrappers/moabsim/test_moab_model.py"]
+)
+
+py_test(
+    name = "env/wrappers/tests/test_moab_wrapper",
+    tags = ["env"],
+    size = "small",
+    srcs = ["env/wrappers/tests/test_moab_wrapper.py"]
+)
+
 # --------------------------------------------------------------------
 # Models and Distributions
 # rllib/models/
@@ -1191,7 +1217,7 @@ py_test(
 py_test(
     name = "tests/test_evaluators",
     tags = ["tests_dir", "tests_dir_E"],
-    size = "medium",
+    size = "large",
     srcs = ["tests/test_evaluators.py"]
 )
 

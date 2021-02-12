@@ -31,8 +31,8 @@ Note that -f overrides all other trial-specific command-line options.
 """
 
 
-def create_parser(parser_creator=None):
-    parser = make_parser(
+def create_parser(parser_creator=None, pre_created_parser=None):
+    parser = pre_created_parser or make_parser(
         parser_creator=parser_creator,
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="Train a reinforcement learning agent.",
@@ -139,7 +139,7 @@ def create_parser(parser_creator=None):
     return parser
 
 
-def run(args, parser):
+def run(args, parser, callbacks = None, experiment_handler = None, shutdown = True):
     if args.config_file:
         with open(args.config_file) as f:
             experiments = yaml.safe_load(f)
@@ -162,6 +162,10 @@ def run(args, parser):
                 "upload_dir": args.upload_dir,
             }
         }
+
+    if experiment_handler:
+        for ex_name, ex in list(experiments.items()):
+            experiments[ex_name] = experiment_handler(ex_name, ex)
 
     verbose = 1
     for exp in experiments.values():
@@ -196,33 +200,41 @@ def run(args, parser):
                 raise ValueError("Must enable --eager to enable tracing.")
             exp["config"]["eager_tracing"] = True
 
-    if args.ray_num_nodes:
-        cluster = Cluster()
-        for _ in range(args.ray_num_nodes):
-            cluster.add_node(
-                num_cpus=args.ray_num_cpus or 1,
-                num_gpus=args.ray_num_gpus or 0,
+    if not ray.is_initialized():
+        if args.ray_num_nodes:
+            cluster = Cluster()
+            for _ in range(args.ray_num_nodes):
+                cluster.add_node(
+                    num_cpus=args.ray_num_cpus or 1,
+                    num_gpus=args.ray_num_gpus or 0,
+                    object_store_memory=args.ray_object_store_memory,
+                    memory=args.ray_memory,
+                    redis_max_memory=args.ray_redis_max_memory)
+            ray.init(address=cluster.address)
+        else:
+            ray.init(
+                include_webui=not args.no_ray_ui,
+                address=args.ray_address,
                 object_store_memory=args.ray_object_store_memory,
                 memory=args.ray_memory,
-                redis_max_memory=args.ray_redis_max_memory)
-        ray.init(address=cluster.address)
-    else:
-        ray.init(
-            include_webui=not args.no_ray_ui,
-            address=args.ray_address,
-            object_store_memory=args.ray_object_store_memory,
-            memory=args.ray_memory,
-            redis_max_memory=args.ray_redis_max_memory,
-            num_cpus=args.ray_num_cpus,
-            num_gpus=args.ray_num_gpus,
-            local_mode=args.local_mode)
-    run_experiments(
+                redis_max_memory=args.ray_redis_max_memory,
+                num_cpus=args.ray_num_cpus,
+                num_gpus=args.ray_num_gpus,
+                local_mode=args.local_mode)
+    trials = run_experiments(
         experiments,
         scheduler=_make_scheduler(args),
         queue_trials=args.queue_trials,
         resume=args.resume,
         verbose=verbose,
-        concurrent=True)
+        concurrent=True,
+    )
+    last_trial = trials[-1]
+    if callbacks:
+        callbacks.on_checkpoint(0, trials, last_trial, last_trial.checkpoint)
+
+    if shutdown:
+        ray.shutdown()
 
 
 if __name__ == "__main__":

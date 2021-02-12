@@ -564,6 +564,11 @@ stages:
           - template: templates/multi-node.yml
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
+          - task: UseDotNet@2
+            displayName: 'Use .NET Core sdk'
+            inputs:
+              packageType: sdk
+              version: 2.2.203
       - job: Lint
         # Disabled
         condition: False

@@ -163,27 +163,28 @@ class RolloutSaver:
         self._total_steps += 1
 
 
-def create_parser(parser_creator=None):
+def create_parser(parser_creator=None, pre_created_parser=None):
     parser_creator = parser_creator or argparse.ArgumentParser
-    parser = parser_creator(
+    parser = pre_created_parser or parser_creator(
         formatter_class=argparse.RawDescriptionHelpFormatter,
         description="Roll out a reinforcement learning agent "
         "given a checkpoint.",
         epilog=EXAMPLE_USAGE)
 
-    parser.add_argument(
-        "checkpoint", type=str, help="Checkpoint from which to roll out.")
-    required_named = parser.add_argument_group("required named arguments")
-    required_named.add_argument(
-        "--run",
-        type=str,
-        required=True,
-        help="The algorithm or model to train. This may refer to the name "
-        "of a built-on algorithm (e.g. RLLib's DQN or PPO), or a "
-        "user-defined trainable function or class registered in the "
-        "tune registry.")
-    required_named.add_argument(
-        "--env", type=str, help="The gym environment to use.")
+    if not pre_created_parser:
+        parser.add_argument(
+            "checkpoint", type=str, help="Checkpoint from which to roll out.")
+        required_named = parser.add_argument_group("required named arguments")
+        required_named.add_argument(
+            "--run",
+            type=str,
+            required=True,
+            help="The algorithm or model to train. This may refer to the name "
+            "of a built-on algorithm (e.g. RLLib's DQN or PPO), or a "
+            "user-defined trainable function or class registered in the "
+            "tune registry.")
+        required_named.add_argument(
+            "--env", type=str, help="The gym environment to use.")
     parser.add_argument(
         "--no-render",
         default=False,
@@ -211,13 +212,14 @@ def create_parser(parser_creator=None):
         default=0,
         help="Number of complete episodes to roll out (overrides --steps).")
     parser.add_argument("--out", default=None, help="Output filename.")
-    parser.add_argument(
-        "--config",
-        default="{}",
-        type=json.loads,
-        help="Algorithm-specific configuration (e.g. env, hyperparams). "
-        "Gets merged with loaded configuration from checkpoint file and "
-        "`evaluation_config` settings therein.")
+    if not pre_created_parser:
+        parser.add_argument(
+            "--config",
+            default="{}",
+            type=json.loads,
+            help="Algorithm-specific configuration (e.g. env, hyperparams). "
+            "Gets merged with loaded configuration from checkpoint file and "
+            "`evaluation_config` settings therein.")
     parser.add_argument(
         "--save-info",
         default=False,
@@ -240,10 +242,32 @@ def create_parser(parser_creator=None):
     return parser
 
 
-def run(args, parser):
+def run(args, parser, checkpoint = None):
+    # Old option: monitor, use video-dir instead.
+    if args.monitor:
+        deprecation_warning("--monitor", "--video-dir=[some dir]")
+    # User tries to record videos, but no-render is set: Error.
+    if (args.monitor or args.video_dir) and args.no_render:
+        raise ValueError(
+            "You have --no-render set, but are trying to record rollout videos"
+            " (via options --video-dir/--monitor)! "
+            "Either unset --no-render or do not use --video-dir/--monitor.")
+    # --use_shelve w/o --out option.
+    if args.use_shelve and not args.out:
+        raise ValueError(
+            "If you set --use-shelve, you must provide an output file via "
+            "--out as well!")
+    # --track-progress w/o --out option.
+    if args.track_progress and not args.out:
+        raise ValueError(
+            "If you set --track-progress, you must provide an output file via "
+            "--out as well!")
+
     config = {}
     # Load configuration from checkpoint file.
-    config_dir = os.path.dirname(args.checkpoint)
+    if not checkpoint:
+        checkpoint = args.checkpoint
+    config_dir = os.path.dirname(checkpoint)
     config_path = os.path.join(config_dir, "params.pkl")
     # Try parent directory.
     if not os.path.exists(config_path):
@@ -275,13 +299,14 @@ def run(args, parser):
             parser.error("the following arguments are required: --env")
         args.env = config.get("env")
 
-    ray.init()
+    if not ray.is_initialized():
+        ray.init()
 
     # Create the Trainer from config.
     cls = get_trainable_cls(args.run)
     agent = cls(env=args.env, config=config)
     # Load state from checkpoint.
-    agent.restore(args.checkpoint)
+    agent.restore(checkpoint)
     num_steps = int(args.steps)
     num_episodes = int(args.episodes)
 
@@ -306,6 +331,7 @@ def run(args, parser):
             save_info=args.save_info) as saver:
         rollout(agent, args.env, num_steps, num_episodes, saver,
                 args.no_render, video_dir)
+    agent.stop()
 
 
 class DefaultMapping(collections.defaultdict):
@@ -447,25 +473,5 @@ def rollout(agent,
 if __name__ == "__main__":
     parser = create_parser()
     args = parser.parse_args()
-
-    # Old option: monitor, use video-dir instead.
-    if args.monitor:
-        deprecation_warning("--monitor", "--video-dir=[some dir]")
-    # User tries to record videos, but no-render is set: Error.
-    if (args.monitor or args.video_dir) and args.no_render:
-        raise ValueError(
-            "You have --no-render set, but are trying to record rollout videos"
-            " (via options --video-dir/--monitor)! "
-            "Either unset --no-render or do not use --video-dir/--monitor.")
-    # --use_shelve w/o --out option.
-    if args.use_shelve and not args.out:
-        raise ValueError(
-            "If you set --use-shelve, you must provide an output file via "
-            "--out as well!")
-    # --track-progress w/o --out option.
-    if args.track_progress and not args.out:
-        raise ValueError(
-            "If you set --track-progress, you must provide an output file via "
-            "--out as well!")
 
     run(args, parser)

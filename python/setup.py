@@ -95,6 +95,7 @@ extras["rllib"] = extras["tune"] + [
     "opencv-python-headless",
     "pyyaml",
     "scipy",
+    "pyrr==0.10.3",
 ]
 
 extras["streaming"] = ["msgpack >= 0.6.2"]

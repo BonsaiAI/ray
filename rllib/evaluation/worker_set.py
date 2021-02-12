@@ -7,7 +7,7 @@ from ray.rllib.utils.annotations import DeveloperAPI
 from ray.rllib.evaluation.rollout_worker import RolloutWorker, \
     _validate_multiagent_config
 from ray.rllib.offline import NoopOutput, JsonReader, MixedInput, JsonWriter, \
-    ShuffledInput
+    ShuffledInput, D4RLReader
 from ray.rllib.utils import merge_dicts, try_import_tf
 
 tf = try_import_tf()
@@ -110,10 +110,15 @@ class WorkerSet(Generic[TRolloutWorker]):
 
     def stop(self):
         """Stop all rollout workers."""
-        self.local_worker().stop()
-        for w in self.remote_workers():
-            w.stop.remote()
-            w.__ray_terminate__.remote()
+        try:
+            self.local_worker().stop()
+            tids = [w.stop.remote() for w in self.remote_workers()]
+            ray.get(tids)
+        except Exception:
+            logger.exception("Failed to stop workers")
+        finally:
+            for w in self.remote_workers():
+                w.__ray_terminate__.remote()
 
     @DeveloperAPI
     def foreach_worker(self, func):
@@ -202,13 +207,16 @@ class WorkerSet(Generic[TRolloutWorker]):
         elif config["input"] == "sampler":
             input_creator = (lambda ioctx: ioctx.default_sampler_input())
         elif isinstance(config["input"], dict):
-            input_creator = (lambda ioctx: ShuffledInput(
-                MixedInput(config["input"], ioctx), config[
-                    "shuffle_buffer_size"]))
+            input_creator = (
+                lambda ioctx: ShuffledInput(MixedInput(config["input"], ioctx),
+                                            config["shuffle_buffer_size"]))
+        elif "d4rl" in config["input"]:
+            env_name = config["input"].split(".")[1]
+            input_creator = (lambda ioctx: D4RLReader(env_name, ioctx))
         else:
-            input_creator = (lambda ioctx: ShuffledInput(
-                JsonReader(config["input"], ioctx), config[
-                    "shuffle_buffer_size"]))
+            input_creator = (
+                lambda ioctx: ShuffledInput(JsonReader(config["input"], ioctx),
+                                            config["shuffle_buffer_size"]))
 
         if isinstance(config["output"], FunctionType):
             output_creator = config["output"]

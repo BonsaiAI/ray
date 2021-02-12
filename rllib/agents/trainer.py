@@ -187,6 +187,25 @@ COMMON_CONFIG = {
     # Note that evaluation is currently not parallelized, and that for Ape-X
     # metrics are already only reported for the lowest epsilon workers.
     "evaluation_interval": None,
+    # Evaluate the policy after the `episode_reward_mean` is equal or greater than
+    # this number. The interaction between this config and `evaluation_interval`
+    # is as follow:
+    # - `evaluation_interval` == None with `evaluation_reward_threshold` == None:
+    #   evaluation is disable.
+    # - `evaluation_interval` == None with `evaluation_reward_threshold` != None:
+    #   evaluation is performed in every train step after the `episode_reward_mean`
+    #   is equal or greater than the number specified by `evaluation_reward_threshold`.
+    # - `evaluation_interval` != None with `evaluation_reward_threshold` == None:
+    #   evaluation is performed every `evaluation_interval` train steps.
+    # - `evaluation_interval` != None with `evaluation_reward_threshold` != None:
+    #   after the `episode_reward_mean` is equal or greater than the number specified
+    #   by `evaluation_reward_threshold`, the evaluation will be performed every
+    #   `evaluation_interval` train steps.
+    # Note that `episode_reward_mean` can decrease in cases where the agents gets
+    # into an unlearning condition. That's why this setting is used as switch,
+    # whenever the `episode_reward_mean` get to this threshold, the evaluation will
+    # be executed following the logic described before.
+    "evaluation_reward_threshold": None,
     # Number of episodes to run per evaluation period. If using multiple
     # evaluation workers, we will run at least this many episodes total.
     "evaluation_num_episodes": 10,
@@ -225,7 +244,7 @@ COMMON_CONFIG = {
     "synchronize_filters": True,
     # Configures TF for single-process operation by default.
     "tf_session_args": {
-        # note: overriden by `local_tf_session_args`
+        # note: overridden by `local_tf_session_args`
         "intra_op_parallelism_threads": 2,
         "inter_op_parallelism_threads": 2,
         "gpu_options": {
@@ -441,6 +460,10 @@ class Trainer(Trainable):
         # in self._setup().
         config = config or {}
 
+        # The default value equal to True indicates that by default
+        # the evaluation schedule is controlled by `evaluation_interval`
+        self._evaluation_reward_threshold_pass = True
+
         # Vars to synchronize to workers on each train call
         self.global_vars = {"timestep": 0}
 
@@ -531,10 +554,16 @@ class Trainer(Trainable):
         if self.config["evaluation_interval"] == 1 or (
                 self._iteration > 0 and self.config["evaluation_interval"]
                 and self._iteration % self.config["evaluation_interval"] == 0):
-            evaluation_metrics = self._evaluate()
-            assert isinstance(evaluation_metrics, dict), \
-                "_evaluate() needs to return a dict."
-            result.update(evaluation_metrics)
+            if not self._evaluation_reward_threshold_pass:
+                episode_reward_mean = result["episode_reward_mean"]
+                self._evaluation_reward_threshold_pass = (episode_reward_mean >=
+                                                          self.config[
+                                                              "evaluation_reward_threshold"])
+            if self._evaluation_reward_threshold_pass:
+                evaluation_metrics = self._evaluate()
+                assert isinstance(evaluation_metrics, dict), \
+                    "_evaluate() needs to return a dict."
+                result.update(evaluation_metrics)
 
         return result
 
@@ -641,7 +670,17 @@ class Trainer(Trainable):
             self._init(self.config, self.env_creator)
 
             # Evaluation setup.
-            if self.config.get("evaluation_interval"):
+            if (self.config.get("evaluation_interval") or
+                self.config.get("evaluation_reward_threshold") is not None):
+                # If no evaluation interval is provided, we assumed that evaluations
+                # have to be performed every train step after the `episode_reward_mean`
+                # is equal or greater than the number specified by
+                # `evaluation_reward_threshold`.
+                if not self.config.get("evaluation_interval"):
+                    self.config["evaluation_interval"] = 1
+                self._evaluation_reward_threshold_pass = (self.config.
+                                                          get("evaluation_reward_threshold")
+                                                          is None)
                 # Update env_config with evaluation settings:
                 extra_config = copy.deepcopy(self.config["evaluation_config"])
                 # Assert that user has not unset "in_evaluation".
@@ -998,6 +1037,17 @@ class Trainer(Trainable):
             raise ValueError(
                 "`input_evaluation` must be a list of strings, got {}".format(
                     config["input_evaluation"]))
+
+        # If evaluation_num_workers > 0, warn if evaluation_interval is None
+        # (also set it to 1).
+        if config["evaluation_num_workers"] > 0 and \
+                not config["evaluation_interval"]:
+            logger.warning(
+                "You have specified {} evaluation workers, but no evaluation "
+                "interval! Will set the interval to 1 (each `train()` call). "
+                "If this is too frequent, set `evaluation_interval` to some "
+                "larger value.".format(config["evaluation_num_workers"]))
+            config["evaluation_interval"] = 1
 
     def _try_recover(self):
         """Try to identify and blacklist any unhealthy workers.

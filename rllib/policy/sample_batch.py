@@ -71,7 +71,7 @@ class SampleBatch:
             assert isinstance(k, str), self
             lengths.append(len(v))
             if isinstance(v, list):
-                self.data[k] = np.array(v)
+                self.data[k] = np.array(v, dtype=np.float32)
         if not lengths:
             raise ValueError("Empty sample batch")
         if not self.dont_check_lens:

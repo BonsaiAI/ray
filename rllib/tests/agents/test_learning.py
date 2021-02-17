@@ -46,12 +46,19 @@ def test_algorithms_can_converge_with_different_frameworks(
     NOTE: Not all algorithms have been implemented in all frameworks.
     """
     results = None
+    episode_reward_mean = -float("inf")
     for i in range(n_iter):
         results = trainer.train()
+        episode_reward_mean = (results["evaluation"]["episode_reward_mean"]
+                               if ("evaluation_interval" in config_overrides
+                                   and config_overrides["evaluation_interval"])
+                               else results["episode_reward_mean"])
+        logger.warning(f"Train call {i} with reward {episode_reward_mean} and "
+                       f"Metrics:\n{results}")
     if n_iter >= 1:
         assert results is not None
     if results:
-        assert results["episode_reward_mean"] >= threshold
+        assert episode_reward_mean >= threshold
 
 
 @pytest.mark.minutes
@@ -84,7 +91,10 @@ def test_monotonically_improving_algorithms_can_converge_with_different_framewor
     episode_reward_mean = -float("inf")
     for i in range(n_iter):
         results = trainer.train()
-        episode_reward_mean = results["episode_reward_mean"]
+        episode_reward_mean = (results["evaluation"]["episode_reward_mean"]
+                               if ("evaluation_interval" in config_overrides
+                                   and config_overrides["evaluation_interval"])
+                               else results["episode_reward_mean"])
         logger.warning(f"Train call {i} with reward {episode_reward_mean} and "
                     f"Metrics:\n{results}")
         if episode_reward_mean >= threshold:

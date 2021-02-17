@@ -12,7 +12,7 @@ stages:
     dependsOn: []
     jobs:
       - job: RayTestsSmallAndLarge
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -52,7 +52,7 @@ stages:
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
       - job: RayTestsMediumAtoJ
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -92,7 +92,7 @@ stages:
           # Template containing steps to publish artifacts
           - template: templates/artifacts.yml
       - job: RayTestsMediumKtoZ
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -134,7 +134,7 @@ stages:
       - job: RayASANTests
         # Disabled
         condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -172,7 +172,7 @@ stages:
       - job: RLlibQuickTrainTF2
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -201,7 +201,7 @@ stages:
       - job: RLlibTestsAtoLTF2
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -230,7 +230,7 @@ stages:
       - job: RLlibTestsMtoZTF2
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -335,7 +335,7 @@ stages:
       - job: TuneTests
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -360,7 +360,7 @@ stages:
       - job: SGDTests
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -385,7 +385,7 @@ stages:
       - job: TuneSGDTests
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -416,7 +416,7 @@ stages:
       - job: JavaTests
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -443,7 +443,7 @@ stages:
       - job: StreamingTests
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -470,7 +470,7 @@ stages:
       - job: CPPWorkerTests
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -499,7 +499,7 @@ stages:
       - job: RLlibRegressionTF2
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -528,7 +528,7 @@ stages:
       - job: RLlibRegressionTF1
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -557,7 +557,7 @@ stages:
       - job: RLlibLearningTorch
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -586,7 +586,7 @@ stages:
       - job: RLlibExamplesTF2
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -619,7 +619,7 @@ stages:
       - job: MultiPlatformJars
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -646,7 +646,7 @@ stages:
       - job: TestDocExamples
         # Disabled
         # condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:
@@ -671,7 +671,7 @@ stages:
       - job: Lint
         # Disabled
         condition: False
-        timeoutInMinutes: 240
+        timeoutInMinutes: 360
         cancelTimeoutInMinutes: 5
         strategy:
           matrix:

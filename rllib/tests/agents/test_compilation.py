@@ -50,6 +50,10 @@ def test_algorithms_can_compile_with_different_frameworks(
     if n_iter >= 1:
         assert results is not None
     if results:
-        assert results["episode_reward_mean"] >= threshold
+        if ("evaluation_interval" in config_overrides
+                and config_overrides["evaluation_interval"]):
+            assert results["evaluation"]["episode_reward_mean"] >= threshold
+        else:
+            assert results["episode_reward_mean"] >= threshold
 
 

@@ -409,6 +409,7 @@ class LocalVanillaReplayBuffer(LocalReplayBuffer):
         prioritized_replay_alpha=0.6,
         prioritized_replay_beta=0.4,
         prioritized_replay_eps=1e-6,
+        replay_mode: str = "independent",
         multiagent_sync_replay=False,
     ):
         self.replay_starts = learning_starts // num_shards
@@ -416,7 +417,11 @@ class LocalVanillaReplayBuffer(LocalReplayBuffer):
         self.replay_batch_size = replay_batch_size
         self.prioritized_replay_beta = prioritized_replay_beta
         self.prioritized_replay_eps = prioritized_replay_eps
+        self.replay_mode = replay_mode
         self.multiagent_sync_replay = multiagent_sync_replay
+
+        if replay_mode not in ["lockstep", "independent"]:
+            raise ValueError("Unsupported replay mode: {}".format(replay_mode))
 
         def gen_replay():
             while True:

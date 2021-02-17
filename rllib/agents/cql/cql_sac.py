@@ -2,9 +2,10 @@
 """
 from typing import Optional, Type
 
+from ray.rllib.agents.cql.cql_sac_tf_policy import CQLSACTFPolicy
 from ray.rllib.agents.sac.sac import SACTrainer, \
     DEFAULT_CONFIG as SAC_CONFIG
-from ray.rllib.agents.cql.cql_torch_policy import CQLTorchPolicy
+from ray.rllib.agents.cql.cql_sac_torch_policy import CQLSACTorchPolicy
 from ray.rllib.utils.typing import TrainerConfigDict
 from ray.rllib.policy.policy import Policy
 from ray.rllib.utils import merge_dicts
@@ -29,25 +30,23 @@ CQL_DEFAULT_CONFIG = merge_dicts(
         "lagrangian_thresh": 5.0,
         # Min Q Weight multiplier
         "min_q_weight": 5.0,
+        # Initial value to use for the Alpha Prime (in CQL Loss).
+        "initial_alpha_prime": 1.0,
     })
 # __sphinx_doc_end__
 # yapf: enable
 
 
-def validate_config(config: TrainerConfigDict):
-    if config["framework"] == "tf":
-        raise ValueError("Tensorflow CQL not implemented yet!")
-
-
 def get_policy_class(config: TrainerConfigDict) -> Optional[Type[Policy]]:
     if config["framework"] == "torch":
-        return CQLTorchPolicy
+        return CQLSACTorchPolicy
+    else:
+        return CQLSACTFPolicy
 
 
-CQLTrainer = SACTrainer.with_updates(
+CQLSACTrainer = SACTrainer.with_updates(
     name="CQL",
     default_config=CQL_DEFAULT_CONFIG,
-    validate_config=validate_config,
-    default_policy=CQLTorchPolicy,
+    default_policy=CQLSACTFPolicy,
     get_policy_class=get_policy_class,
 )

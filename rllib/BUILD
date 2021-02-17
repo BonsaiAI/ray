@@ -1291,6 +1291,7 @@ py_test(
     name = "test_learning",
     tags = ["tests_dir", "tests_dir_A", "learning_tests"],
     size = "large",
+    data = glob(["tests/data/moab/*.json"]),
     srcs = ["tests/agents/test_learning.py"]
 )
 

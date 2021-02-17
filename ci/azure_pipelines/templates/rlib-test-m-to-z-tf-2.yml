@@ -39,4 +39,4 @@ steps:
     PYTHONWARNINGS: 'ignore'
     TRAVIS: 'true'
   displayName: 'Run original rlib test job J-to-Z with TF 2'
-  timeoutInMinutes: 240
+  timeoutInMinutes: 360

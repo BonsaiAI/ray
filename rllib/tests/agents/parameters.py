@@ -217,6 +217,39 @@ test_compilation_params: List[Tuple[Algorithm, dict, str, Framework, int, float]
             algorithm=ContinuousActionSpaceAlgorithm.PPO,
             config_updates={"num_workers": 0},
         ),
+        TestAgentParams.for_moab_move_to_center(
+            algorithm=ContinuousActionSpaceAlgorithm.CQL_SAC,
+            config_updates={
+                # Common Configs
+                "num_workers": 0,
+                "input": "tests/data/moab/*.json",
+                "train_batch_size": 256,  # 10
+                "learning_starts": 0,
+                "clip_actions": False,
+                "normalize_actions": True,
+                "input_evaluation": [],
+                "evaluation_config": {
+                    "input": "sampler",
+                    "explore": False,
+                },
+                "evaluation_interval": 1,
+                "evaluation_num_episodes": 10,
+                "evaluation_num_workers": 1,
+                "log_level": logging.ERROR,
+                # SAC Configs
+                "twin_q": True,
+                "prioritized_replay": False,
+                # CQL Configs
+                "bc_iters": 5,
+                "temperature": 1.0,
+                "num_actions": 10,
+                "lagrangian": True,  # False
+                "lagrangian_thresh": 5.0,
+                "min_q_weight": 5.0,
+                "initial_alpha_prime": 1.0,
+            },
+            frameworks=[Framework.TensorFlow, Framework.Eager],
+        ),
     )
 ]
 
@@ -229,6 +262,68 @@ test_convergence_params: List[Tuple[Algorithm, dict, str, Framework, int, float]
             n_iter=20,
             threshold=100.0,
         ),
+        # TestAgentParams.for_moab_move_to_center(
+        #     algorithm=ContinuousActionSpaceAlgorithm.SAC,
+        #     config_updates={
+        #         # Common Configs
+        #         "num_workers": 0,
+        #         "input": "tests/data/moab/*.json",
+        #         "train_batch_size": 256,  # 10
+        #         "learning_starts": 0,
+        #         "clip_actions": False,
+        #         "normalize_actions": True,
+        #         "input_evaluation": [],
+        #         "evaluation_config": {
+        #             "input": "sampler",
+        #             "explore": False,
+        #         },
+        #         "evaluation_interval": 1,
+        #         "evaluation_num_episodes": 10,
+        #         "evaluation_num_workers": 1,
+        #         "log_level": logging.ERROR,
+        #         # SAC Configs
+        #         "twin_q": True,
+        #         "prioritized_replay": False,
+        #     },
+        #     n_iter=25, #250,
+        #     threshold=150.0,
+        #     frameworks=[Framework.TensorFlow],
+        # ),
+        TestAgentParams.for_moab_move_to_center(
+            algorithm=ContinuousActionSpaceAlgorithm.CQL_SAC,
+            config_updates={
+                # Common Configs
+                "num_workers": 0,
+                "input": "tests/data/moab/*.json",
+                "train_batch_size": 256,  # 10
+                "learning_starts": 0,
+                "clip_actions": False,
+                "normalize_actions": True,
+                "input_evaluation": [],
+                "evaluation_config": {
+                    "input": "sampler",
+                    "explore": False,
+                },
+                "evaluation_interval": 1,
+                "evaluation_num_episodes": 10,
+                "evaluation_num_workers": 1,
+                "log_level": logging.ERROR,
+                # SAC Configs
+                "twin_q": True,
+                "prioritized_replay": False,
+                # CQL Configs
+                "bc_iters": 100,  # 5,
+                "temperature": 1.0,
+                "num_actions": 10,
+                "lagrangian": True,  # False
+                "lagrangian_thresh": 5.0,
+                "min_q_weight": 5.0,
+                "initial_alpha_prime": 1.0,
+            },
+            n_iter=25, #3000, #500, #100, #25,  # 250,
+            threshold=150.0,
+            frameworks=[Framework.TensorFlow],
+        ),
     )
 ]
 
@@ -237,47 +332,47 @@ test_monotonic_convergence_params: List[
 ] = [
     x.astuple()
     for x in chain(
-        TestAgentParams.for_cart_pole(
-            algorithm=DiscreteActionSpaceAlgorithm.PPO,
-            config_updates={
-                "num_gpus": 2,
-                "_fake_gpus": True,
-                "num_workers": 1,
-                "lr": 0.0003,
-                "observation_filter": "MeanStdFilter",
-                "num_sgd_iter": 6,
-                "vf_share_layers": True,
-                "vf_loss_coeff": 0.01,
-                "model": {"fcnet_hiddens": [32], "fcnet_activation": "linear"},
-            },
-            n_iter=200,
-            threshold=150.0,
-        ),
-        TestAgentParams.for_pendulum(
-            algorithm=ContinuousActionSpaceAlgorithm.APEX_DDPG,
-            config_updates={
-                "use_huber": True,
-                "clip_rewards": False,
-                "num_workers": 4,
-                "n_step": 1,
-                "target_network_update_freq": 50000,
-                "tau": 1.0,
-            },
-            n_iter=200,
-            threshold=-750.0,
-        ),
-        TestAgentParams.for_cart_pole(
-            algorithm=DiscreteActionSpaceAlgorithm.APEX_DQN,
-            config_updates={
-                "target_network_update_freq": 20000,
-                "num_workers": 4,
-                "num_envs_per_worker": 8,
-                "train_batch_size": 64,
-                "gamma": 0.95,
-            },
-            n_iter=200,
-            threshold=150.0,
-        ),
+        # TestAgentParams.for_cart_pole(
+        #     algorithm=DiscreteActionSpaceAlgorithm.PPO,
+        #     config_updates={
+        #         "num_gpus": 2,
+        #         "_fake_gpus": True,
+        #         "num_workers": 1,
+        #         "lr": 0.0003,
+        #         "observation_filter": "MeanStdFilter",
+        #         "num_sgd_iter": 6,
+        #         "vf_share_layers": True,
+        #         "vf_loss_coeff": 0.01,
+        #         "model": {"fcnet_hiddens": [32], "fcnet_activation": "linear"},
+        #     },
+        #     n_iter=200,
+        #     threshold=150.0,
+        # ),
+        # TestAgentParams.for_pendulum(
+        #     algorithm=ContinuousActionSpaceAlgorithm.APEX_DDPG,
+        #     config_updates={
+        #         "use_huber": True,
+        #         "clip_rewards": False,
+        #         "num_workers": 4,
+        #         "n_step": 1,
+        #         "target_network_update_freq": 50000,
+        #         "tau": 1.0,
+        #     },
+        #     n_iter=200,
+        #     threshold=-750.0,
+        # ),
+        # TestAgentParams.for_cart_pole(
+        #     algorithm=DiscreteActionSpaceAlgorithm.APEX_DQN,
+        #     config_updates={
+        #         "target_network_update_freq": 20000,
+        #         "num_workers": 4,
+        #         "num_envs_per_worker": 8,
+        #         "train_batch_size": 64,
+        #         "gamma": 0.95,
+        #     },
+        #     n_iter=200,
+        #     threshold=150.0,
+        # ),
         TestAgentParams.for_cart_pole(
             algorithm=DiscreteActionSpaceAlgorithm.SAC,
             config_updates={
@@ -314,85 +409,85 @@ test_monotonic_convergence_params: List[
             n_iter=200,
             threshold=-350.,
         ),
-        TestAgentParams.for_pendulum(
-            algorithm=ContinuousActionSpaceAlgorithm.APEX_SAC,
-            config_updates={
-                "num_workers": 8,
-                "exploration_config": {"type": "StochasticSampling"},
-                "prioritized_replay": True,
-                "no_done_at_end": True
-            },
-            n_iter=200,
-            threshold=-350.,
-        ),
-        TestAgentParams.for_pendulum(
-            algorithm=DiscreteActionSpaceAlgorithm.SAC,
-            config_updates={
-                "horizon": 200,
-                "soft_horizon": True,
-                "Q_model": {"fcnet_activation": "relu", "fcnet_hiddens": [256, 256]},
-                "policy_model": {
-                    "fcnet_activation": "relu",
-                    "fcnet_hiddens": [256, 256],
-                },
-                "tau": 0.005,
-                "target_entropy": "auto",
-                "no_done_at_end": True,
-                "n_step": 1,
-                "rollout_fragment_length": 1,
-                "prioritized_replay": True,
-                "train_batch_size": 256,
-                "target_network_update_freq": 1,
-                "timesteps_per_iteration": 1000,
-                "learning_starts": 256,
-                "optimization": {
-                    "actor_learning_rate": 0.0003,
-                    "critic_learning_rate": 0.0003,
-                    "entropy_learning_rate": 0.0003,
-                },
-                "num_workers": 4,
-                "num_gpus": 0,
-                "clip_actions": False,
-                "normalize_actions": True,
-                "metrics_smoothing_episodes": 5,
-            },
-            n_iter=200,
-            threshold=-750.0,
-        ),
-        TestAgentParams.for_moab_move_to_center(
-            algorithm=ContinuousActionSpaceAlgorithm.PPO,
-            config_updates={
-                "num_gpus": 2,
-                "_fake_gpus": True,
-                "num_workers": 3,
-                "num_envs_per_worker": 5,
-                # Advance configs
-                "batch_mode": "complete_episodes",  # default truncate_episodes
-                "use_gae": True,  # default True
-                "use_critic": True,  # default True
-                "shuffle_sequences": True,  # default True
-                "entropy_coeff": 0.0,  # default 0.0 - range 0 to 0.01
-                "vf_loss_coeff": 1.0,  # default 1.0 - range 0.5, 1
-                "kl_coeff": 0.2,  # default 0.2 - range 0.3 to 1
-                "kl_target": 0.01,  # default 0.01 - range 0.003 to 0.03
-                "clip_param": 0.3,  # default 0.3 - range 0.1, 0.2, 0.3
-                # default 10.0 - range sensitive to scale of the rewards
-                "vf_clip_param": 100.0,
-                "gamma": 0.99,  # default 0.99 - range 0.8 to 0.9997
-                "lambda": 1.0,  # default 1.0 - range 0.9 to 1
-                # Size of batches collected from each worker
-                "rollout_fragment_length": 100,
-                "sgd_minibatch_size": 128,  # default 128
-                # Num of SGD passes per train batch
-                "num_sgd_iter": 15,  # default 30
-                # Number of timesteps collected for each SGD round
-                "train_batch_size": 6000,
-                "log_level": logging.INFO,
-            },
-            n_iter=250,
-            threshold=240.0,
-            # frameworks=[Framework.TensorFlow],
-        ),
+        # TestAgentParams.for_pendulum(
+        #     algorithm=ContinuousActionSpaceAlgorithm.APEX_SAC,
+        #     config_updates={
+        #         "num_workers": 8,
+        #         "exploration_config": {"type": "StochasticSampling"},
+        #         "prioritized_replay": True,
+        #         "no_done_at_end": True
+        #     },
+        #     n_iter=200,
+        #     threshold=-350.,
+        # ),
+        # TestAgentParams.for_pendulum(
+        #     algorithm=DiscreteActionSpaceAlgorithm.SAC,
+        #     config_updates={
+        #         "horizon": 200,
+        #         "soft_horizon": True,
+        #         "Q_model": {"fcnet_activation": "relu", "fcnet_hiddens": [256, 256]},
+        #         "policy_model": {
+        #             "fcnet_activation": "relu",
+        #             "fcnet_hiddens": [256, 256],
+        #         },
+        #         "tau": 0.005,
+        #         "target_entropy": "auto",
+        #         "no_done_at_end": True,
+        #         "n_step": 1,
+        #         "rollout_fragment_length": 1,
+        #         "prioritized_replay": True,
+        #         "train_batch_size": 256,
+        #         "target_network_update_freq": 1,
+        #         "timesteps_per_iteration": 1000,
+        #         "learning_starts": 256,
+        #         "optimization": {
+        #             "actor_learning_rate": 0.0003,
+        #             "critic_learning_rate": 0.0003,
+        #             "entropy_learning_rate": 0.0003,
+        #         },
+        #         "num_workers": 4,
+        #         "num_gpus": 0,
+        #         "clip_actions": False,
+        #         "normalize_actions": True,
+        #         "metrics_smoothing_episodes": 5,
+        #     },
+        #     n_iter=200,
+        #     threshold=-750.0,
+        # ),
+        # TestAgentParams.for_moab_move_to_center(
+        #     algorithm=ContinuousActionSpaceAlgorithm.PPO,
+        #     config_updates={
+        #         "num_gpus": 2,
+        #         "_fake_gpus": True,
+        #         "num_workers": 3,
+        #         "num_envs_per_worker": 5,
+        #         # Advance configs
+        #         "batch_mode": "complete_episodes",  # default truncate_episodes
+        #         "use_gae": True,  # default True
+        #         "use_critic": True,  # default True
+        #         "shuffle_sequences": True,  # default True
+        #         "entropy_coeff": 0.0,  # default 0.0 - range 0 to 0.01
+        #         "vf_loss_coeff": 1.0,  # default 1.0 - range 0.5, 1
+        #         "kl_coeff": 0.2,  # default 0.2 - range 0.3 to 1
+        #         "kl_target": 0.01,  # default 0.01 - range 0.003 to 0.03
+        #         "clip_param": 0.3,  # default 0.3 - range 0.1, 0.2, 0.3
+        #         # default 10.0 - range sensitive to scale of the rewards
+        #         "vf_clip_param": 100.0,
+        #         "gamma": 0.99,  # default 0.99 - range 0.8 to 0.9997
+        #         "lambda": 1.0,  # default 1.0 - range 0.9 to 1
+        #         # Size of batches collected from each worker
+        #         "rollout_fragment_length": 100,
+        #         "sgd_minibatch_size": 128,  # default 128
+        #         # Num of SGD passes per train batch
+        #         "num_sgd_iter": 15,  # default 30
+        #         # Number of timesteps collected for each SGD round
+        #         "train_batch_size": 6000,
+        #         "log_level": logging.INFO,
+        #     },
+        #     n_iter=250,
+        #     threshold=240.0,
+        #     # frameworks=[Framework.TensorFlow],
+        # ),
     )
 ]
 

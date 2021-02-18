@@ -47,6 +47,7 @@ def test_algorithms_can_converge_with_different_frameworks(
     """
     results = None
     episode_reward_mean = -float("inf")
+    all_rewards = []
     for i in range(n_iter):
         results = trainer.train()
         episode_reward_mean = (results["evaluation"]["episode_reward_mean"]
@@ -55,6 +56,11 @@ def test_algorithms_can_converge_with_different_frameworks(
                                else results["episode_reward_mean"])
         logger.warning(f"Train call {i} with reward {episode_reward_mean} and "
                        f"Metrics:\n{results}")
+        print(f"Train call {i} with reward {episode_reward_mean} and "
+              f"Metrics:\n{results}")
+        all_rewards.append(episode_reward_mean)
+    logger.warning(f"All rewards:\n{all_rewards}")
+    print(f"All rewards:\n{all_rewards}")
     if n_iter >= 1:
         assert results is not None
     if results:
@@ -89,6 +95,7 @@ def test_monotonically_improving_algorithms_can_converge_with_different_framewor
     """
     learnt = False
     episode_reward_mean = -float("inf")
+    all_rewards = []
     for i in range(n_iter):
         results = trainer.train()
         episode_reward_mean = (results["evaluation"]["episode_reward_mean"]
@@ -97,8 +104,11 @@ def test_monotonically_improving_algorithms_can_converge_with_different_framewor
                                else results["episode_reward_mean"])
         logger.warning(f"Train call {i} with reward {episode_reward_mean} and "
                     f"Metrics:\n{results}")
+        all_rewards.append(episode_reward_mean)
         if episode_reward_mean >= threshold:
             learnt = True
             break
+    logger.warning(f"All rewards:\n{all_rewards}")
+    print(f"All rewards:\n{all_rewards}")
 
     assert learnt, f"{episode_reward_mean} < {threshold}"

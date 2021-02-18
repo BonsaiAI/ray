@@ -460,31 +460,15 @@ class LocalVanillaReplayBuffer(LocalReplayBuffer):
             return None
 
         with self.replay_timer:
-            samples = {}
-            idxes = None
-            for policy_id, replay_buffer in self.replay_buffers.items():
-                if self.multiagent_sync_replay:
-                    if idxes is None:
-                        idxes = replay_buffer.sample_idxes(self.replay_batch_size)
-                else:
-                    idxes = replay_buffer.sample_idxes(self.replay_batch_size)
-                (
-                    obses_t,
-                    actions,
-                    rewards,
-                    obses_tp1,
-                    dones,
-                ) = replay_buffer.sample_with_idxes(idxes)
-                samples[policy_id] = SampleBatch(
-                    {
-                        "obs": obses_t,
-                        "actions": actions,
-                        "rewards": rewards,
-                        "new_obs": obses_tp1,
-                        "dones": dones,
-                    }
-                )
-            return MultiAgentBatch(samples, self.replay_batch_size)
+            if self.replay_mode == "lockstep":
+                return self.replay_buffers[_ALL_POLICIES].sample(
+                    self.replay_batch_size)
+            else:
+                samples = {}
+                for policy_id, replay_buffer in self.replay_buffers.items():
+                    samples[policy_id] = replay_buffer.sample(
+                        self.replay_batch_size)
+                return MultiAgentBatch(samples, self.replay_batch_size)
 
     def stats(self, debug=False):
         stat = {

@@ -40,7 +40,7 @@ def _import_bc():
     return marwil.BCTrainer
 
 
-def _import_cql():
+def _import_cql_sac():
     from ray.rllib.agents import cql
     return cql.CQLSACTrainer
 
@@ -138,7 +138,7 @@ ALGORITHMS = {
     "APPO": _import_appo,
     "ARS": _import_ars,
     "BC": _import_bc,
-    "CQL_SAC": _import_cql,
+    "CQL_SAC": _import_cql_sac,
     "ES": _import_es,
     "DDPG": _import_ddpg,
     "DDPPO": _import_ddppo,

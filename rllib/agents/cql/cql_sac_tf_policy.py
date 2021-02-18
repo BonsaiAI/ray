@@ -12,7 +12,7 @@ import ray
 import ray.experimental.tf_utils
 from ray.rllib.agents.cql.cql_sac_tf_model import CQLSACTFModel
 from ray.rllib.agents.sac.sac_tf_policy import ActorCriticOptimizerMixin, \
-    ComputeTDErrorMixin, TargetNetworkMixin, _get_dist_class, stats, \
+    ComputeTDErrorMixin, TargetNetworkMixin, stats, \
     compute_and_clip_gradients, apply_gradients, SACTFPolicy, sac_actor_critic_loss
 from ray.rllib.models import ModelCatalog, MODEL_DEFAULTS
 from ray.rllib.models.modelv2 import ModelV2

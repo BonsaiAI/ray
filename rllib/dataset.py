@@ -210,7 +210,8 @@ class _DataSync:
     def process_episode(self, episode_index: int, episode: List[List[Any]]):
         raise NotImplementedError
 
-    def process_iteration(self, iteration_index: int, iteration: List[Any]):
+    def process_iteration(self, episode_index: int, iteration_index: int,
+                          iteration: List[Any]):
         raise NotImplementedError
 
     def close(self, total_episodes_count: int):
@@ -242,7 +243,8 @@ class _CSVSync(_DataSync):
                         self._expanded_header.append(meta_column)
             self._csv_writer.writerow(self._expanded_header)
 
-    def process_iteration(self, iteration_index: int, iteration: List[Any]):
+    def process_iteration(self, episode_index: int, iteration_index: int,
+                          iteration: List[Any]):
         expanded_iteration_row = []
         for i, field in enumerate(iteration[:len(self.REQUIRED_HEADER)]):
             if i not in self.OMISSION_COLUMN_INDEXES:
@@ -279,7 +281,8 @@ class _ShelveSync(_DataSync):
     def process_episode(self, episode_index: int, episode: List[List[Any]]):
         self._shelve[str(episode_index)] = episode
 
-    def process_iteration(self, iteration_index: int, iteration: List[Any]):
+    def process_iteration(self, episode_index: int, iteration_index: int,
+                          iteration: List[Any]):
         # Shelve can work at episode level only
         pass
 
@@ -315,9 +318,11 @@ class _JsonSync(_DataSync):
             if self._current_writer_index >= len(self._writers):
                 self._current_writer_index = 0
 
-    def process_iteration(self, iteration_index: int, iteration: List[Any]):
+    def process_iteration(self, episode_index: int, iteration_index: int,
+                          iteration: List[Any]):
         values = {k: v for k, v in
                   zip(self.RLLIB_HEADER, iteration[:len(self.RLLIB_HEADER)])}
+        values[SampleBatch.EPS_ID] = episode_index
         self._batch_builder.add_values(**values)
 
     def close(self, total_episodes_count: int):
@@ -387,7 +392,8 @@ class _H5Sync(_DataSync):
             for ds in self._datasets.values():
                 ds.resize((ds.shape[0] + len(episode)), axis=0)
 
-    def process_iteration(self, iteration_index: int, iteration: List[Any]):
+    def process_iteration(self, episode_index: int, iteration_index: int,
+                          iteration: List[Any]):
         for i, field in enumerate(iteration):
             if i in self._columns_by_index:
                 meta_column = self._columns_by_index[i]
@@ -437,7 +443,7 @@ class _Dataset:
             sync.process_episode(episode_index, episode)
         for iteration_index, iteration in enumerate(episode):
             for sync in self._syncs:
-                sync.process_iteration(iteration_index, iteration)
+                sync.process_iteration(episode_index, iteration_index, iteration)
             reward_value = iteration[_DataSync.REWARD_INDEX]
             if not isinstance(reward_value, (list, np.ndarray)):
                 if isinstance(reward_value, np.number):
@@ -459,10 +465,10 @@ class _Dataset:
     def get_total_iterations_count(self) -> int:
         return sum(self._episode_lengths)
 
-    def get_files_generated(self) -> List[str]:
-        files_generated = [s.file_name for s in self._syncs]
+    def get_files_generated(self) -> Dict[str, str]:
+        files_generated = {s._file_extension(): s.file_name for s in self._syncs}
         if not self.include_shelve:
-            files_generated.append(self.external_shelve_file)
+            files_generated[_ShelveSync._file_extension()] = self.external_shelve_file
         return files_generated
 
     def close(self):
@@ -631,8 +637,8 @@ def run(args, parser):
         reporter.report(stats_format.format(*row))
     for p in datasets_files_generated:
         reporter.report(f"Dataset files for {datasets_names[p]}:")
-        reporter.report(f"  - Shelve: {datasets_files_generated[p][0]}")
-        reporter.report(f"  - CSV: {datasets_files_generated[p][1]}")
+        for t, f in datasets_files_generated[p].items():
+            reporter.report(f"  - {t}: {f}")
     finish_time = time.perf_counter()
     total_minutes = (finish_time - start_time) / 60
     reporter.report(f"The whole process took: {total_minutes} minutes.")

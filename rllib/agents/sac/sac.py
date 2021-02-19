@@ -32,6 +32,8 @@ DEFAULT_CONFIG = with_common_config({
     # Unsquash actions to the upper and lower bounds of env's action space.
     # Ignored for discrete action spaces.
     "normalize_actions": True,
+    # Number of iterations to perform in the Behavior Cloning Pretraining
+    "bc_iters": None,
 
     # === Learning ===
     # Disable setting done=True at end of episode. This should be set to True

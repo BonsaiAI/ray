@@ -4,7 +4,7 @@ algorithm."""
 import enum
 from typing import List, Optional, Type
 
-from ray.rllib.agents import ddpg, dqn, ppo, sac
+from ray.rllib.agents import ddpg, dqn, ppo, sac, cql
 from ray.rllib.agents.ddpg import apex, td3
 from ray.rllib.agents.dqn import apex
 from ray.rllib.agents.ppo import ddppo, appo
@@ -40,6 +40,7 @@ class DiscreteActionSpaceAlgorithm(Algorithm):
     DQN = (dqn.DQNTrainer, dqn.DEFAULT_CONFIG)
     PPO = (ppo.PPOTrainer, ppo.DEFAULT_CONFIG)
     SAC = (sac.SACTrainer, sac.DEFAULT_CONFIG)
+    CQL_SAC = (cql.CQLSACTrainer, cql.CQL_DEFAULT_CONFIG)
 
 
 class ContinuousActionSpaceAlgorithm(Algorithm):
@@ -54,6 +55,7 @@ class ContinuousActionSpaceAlgorithm(Algorithm):
     TD3 = (ddpg.TD3Trainer, ddpg.td3.TD3_DEFAULT_CONFIG)
     PPO = (ppo.PPOTrainer, ppo.DEFAULT_CONFIG)
     SAC = (sac.SACTrainer, sac.DEFAULT_CONFIG)
+    CQL_SAC = (cql.CQLSACTrainer, cql.CQL_DEFAULT_CONFIG)
 
 
 def trainer_factory(

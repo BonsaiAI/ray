@@ -95,6 +95,35 @@ stages:
     displayName: 'RLlib Build'
     dependsOn: []
     jobs:
+      - job: RLlibBonsai
+        # Disabled
+        # condition: False
+        timeoutInMinutes: 240
+        cancelTimeoutInMinutes: 5
+        strategy:
+          matrix:
+            linux_python36:
+              # poolName: 'ADORayTests'
+              imageName: 'ubuntu-16.04'
+              python.version: '3.6'
+              bazel.outputRoot: $(Agent.TempDirectory)/$(Build.BuildId)
+              TEST_TMPDIR: $(Agent.TempDirectory)
+              TRAVIS_OS_NAME: 'linux'
+              USE_BAZEL_VERSION: '3.4.1'
+              AGENT_TOOLSDIRECTORY: /opt/hostedtoolcache/
+        displayName: RLlib Bonsai Tests
+        pool:
+          # name: $(poolName)
+          vmImage: $(imageName)
+        steps:
+          # Template containing the installation of requirements
+          # - template: templates/requirements-over-ubuntu.yml
+          # Template containing the installation of steps of python
+          - template: templates/python.yml
+          # Template containing the rllib-bonsai custom tests
+          - template: templates/rlib-bonsai-tests.yml
+          # Template containing steps to publish artifacts
+          - template: templates/artifacts.yml
       - job: RLlibQuickTrainTF2
         # Disabled
         # condition: False

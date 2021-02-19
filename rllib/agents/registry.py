@@ -40,9 +40,9 @@ def _import_bc():
     return marwil.BCTrainer
 
 
-def _import_cql():
+def _import_cql_sac():
     from ray.rllib.agents import cql
-    return cql.CQLTrainer
+    return cql.CQLSACTrainer
 
 
 def _import_ddpg():
@@ -95,6 +95,11 @@ def _import_sac():
     return sac.SACTrainer
 
 
+def _import_apex_sac():
+    from ray.rllib.agents import sac
+    return sac.ApexSACTrainer
+
+
 def _import_simple_q():
     from ray.rllib.agents import dqn
     return dqn.SimpleQTrainer
@@ -113,7 +118,7 @@ ALGORITHMS = {
     "APPO": _import_appo,
     "ARS": _import_ars,
     "BC": _import_bc,
-    "CQL": _import_cql,
+    "CQL_SAC": _import_cql_sac,
     "ES": _import_es,
     "DDPG": _import_ddpg,
     "DDPPO": _import_ddppo,
@@ -124,6 +129,7 @@ ALGORITHMS = {
     "PPO": _import_ppo,
     "QMIX": _import_qmix,
     "SAC": _import_sac,
+    "APEX_SAC": _import_apex_sac,
     "SimpleQ": _import_simple_q,
     "TD3": _import_td3,
 }

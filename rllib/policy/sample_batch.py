@@ -55,7 +55,25 @@ class SampleBatch:
         for k, v in self.data.copy().items():
             assert isinstance(k, str), self
             lengths.append(len(v))
-            self.data[k] = np.array(v, copy=False)
+            if ((isinstance(v, list) and len(v) > 0 and isinstance(v[0], (float, int)))
+                or (isinstance(v, np.ndarray) and issubclass(v.dtype.type, np.number))):
+                dtype = None
+                if isinstance(v, list):
+                    if isinstance(v[0], int):
+                        dtype = np.int32
+                    elif isinstance(v[0], float):
+                        dtype = np.float32
+                elif isinstance(v, np.ndarray):
+                    if isinstance(v.dtype.type, np.int64):
+                        dtype = np.int32
+                    elif issubclass(v.dtype.type, np.float64):
+                        dtype = np.float32
+                if dtype is not None:
+                    self.data[k] = np.array(v, copy=False, dtype=dtype)
+                else:
+                    self.data[k] = np.array(v, copy=False)
+            else:
+                self.data[k] = np.array(v, copy=False)
         if not lengths:
             raise ValueError("Empty sample batch")
         assert len(set(lengths)) == 1, ("data columns must be same length",

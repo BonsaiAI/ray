@@ -1145,15 +1145,16 @@ py_test(
 # All new parametrized pytest tests - Compilation
 py_test(
     name = "test_compilation",
-    tags = ["tests_dir", "tests_dir_A", "quick_train"],
+    tags = ["tests_dir", "bonsai_tests"],
     srcs = ["tests/agents/test_compilation.py"]
 )
 
 # All new parametrized pytest tests - Learning
 py_test(
     name = "test_learning",
-    tags = ["tests_dir", "tests_dir_A", "learning_tests"],
+    tags = ["tests_dir", "bonsai_tests"],
     size = "large",
+    data = glob(["tests/data/moab/*.json"]),
     srcs = ["tests/agents/test_learning.py"]
 )
 

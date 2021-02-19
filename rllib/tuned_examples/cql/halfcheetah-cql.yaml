@@ -1,6 +1,6 @@
 halfcheetah_cql:
     env: HalfCheetah-v3
-    run: CQL
+    run: CQL_SAC
     stop:
         episode_reward_mean: 9000
     config:
@@ -43,4 +43,4 @@ halfcheetah_cql:
         lagrangian: False
         evaluation_config:
             input: sampler
-
+        evaluation_num_episodes: 10

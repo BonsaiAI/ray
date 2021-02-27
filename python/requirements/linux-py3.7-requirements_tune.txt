@@ -351,7 +351,7 @@ msrest==0.6.19
     # via azure-storage-blob
 mxnet==1.7.0.post1
     # via -r requirements_tune.in
-nbclient==0.5.1
+nbclient==0.5.3
     # via nbconvert
 nbconvert==6.0.7
     # via
